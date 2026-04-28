@@ -116,6 +116,34 @@
   border-color: var(--gc-gold);
 }
 
+.credentials-form input,
+.credentials-form select,
+.credentials-form textarea {
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  padding: 0 12px;
+  color: var(--gc-text);
+  background: var(--gc-bg);
+  outline: none;
+}
+
+.credentials-form input,
+.credentials-form select {
+  min-height: 44px;
+}
+
+.credentials-form textarea {
+  min-height: 140px;
+  padding-top: 10px;
+  resize: vertical;
+}
+
+.credentials-form input:focus,
+.credentials-form select:focus,
+.credentials-form textarea:focus {
+  border-color: var(--gc-gold);
+}
+
 .form-message {
   color: var(--gc-gold);
   line-height: 1.45;
@@ -233,6 +261,82 @@
   line-height: 1.45;
 }
 
+.credentials-layout {
+  display: grid;
+  grid-template-columns: minmax(300px, 420px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.credentials-form {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.credentials-form h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.credentials-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--gc-muted);
+  font-size: 14px;
+}
+
+.credentials-list {
+  display: grid;
+  gap: 10px;
+}
+
+.credential-row,
+.credentials-empty {
+  padding: 16px;
+}
+
+.credential-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.credential-row strong,
+.credential-row span,
+.credential-state {
+  overflow-wrap: anywhere;
+}
+
+.credential-row div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.credential-row span,
+.credential-state {
+  color: var(--gc-muted);
+}
+
+.credential-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: fit-content;
+}
+
+.credential-state svg,
+.credentials-empty svg {
+  color: var(--gc-success);
+}
+
+.credentials-empty {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gc-muted);
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -260,6 +364,10 @@
   .admin-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .credentials-layout {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 560px) {
@@ -281,5 +389,13 @@
   .admin-user {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .credential-row {
+    flex-direction: column;
+  }
+
+  .credential-state {
+    min-width: 0;
   }
 }

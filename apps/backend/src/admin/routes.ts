@@ -1,6 +1,7 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import type { AdminAuthService, AuthErrorCode, PublicAdminUser } from "./auth.js";
+import type { AdminAuthService, AuthErrorCode } from "./auth.js";
+import { getBearerToken, requireAdminUser } from "./http-auth.js";
 
 const emailSchema = z.string().email().max(320);
 const passwordSchema = z.string().min(10).max(256);
@@ -100,30 +101,6 @@ export async function registerAdminAuthRoutes(
 
     return { ok: true };
   });
-}
-
-function getBearerToken(request: FastifyRequest): string | null {
-  const authorization = request.headers.authorization;
-
-  if (!authorization?.startsWith("Bearer ")) {
-    return null;
-  }
-
-  return authorization.slice("Bearer ".length).trim() || null;
-}
-
-async function requireAdminUser(
-  request: FastifyRequest,
-  authService: AdminAuthService
-): Promise<PublicAdminUser | null> {
-  const token = getBearerToken(request);
-
-  if (!token) {
-    return null;
-  }
-
-  const result = await authService.getSessionUser(token);
-  return result.ok ? result.user : null;
 }
 
 function statusForAuthError(code: AuthErrorCode): 401 | 403 {

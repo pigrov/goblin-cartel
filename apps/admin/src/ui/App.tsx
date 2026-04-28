@@ -25,6 +25,38 @@ interface AuthResponse {
   user: AdminUser;
 }
 
+interface CredentialItem {
+  id: string;
+  name: string;
+  type: CredentialType;
+  environment: CredentialEnvironment;
+  hasValue: true;
+  updatedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "push" | "json" | "secret";
+type CredentialEnvironment = "production" | "staging" | "development";
+type AdminSection = "dashboard" | "credentials";
+
+const credentialTypes: Array<{ value: CredentialType; label: string }> = [
+  { value: "api_key", label: "API key" },
+  { value: "oauth", label: "OAuth" },
+  { value: "smtp", label: "SMTP" },
+  { value: "storage", label: "Storage" },
+  { value: "analytics", label: "Analytics" },
+  { value: "push", label: "Push" },
+  { value: "json", label: "JSON" },
+  { value: "secret", label: "Secret" }
+];
+
+const credentialEnvironments: Array<{ value: CredentialEnvironment; label: string }> = [
+  { value: "production", label: "Production" },
+  { value: "staging", label: "Staging" },
+  { value: "development", label: "Development" }
+];
+
 const cards = [
   {
     title: "Контент",
@@ -56,6 +88,14 @@ export function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [credentials, setCredentials] = useState<CredentialItem[]>([]);
+  const [credentialsLoading, setCredentialsLoading] = useState(false);
+  const [credentialName, setCredentialName] = useState("");
+  const [credentialType, setCredentialType] = useState<CredentialType>("api_key");
+  const [credentialEnvironment, setCredentialEnvironment] = useState<CredentialEnvironment>("production");
+  const [credentialValue, setCredentialValue] = useState("");
+  const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -93,6 +133,14 @@ export function App() {
       active = false;
     };
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (!sessionToken || !user || user.mustSetPassword || activeSection !== "credentials") {
+      return;
+    }
+
+    void loadCredentials();
+  }, [activeSection, sessionToken, user]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -157,6 +205,63 @@ export function App() {
     }
 
     clearSession();
+  }
+
+  async function loadCredentials() {
+    if (!sessionToken) {
+      return;
+    }
+
+    setCredentialsLoading(true);
+    setCredentialMessage(null);
+
+    try {
+      const response = await apiRequest<{ credentials: CredentialItem[] }>("/admin/credentials", {
+        token: sessionToken
+      });
+      setCredentials(response.credentials);
+    } catch (error) {
+      setCredentialMessage(error instanceof Error ? error.message : "Не удалось загрузить credentials.");
+    } finally {
+      setCredentialsLoading(false);
+    }
+  }
+
+  async function handleCredentialSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!sessionToken) {
+      clearSession();
+      return;
+    }
+
+    setBusy(true);
+    setCredentialMessage(null);
+
+    try {
+      const response = await apiRequest<{ credential: CredentialItem }>("/admin/credentials", {
+        method: "POST",
+        token: sessionToken,
+        body: {
+          name: credentialName,
+          type: credentialType,
+          environment: credentialEnvironment,
+          value: credentialValue
+        }
+      });
+
+      setCredentials((current) =>
+        [response.credential, ...current.filter((item) => item.id !== response.credential.id)].sort((left, right) =>
+          left.name.localeCompare(right.name)
+        )
+      );
+      setCredentialValue("");
+      setCredentialMessage("Credential сохранен. Значение скрыто и хранится зашифрованным.");
+    } catch (error) {
+      setCredentialMessage(error instanceof Error ? error.message : "Не удалось сохранить credential.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   function setSession(token: string, nextUser: AdminUser) {
@@ -300,9 +405,21 @@ export function App() {
           <strong>Goblin Admin</strong>
         </div>
         <nav>
-          <button className="active" type="button">Dashboard</button>
+          <button
+            className={activeSection === "dashboard" ? "active" : ""}
+            onClick={() => setActiveSection("dashboard")}
+            type="button"
+          >
+            Dashboard
+          </button>
           <button type="button">Content</button>
-          <button type="button">Credentials</button>
+          <button
+            className={activeSection === "credentials" ? "active" : ""}
+            onClick={() => setActiveSection("credentials")}
+            type="button"
+          >
+            Credentials
+          </button>
           <button type="button">Publishing</button>
         </nav>
       </aside>
@@ -311,7 +428,7 @@ export function App() {
         <header>
           <div>
             <p>Окружение</p>
-            <h1>Панель управления</h1>
+            <h1>{activeSection === "credentials" ? "Credentials" : "Панель управления"}</h1>
           </div>
           <div className="admin-user">
             <span>{user.email}</span>
@@ -321,20 +438,144 @@ export function App() {
           </div>
         </header>
 
-        <section className="admin-grid">
-          {cards.map((card) => {
-            const Icon = card.icon;
-            return (
-              <article className="gc-panel admin-card" key={card.title}>
-                <Icon size={22} />
-                <h2>{card.title}</h2>
-                <p>{card.description}</p>
-              </article>
-            );
-          })}
-        </section>
+        {activeSection === "credentials" ? (
+          <CredentialsSection
+            busy={busy}
+            credentialEnvironment={credentialEnvironment}
+            credentialMessage={credentialMessage}
+            credentialName={credentialName}
+            credentialType={credentialType}
+            credentialValue={credentialValue}
+            credentials={credentials}
+            credentialsLoading={credentialsLoading}
+            onCredentialEnvironmentChange={setCredentialEnvironment}
+            onCredentialNameChange={setCredentialName}
+            onCredentialSubmit={handleCredentialSubmit}
+            onCredentialTypeChange={setCredentialType}
+            onCredentialValueChange={setCredentialValue}
+          />
+        ) : (
+          <section className="admin-grid">
+            {cards.map((card) => {
+              const Icon = card.icon;
+              return (
+                <article className="gc-panel admin-card" key={card.title}>
+                  <Icon size={22} />
+                  <h2>{card.title}</h2>
+                  <p>{card.description}</p>
+                </article>
+              );
+            })}
+          </section>
+        )}
       </section>
     </main>
+  );
+}
+
+function CredentialsSection(props: {
+  busy: boolean;
+  credentialEnvironment: CredentialEnvironment;
+  credentialMessage: string | null;
+  credentialName: string;
+  credentialType: CredentialType;
+  credentialValue: string;
+  credentials: CredentialItem[];
+  credentialsLoading: boolean;
+  onCredentialEnvironmentChange: (value: CredentialEnvironment) => void;
+  onCredentialNameChange: (value: string) => void;
+  onCredentialSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onCredentialTypeChange: (value: CredentialType) => void;
+  onCredentialValueChange: (value: string) => void;
+}) {
+  return (
+    <section className="credentials-layout">
+      <form className="gc-panel credentials-form" onSubmit={props.onCredentialSubmit}>
+        <h2>Новый ключ</h2>
+        <label>
+          Имя
+          <input
+            onChange={(event) => props.onCredentialNameChange(event.target.value)}
+            pattern="[a-z0-9][a-z0-9._-]*"
+            placeholder="rustore.api_key"
+            required
+            type="text"
+            value={props.credentialName}
+          />
+        </label>
+        <label>
+          Тип
+          <select
+            onChange={(event) => props.onCredentialTypeChange(event.target.value as CredentialType)}
+            value={props.credentialType}
+          >
+            {credentialTypes.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Окружение
+          <select
+            onChange={(event) => props.onCredentialEnvironmentChange(event.target.value as CredentialEnvironment)}
+            value={props.credentialEnvironment}
+          >
+            {credentialEnvironments.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Значение
+          <textarea
+            onChange={(event) => props.onCredentialValueChange(event.target.value)}
+            required
+            rows={6}
+            value={props.credentialValue}
+          />
+        </label>
+
+        {props.credentialMessage ? <p className="form-message">{props.credentialMessage}</p> : null}
+
+        <button className="primary-action" disabled={props.busy} type="submit">
+          {props.busy ? <Loader2 className="spin" size={18} /> : <KeyRound size={18} />}
+          Сохранить
+        </button>
+      </form>
+
+      <section className="credentials-list">
+        {props.credentialsLoading ? (
+          <article className="gc-panel credentials-empty">
+            <Loader2 className="spin" size={22} />
+            <span>Загружаем список</span>
+          </article>
+        ) : props.credentials.length === 0 ? (
+          <article className="gc-panel credentials-empty">
+            <KeyRound size={22} />
+            <span>Ключей пока нет</span>
+          </article>
+        ) : (
+          props.credentials.map((credential) => (
+            <article className="gc-panel credential-row" key={credential.id}>
+              <div>
+                <strong>{credential.name}</strong>
+                <span>
+                  {credential.type} · {credential.environment}
+                </span>
+              </div>
+              <div className="credential-state">
+                <LockKeyhole size={16} />
+                <span>{formatDateTime(credential.updatedAt)}</span>
+              </div>
+            </article>
+          ))
+        )}
+      </section>
+    </section>
   );
 }
 
@@ -384,7 +625,16 @@ function messageForApiError(error?: string): string {
       return "Проверь email и пароль.";
     case "invalid_session":
       return "Сессия истекла. Войди заново.";
+    case "password_setup_required":
+      return "Сначала нужно установить пароль.";
     default:
       return "Запрос не прошел.";
   }
+}
+
+function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    dateStyle: "short",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
