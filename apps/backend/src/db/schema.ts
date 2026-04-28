@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { boolean, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 export const adminUsers = pgTable("admin_users", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -21,6 +21,24 @@ export const appCredentials = pgTable("app_credentials", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow()
 });
+
+export const adminSessions = pgTable(
+  "admin_sessions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    adminUserId: uuid("admin_user_id")
+      .notNull()
+      .references(() => adminUsers.id),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    revokedAt: timestamp("revoked_at", { withTimezone: true })
+  },
+  (table) => ({
+    adminUserIdx: index("admin_sessions_admin_user_id_idx").on(table.adminUserId),
+    tokenHashIdx: index("admin_sessions_token_hash_idx").on(table.tokenHash)
+  })
+);
 
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -58,7 +76,15 @@ export const contentEntities = pgTable("content_entities", {
 export const adminUsersRelations = relations(adminUsers, ({ many }) => ({
   credentialsUpdated: many(appCredentials),
   auditLogs: many(auditLogs),
-  contentVersions: many(contentVersions)
+  contentVersions: many(contentVersions),
+  sessions: many(adminSessions)
+}));
+
+export const adminSessionsRelations = relations(adminSessions, ({ one }) => ({
+  adminUser: one(adminUsers, {
+    fields: [adminSessions.adminUserId],
+    references: [adminUsers.id]
+  })
 }));
 
 export const contentVersionsRelations = relations(contentVersions, ({ many }) => ({

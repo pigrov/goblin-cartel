@@ -1,8 +1,150 @@
+.auth-page,
 .admin-shell {
   min-height: 100vh;
+  background:
+    linear-gradient(135deg, rgb(0 0 0 / 22%), transparent 46%),
+    var(--gc-bg-deep);
+}
+
+.auth-page {
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.auth-panel {
+  width: min(100%, 430px);
+  padding: 22px;
+}
+
+.auth-panel-compact {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.auth-panel-compact p,
+.auth-brand p,
+.auth-brand h1,
+.auth-form p,
+.admin-main h1,
+.admin-card h2,
+.admin-main p {
+  margin: 0;
+}
+
+.auth-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.auth-brand svg,
+.brand svg,
+.admin-card svg {
+  color: var(--gc-gold);
+}
+
+.auth-brand p,
+.admin-main header p {
+  color: var(--gc-muted);
+}
+
+.auth-brand h1 {
+  margin-top: 2px;
+  font-size: 26px;
+}
+
+.auth-switch {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.auth-switch button,
+.admin-sidebar button,
+.admin-user button,
+.primary-action {
+  min-height: 44px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-text);
+  background: var(--gc-panel);
+  cursor: pointer;
+}
+
+.auth-switch button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 10px;
+}
+
+.auth-switch button.active,
+.admin-sidebar button.active {
+  border-color: var(--gc-border-strong);
+  background: var(--gc-panel-raised);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--gc-muted);
+  font-size: 14px;
+}
+
+.auth-form input {
+  min-height: 46px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  padding: 0 12px;
+  color: var(--gc-text);
+  background: var(--gc-bg);
+  outline: none;
+}
+
+.auth-form input:focus {
+  border-color: var(--gc-gold);
+}
+
+.form-message {
+  color: var(--gc-gold);
+  line-height: 1.45;
+}
+
+.primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  border-color: var(--gc-border-strong);
+  color: var(--gc-bg-deep);
+  font-weight: 700;
+  background: var(--gc-gold);
+}
+
+.primary-action:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+.admin-shell {
   display: grid;
   grid-template-columns: 260px 1fr;
-  background: var(--gc-bg-deep);
 }
 
 .admin-sidebar {
@@ -25,10 +167,6 @@
 }
 
 .admin-sidebar button {
-  min-height: 42px;
-  border: 1px solid var(--gc-border);
-  border-radius: var(--gc-radius-sm);
-  background: var(--gc-panel);
   color: var(--gc-muted);
   text-align: left;
   padding: 0 12px;
@@ -36,8 +174,6 @@
 
 .admin-sidebar button.active {
   color: var(--gc-text);
-  border-color: var(--gc-border-strong);
-  background: var(--gc-panel-raised);
 }
 
 .admin-main {
@@ -52,27 +188,27 @@
   margin-bottom: 24px;
 }
 
-.admin-main h1,
-.admin-card h2,
-.admin-main p {
-  margin: 0;
-}
-
 .admin-main header p {
   margin-bottom: 4px;
-  color: var(--gc-muted);
 }
 
 .admin-main h1 {
   font-size: 30px;
 }
 
-.status {
-  padding: 8px 12px;
-  border: 1px solid var(--gc-border);
-  border-radius: var(--gc-radius-sm);
-  color: var(--gc-energy);
-  background: rgb(68 198 200 / 10%);
+.admin-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--gc-muted);
+}
+
+.admin-user button {
+  display: grid;
+  width: 44px;
+  min-width: 44px;
+  place-items: center;
+  padding: 0;
 }
 
 .admin-grid {
@@ -86,10 +222,6 @@
   padding: 18px;
 }
 
-.admin-card svg {
-  color: var(--gc-gold);
-}
-
 .admin-card h2 {
   margin-top: 18px;
   margin-bottom: 8px;
@@ -99,6 +231,12 @@
 .admin-card p {
   color: var(--gc-muted);
   line-height: 1.45;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @media (max-width: 900px) {
@@ -125,13 +263,23 @@
 }
 
 @media (max-width: 560px) {
+  .admin-main {
+    padding: 18px;
+  }
+
   .admin-main header {
     align-items: flex-start;
     flex-direction: column;
   }
 
   .admin-sidebar nav,
-  .admin-grid {
+  .admin-grid,
+  .auth-switch {
     grid-template-columns: 1fr;
+  }
+
+  .admin-user {
+    width: 100%;
+    justify-content: space-between;
   }
 }

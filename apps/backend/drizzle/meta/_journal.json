@@ -8,6 +8,13 @@
       "when": 1777384860544,
       "tag": "0000_light_harrier",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1777406859205,
+      "tag": "0001_cheerful_tana_nile",
+      "breakpoints": true
     }
   ]
 }
