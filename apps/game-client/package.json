@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@goblin-cartel/content-schemas": "workspace:*",
     "@goblin-cartel/game-core": "workspace:*",
     "@goblin-cartel/ui-kit": "workspace:*",
     "lucide-react": "^1.11.0",

@@ -88,6 +88,9 @@ importers:
 
   apps/game-client:
     dependencies:
+      '@goblin-cartel/content-schemas':
+        specifier: workspace:*
+        version: link:../../packages/content-schemas
       '@goblin-cartel/game-core':
         specifier: workspace:*
         version: link:../../packages/game-core

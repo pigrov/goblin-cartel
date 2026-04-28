@@ -81,6 +81,18 @@
   font-size: 18px;
 }
 
+.mine-header > div {
+  min-width: 0;
+  flex: 1;
+}
+
+.mine-header p,
+.mine-header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .icon-button,
 .bottom-nav button,
 .boss-button {
@@ -134,14 +146,51 @@
 }
 
 .mine-block {
+  position: relative;
   aspect-ratio: 1;
   min-width: 0;
+  overflow: hidden;
   border: 1px solid rgb(0 0 0 / 42%);
   border-radius: 5px;
   color: rgb(255 255 255 / 72%);
   font-size: 10px;
   font-weight: 700;
   box-shadow: inset 0 -5px 0 rgb(0 0 0 / 18%);
+  cursor: pointer;
+}
+
+.mine-block:disabled {
+  cursor: default;
+}
+
+.mine-block span,
+.mine-block b,
+.mine-block i {
+  position: absolute;
+  z-index: 1;
+}
+
+.mine-block span {
+  top: 4px;
+  left: 5px;
+}
+
+.mine-block b {
+  right: 4px;
+  bottom: 4px;
+  font-size: 9px;
+  font-style: normal;
+  color: rgb(255 255 255 / 54%);
+}
+
+.mine-block i {
+  left: 4px;
+  right: auto;
+  bottom: 4px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--gc-success);
+  transition: width 120ms ease;
 }
 
 .mine-block.dirt {
@@ -158,6 +207,20 @@
 
 .mine-block.gold {
   background: linear-gradient(135deg, #655943, #d49a35 56%, #68471b);
+}
+
+.mine-block.chest-wooden {
+  background: linear-gradient(135deg, #6e4524, #b77b35 54%, #3d2918);
+}
+
+.mine-block.destroyed {
+  background: #15100c;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 4%);
+}
+
+.mine-block.destroyed i,
+.mine-block.destroyed b {
+  display: none;
 }
 
 .boss-panel {
@@ -178,11 +241,43 @@
   text-transform: uppercase;
 }
 
+.boss-button:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.8);
+  opacity: 0.62;
+}
+
 .energy-meter {
   height: 8px;
   overflow: hidden;
   border-radius: 999px;
   background: rgb(255 255 255 / 10%);
+}
+
+.active-block {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--gc-muted);
+  font-size: 12px;
+}
+
+.active-block span,
+.reward-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-block strong {
+  color: var(--gc-text);
+}
+
+.reward-line {
+  min-height: 18px;
+  color: var(--gc-gold);
+  font-size: 12px;
 }
 
 .energy-meter span {

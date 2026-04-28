@@ -17,3 +17,4 @@
 - `0004_admin_auth` - bootstrap-вход в админку, установка пароля и базовые backend-сессии.
 - `0005_admin_credentials` - раздел зашифрованных credentials в админке.
 - `0006_content_versions` - версии контента, валидация, публикация и выдача текущего конфига.
+- `0007_game_client_content_loop` - подключение игрового клиента к content bundle и первый playable mining loop.
