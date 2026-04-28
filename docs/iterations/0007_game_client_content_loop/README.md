@@ -1,7 +1,7 @@
 # 0007 game client content loop
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -44,6 +44,9 @@
   - отображается последняя награда и количество разрушенных блоков;
   - есть сброс текущей шахты.
 - В UI показан источник контента: опубликованная версия или fallback.
+- Коммит `9c04182` задеплоен через GitHub Actions.
+- Production game-client отдает новый JS-бандл с mining loop.
+- Production `GET /api/content/current` возвращает опубликованный контент.
 
 ## Измененные файлы
 
@@ -74,6 +77,23 @@ pnpm build
 ```
 
 Результат: пройдено.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> published
+game-client bundle содержит mining loop
+```
 
 ## UTF-8 и текст
 
