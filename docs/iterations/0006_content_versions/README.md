@@ -1,7 +1,7 @@
 # 0006 content versions
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -57,6 +57,8 @@
   - `Save`, `Validate`, `Publish`;
   - вывод ошибок валидации.
 - Добавлены unit tests для schemas, content service и content routes.
+- Коммит `ed789ee` задеплоен через GitHub Actions.
+- Production endpoint `GET /api/content/current` возвращает `404`, пока первая версия не создана и не опубликована через админку.
 
 ## Измененные файлы
 
@@ -93,6 +95,22 @@ pnpm build
 ```
 
 Результат: пройдено.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current без опубликованной версии -> 404
+```
 
 ## UTF-8 и текст
 
