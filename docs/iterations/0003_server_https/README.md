@@ -32,6 +32,7 @@
 - HTTP настроен на редирект в HTTPS.
 - Проверено автообновление: crontab пользователя `deploy` запускает `certbot renew` и reload Nginx.
 - `.github/workflows/deploy.yml` переключен на HTTPS-конфиг и HTTPS health-check.
+- Упаковка релиза в deploy workflow переведена на `git archive`, чтобы архив создавался только из отслеживаемых файлов репозитория.
 - `docs/11_ci_cd_server.md` обновлен по фактическому состоянию.
 
 ## Проверки
