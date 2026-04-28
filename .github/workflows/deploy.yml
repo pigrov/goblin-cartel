@@ -1,13 +1,14 @@
-name: Deploy
+name: deploy
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: ["main"]
+
+permissions:
+  contents: read
 
 env:
-  DEPLOY_HOST: 94.26.248.8
   DEPLOY_DOMAIN: goblin-cartel.murph.ru
   DEPLOY_PATH: /srv/goblin-cartel
 
@@ -51,7 +52,6 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: quality-gate
-    environment: production
 
     steps:
       - name: Checkout
@@ -64,38 +64,48 @@ jobs:
             --exclude=node_modules \
             --exclude=.env \
             --exclude=.env.production \
+            --exclude=release.tar.gz \
+            --exclude='*/node_modules' \
+            --exclude='*/dist' \
             -czf release.tar.gz .
 
-      - name: Configure SSH
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "${{ secrets.SELECTEL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+      - name: Upload release
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: release.tar.gz
+          target: /srv/goblin-cartel
 
-      - name: Upload release and env
-        run: |
-          printf '%s\n' "${{ secrets.PRODUCTION_ENV_FILE }}" > .env.production
-          ssh -p "${{ secrets.SELECTEL_SSH_PORT || '22' }}" "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST" "mkdir -p $DEPLOY_PATH"
-          scp -P "${{ secrets.SELECTEL_SSH_PORT || '22' }}" release.tar.gz "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST:$DEPLOY_PATH/release.tar.gz"
-          scp -P "${{ secrets.SELECTEL_SSH_PORT || '22' }}" .env.production "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST:$DEPLOY_PATH/.env.production"
-
-      - name: Deploy on server
-        run: |
-          ssh -p "${{ secrets.SELECTEL_SSH_PORT || '22' }}" "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST" <<'EOF'
-            set -euo pipefail
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
             cd /srv/goblin-cartel
+
+            if [ ! -s .env.production ]; then
+              echo "/srv/goblin-cartel/.env.production is missing"
+              exit 1
+            fi
+
             rm -rf current
             mkdir -p current
             tar -xzf release.tar.gz -C current
             cp .env.production current/.env.production
+
             cd current
             docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build
+
             cp deploy/nginx-goblin-cartel.http.conf /srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf
             docker exec transcribe_nginx nginx -t
             docker exec transcribe_nginx nginx -s reload
+
             docker compose --env-file .env.production -f deploy/docker-compose.prod.yml ps
-          EOF
 
       - name: Health check
         run: |

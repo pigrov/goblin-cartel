@@ -40,6 +40,7 @@
 - Добавлены общие UI tokens и `theme.css` в `packages/ui-kit`.
 - Добавлены стартовые Vite UI для game-client и admin.
 - Добавлены GitHub Actions workflows для CI и CD.
+- CD workflow приведен к серверному шаблону secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`.
 - Добавлен production Docker Compose профиль с PostgreSQL, backend, game-client и admin.
 - Добавлен HTTP nginx-конфиг для существующего общего `transcribe_nginx`.
 - Создан локальный `.env.production` из `.env`; файл не коммитится.
@@ -51,6 +52,9 @@
 - Nginx-конфиг установлен в `/srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf`.
 - Общий `transcribe_nginx` проверен и перезагружен.
 - API проверен через IP сервера с `Host: goblin-cartel.murph.ru`.
+- DNS `goblin-cartel.murph.ru` проверен: A-запись указывает на `94.26.248.8`.
+- HTTP health-check по домену `http://goblin-cartel.murph.ru/api/health` проходит.
+- Первый commit/push выполнен в `origin/main`.
 
 ## Измененные файлы
 
@@ -113,7 +117,5 @@ curl -I -H "Host: goblin-cartel.murph.ru" http://94.26.248.8/admin/
 
 ## Открытые вопросы
 
-1. Добавить GitHub Secrets для deploy workflow.
-2. Сделать первый commit/push после проверки состава файлов.
-3. Проверить DNS `goblin-cartel.murph.ru -> 94.26.248.8`.
-4. После готовности DNS выпустить TLS-сертификат и заменить HTTP nginx-конфиг на HTTPS.
+1. Убедиться, что для репозитория доступны GitHub Secrets: `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`.
+2. После проверки автоматического deploy workflow выпустить TLS-сертификат и заменить HTTP nginx-конфиг на HTTPS.

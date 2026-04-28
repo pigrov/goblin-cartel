@@ -34,13 +34,13 @@ APP_BOOTSTRAP_ADMIN_EMAILS=...
 Для deploy workflow нужны secrets:
 
 ```text
-SELECTEL_SSH_USER
-SELECTEL_SSH_PRIVATE_KEY
-SELECTEL_SSH_PORT
-PRODUCTION_ENV_FILE
+DEPLOY_HOST
+DEPLOY_USER
+DEPLOY_SSH_KEY
 ```
 
-`SELECTEL_SSH_PORT` можно указать как `22`.
+Имена совпадают с существующим шаблоном deploy workflow в других проектах на сервере.
+Production env не передается через GitHub Actions: файл должен лежать на сервере в `/srv/goblin-cartel/.env.production`.
 
 ## Что делает CI
 
@@ -60,13 +60,14 @@ Workflow `.github/workflows/deploy.yml`:
 
 1. повторяет quality gate;
 2. собирает архив репозитория;
-3. загружает архив и `.env.production` на сервер;
+3. загружает архив на сервер;
 4. распаковывает в `/srv/goblin-cartel/current`;
-5. запускает `docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build`;
-6. копирует nginx-конфиг в `/srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf`;
-7. проверяет и перезагружает общий `transcribe_nginx`;
-8. backend перед стартом применяет `drizzle-kit migrate`;
-9. workflow проверяет `http://goblin-cartel.murph.ru/api/health`.
+5. копирует серверный `/srv/goblin-cartel/.env.production` в текущий release;
+6. запускает `docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build`;
+7. копирует nginx-конфиг в `/srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf`;
+8. проверяет и перезагружает общий `transcribe_nginx`;
+9. backend перед стартом применяет `drizzle-kit migrate`;
+10. workflow проверяет `http://goblin-cartel.murph.ru/api/health`.
 
 ## Подготовка сервера
 
