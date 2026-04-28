@@ -1,7 +1,7 @@
 # 0004 admin auth
 
 **Дата:** 2026-04-28
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -43,6 +43,8 @@
 - Admin UI хранит session token в `localStorage` под ключом `goblin-cartel.admin.session-token`.
 - Production admin обращается к backend через `/api/admin/...`.
 - Добавлены unit tests для auth service и routes.
+- Коммит `ef4eb35` задеплоен через GitHub Actions.
+- Production endpoint `https://goblin-cartel.murph.ru/api/admin/bootstrap/status` возвращает `200`.
 
 ## Измененные файлы
 
@@ -79,6 +81,22 @@ pnpm build
 
 Результат: пройдено.
 
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/admin/bootstrap/status -> 200
+```
+
 ## UTF-8 и текст
 
 `pnpm encoding:check` пройден.
@@ -91,7 +109,7 @@ Drizzle migration создана через `drizzle-kit generate`:
 apps/backend/drizzle/0001_cheerful_tana_nile.sql
 ```
 
-После push в `main` CD применит миграцию перед стартом backend.
+После push в `main` CD применил миграцию перед стартом backend.
 
 ## Открытые вопросы
 
