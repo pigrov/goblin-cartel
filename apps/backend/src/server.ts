@@ -2,6 +2,9 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createAdminAuthService, type AdminAuthService } from "./admin/auth.js";
 import { DrizzleAdminAuthStore } from "./admin/auth-store.js";
+import { createContentService, type ContentService } from "./admin/content.js";
+import { registerContentRoutes } from "./admin/content-routes.js";
+import { DrizzleContentStore } from "./admin/content-store.js";
 import { createAdminCredentialService, type AdminCredentialService } from "./admin/credentials.js";
 import { registerAdminCredentialRoutes } from "./admin/credentials-routes.js";
 import { DrizzleAdminCredentialStore } from "./admin/credentials-store.js";
@@ -12,6 +15,7 @@ import { createDb } from "./db/client.js";
 export interface ServerDependencies {
   adminAuthService?: AdminAuthService;
   adminCredentialService?: AdminCredentialService;
+  contentService?: ContentService;
 }
 
 export async function buildServer(env: AppEnv, dependencies: ServerDependencies = {}): Promise<FastifyInstance> {
@@ -30,7 +34,8 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
     time: new Date().toISOString()
   }));
 
-  const db = dependencies.adminAuthService && dependencies.adminCredentialService ? null : createDb(env);
+  const db =
+    dependencies.adminAuthService && dependencies.adminCredentialService && dependencies.contentService ? null : createDb(env);
 
   const adminAuthService =
     dependencies.adminAuthService ??
@@ -46,8 +51,15 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
       masterKey: env.credentialsMasterKey
     });
 
+  const contentService =
+    dependencies.contentService ??
+    createContentService({
+      store: new DrizzleContentStore(db ?? createDb(env))
+    });
+
   await registerAdminAuthRoutes(server, adminAuthService, env.bootstrapAdminEmails);
   await registerAdminCredentialRoutes(server, adminAuthService, adminCredentialService);
+  await registerContentRoutes(server, adminAuthService, contentService);
 
   return server;
 }

@@ -1,11 +1,16 @@
 import {
+  AlertTriangle,
+  CheckCircle2,
   Database,
   FileCheck2,
+  FileJson,
   KeyRound,
   Loader2,
   LockKeyhole,
   LogOut,
   Rocket,
+  Save,
+  Send,
   ShieldCheck,
   UserPlus
 } from "lucide-react";
@@ -38,7 +43,24 @@ interface CredentialItem {
 
 type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "push" | "json" | "secret";
 type CredentialEnvironment = "production" | "staging" | "development";
-type AdminSection = "dashboard" | "credentials";
+type AdminSection = "dashboard" | "content" | "credentials";
+
+interface ContentVersion {
+  id: string;
+  version: string;
+  status: "draft" | "validated" | "published" | "archived" | string;
+  notes: string | null;
+  createdBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+}
+
+interface ContentBundle {
+  resources: unknown[];
+  blockTypes: unknown[];
+  mineTemplates: unknown[];
+}
 
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
   { value: "api_key", label: "API key" },
@@ -89,6 +111,14 @@ export function App() {
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [contentVersions, setContentVersions] = useState<ContentVersion[]>([]);
+  const [selectedContentVersion, setSelectedContentVersion] = useState<ContentVersion | null>(null);
+  const [contentVersionName, setContentVersionName] = useState("");
+  const [contentNotes, setContentNotes] = useState("");
+  const [contentJson, setContentJson] = useState("");
+  const [contentLoading, setContentLoading] = useState(false);
+  const [contentMessage, setContentMessage] = useState<string | null>(null);
+  const [contentErrors, setContentErrors] = useState<string[]>([]);
   const [credentials, setCredentials] = useState<CredentialItem[]>([]);
   const [credentialsLoading, setCredentialsLoading] = useState(false);
   const [credentialName, setCredentialName] = useState("");
@@ -140,6 +170,14 @@ export function App() {
     }
 
     void loadCredentials();
+  }, [activeSection, sessionToken, user]);
+
+  useEffect(() => {
+    if (!sessionToken || !user || user.mustSetPassword || activeSection !== "content") {
+      return;
+    }
+
+    void loadContentVersions();
   }, [activeSection, sessionToken, user]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
@@ -224,6 +262,203 @@ export function App() {
       setCredentialMessage(error instanceof Error ? error.message : "Не удалось загрузить credentials.");
     } finally {
       setCredentialsLoading(false);
+    }
+  }
+
+  async function loadContentVersions() {
+    if (!sessionToken) {
+      return;
+    }
+
+    setContentLoading(true);
+    setContentMessage(null);
+
+    try {
+      const response = await apiRequest<{ versions: ContentVersion[] }>("/admin/content/versions", {
+        token: sessionToken
+      });
+      setContentVersions(response.versions);
+
+      if (!selectedContentVersion && response.versions[0]) {
+        await loadContentVersion(response.versions[0].id);
+      }
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось загрузить версии контента.");
+    } finally {
+      setContentLoading(false);
+    }
+  }
+
+  async function loadContentVersion(id: string) {
+    if (!sessionToken) {
+      return;
+    }
+
+    setContentLoading(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{ version: ContentVersion; content: ContentBundle }>(
+        `/admin/content/versions/${id}`,
+        {
+          token: sessionToken
+        }
+      );
+      setSelectedContentVersion(response.version);
+      setContentJson(JSON.stringify(response.content, null, 2));
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось загрузить версию контента.");
+    } finally {
+      setContentLoading(false);
+    }
+  }
+
+  async function handleCreateContentVersion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!sessionToken) {
+      clearSession();
+      return;
+    }
+
+    setBusy(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{ version: ContentVersion; content: ContentBundle }>("/admin/content/versions", {
+        method: "POST",
+        token: sessionToken,
+        body: {
+          version: contentVersionName,
+          notes: contentNotes || undefined
+        }
+      });
+      setContentVersions((current) => [response.version, ...current]);
+      setSelectedContentVersion(response.version);
+      setContentJson(JSON.stringify(response.content, null, 2));
+      setContentVersionName("");
+      setContentNotes("");
+      setContentMessage("Draft-версия создана со стартовым контентом.");
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось создать версию.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveContent() {
+    if (!sessionToken || !selectedContentVersion) {
+      return;
+    }
+
+    const parsed = parseContentJson();
+
+    if (!parsed.ok) {
+      return;
+    }
+
+    setBusy(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{ version: ContentVersion; content: ContentBundle }>(
+        `/admin/content/versions/${selectedContentVersion.id}/content`,
+        {
+          method: "PUT",
+          token: sessionToken,
+          body: {
+            content: parsed.content
+          }
+        }
+      );
+      setSelectedContentVersion(response.version);
+      setContentVersions((current) => replaceContentVersion(current, response.version));
+      setContentJson(JSON.stringify(response.content, null, 2));
+      setContentMessage("Контент сохранен как draft.");
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось сохранить контент.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleValidateContent() {
+    if (!sessionToken || !selectedContentVersion) {
+      return;
+    }
+
+    setBusy(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{
+        version: ContentVersion;
+        validation: { ok: boolean; errors: string[] };
+      }>(`/admin/content/versions/${selectedContentVersion.id}/validate`, {
+        method: "POST",
+        token: sessionToken
+      });
+      setSelectedContentVersion(response.version);
+      setContentVersions((current) => replaceContentVersion(current, response.version));
+      setContentErrors(response.validation.errors);
+      setContentMessage(response.validation.ok ? "Валидация пройдена." : "Валидация нашла ошибки.");
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось проверить контент.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePublishContent() {
+    if (!sessionToken || !selectedContentVersion) {
+      return;
+    }
+
+    setBusy(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{
+        version: ContentVersion;
+        validation: { ok: boolean; errors: string[] };
+      }>(`/admin/content/versions/${selectedContentVersion.id}/publish`, {
+        method: "POST",
+        token: sessionToken
+      });
+      setSelectedContentVersion(response.version);
+      setContentVersions((current) =>
+        replaceContentVersion(
+          current.map((version) =>
+            version.status === "published" && version.id !== response.version.id
+              ? { ...version, status: "archived" }
+              : version
+          ),
+          response.version
+        )
+      );
+      setContentErrors(response.validation.errors);
+      setContentMessage(response.validation.ok ? "Версия опубликована." : "Публикация остановлена из-за ошибок.");
+    } catch (error) {
+      setContentMessage(error instanceof Error ? error.message : "Не удалось опубликовать контент.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function parseContentJson(): { ok: true; content: ContentBundle } | { ok: false } {
+    try {
+      return {
+        ok: true,
+        content: JSON.parse(contentJson) as ContentBundle
+      };
+    } catch {
+      setContentMessage("JSON не читается. Проверь синтаксис.");
+      return { ok: false };
     }
   }
 
@@ -412,7 +647,13 @@ export function App() {
           >
             Dashboard
           </button>
-          <button type="button">Content</button>
+          <button
+            className={activeSection === "content" ? "active" : ""}
+            onClick={() => setActiveSection("content")}
+            type="button"
+          >
+            Content
+          </button>
           <button
             className={activeSection === "credentials" ? "active" : ""}
             onClick={() => setActiveSection("credentials")}
@@ -428,7 +669,7 @@ export function App() {
         <header>
           <div>
             <p>Окружение</p>
-            <h1>{activeSection === "credentials" ? "Credentials" : "Панель управления"}</h1>
+            <h1>{titleForSection(activeSection)}</h1>
           </div>
           <div className="admin-user">
             <span>{user.email}</span>
@@ -438,7 +679,27 @@ export function App() {
           </div>
         </header>
 
-        {activeSection === "credentials" ? (
+        {activeSection === "content" ? (
+          <ContentSection
+            busy={busy}
+            contentErrors={contentErrors}
+            contentJson={contentJson}
+            contentLoading={contentLoading}
+            contentMessage={contentMessage}
+            contentNotes={contentNotes}
+            contentVersionName={contentVersionName}
+            contentVersions={contentVersions}
+            onContentJsonChange={setContentJson}
+            onContentNotesChange={setContentNotes}
+            onContentVersionNameChange={setContentVersionName}
+            onCreateContentVersion={handleCreateContentVersion}
+            onPublishContent={handlePublishContent}
+            onSaveContent={handleSaveContent}
+            onSelectContentVersion={loadContentVersion}
+            onValidateContent={handleValidateContent}
+            selectedContentVersion={selectedContentVersion}
+          />
+        ) : activeSection === "credentials" ? (
           <CredentialsSection
             busy={busy}
             credentialEnvironment={credentialEnvironment}
@@ -470,6 +731,126 @@ export function App() {
         )}
       </section>
     </main>
+  );
+}
+
+function ContentSection(props: {
+  busy: boolean;
+  contentErrors: string[];
+  contentJson: string;
+  contentLoading: boolean;
+  contentMessage: string | null;
+  contentNotes: string;
+  contentVersionName: string;
+  contentVersions: ContentVersion[];
+  onContentJsonChange: (value: string) => void;
+  onContentNotesChange: (value: string) => void;
+  onContentVersionNameChange: (value: string) => void;
+  onCreateContentVersion: (event: FormEvent<HTMLFormElement>) => void;
+  onPublishContent: () => void;
+  onSaveContent: () => void;
+  onSelectContentVersion: (id: string) => void;
+  onValidateContent: () => void;
+  selectedContentVersion: ContentVersion | null;
+}) {
+  const canEdit =
+    props.selectedContentVersion?.status === "draft" || props.selectedContentVersion?.status === "validated";
+
+  return (
+    <section className="content-layout">
+      <aside className="content-side">
+        <form className="gc-panel content-create" onSubmit={props.onCreateContentVersion}>
+          <h2>Новая версия</h2>
+          <label>
+            Version
+            <input
+              onChange={(event) => props.onContentVersionNameChange(event.target.value)}
+              placeholder="0.1.0"
+              required
+              type="text"
+              value={props.contentVersionName}
+            />
+          </label>
+          <label>
+            Notes
+            <textarea
+              onChange={(event) => props.onContentNotesChange(event.target.value)}
+              rows={3}
+              value={props.contentNotes}
+            />
+          </label>
+          <button className="primary-action" disabled={props.busy} type="submit">
+            {props.busy ? <Loader2 className="spin" size={18} /> : <FileJson size={18} />}
+            Создать draft
+          </button>
+        </form>
+
+        <section className="content-version-list">
+          {props.contentVersions.length === 0 ? (
+            <article className="gc-panel content-empty">
+              <FileJson size={20} />
+              <span>Версий пока нет</span>
+            </article>
+          ) : (
+            props.contentVersions.map((version) => (
+              <button
+                className={props.selectedContentVersion?.id === version.id ? "content-version active" : "content-version"}
+                key={version.id}
+                onClick={() => props.onSelectContentVersion(version.id)}
+                type="button"
+              >
+                <strong>{version.version}</strong>
+                <span>{version.status}</span>
+              </button>
+            ))
+          )}
+        </section>
+      </aside>
+
+      <section className="content-editor">
+        <div className="gc-panel content-toolbar">
+          <div>
+            <strong>{props.selectedContentVersion?.version ?? "Версия не выбрана"}</strong>
+            <span>{props.selectedContentVersion ? formatDateTime(props.selectedContentVersion.updatedAt) : ""}</span>
+          </div>
+          <div className="content-actions">
+            <button disabled={!canEdit || props.busy || props.contentLoading} onClick={props.onSaveContent} type="button">
+              <Save size={17} />
+              Save
+            </button>
+            <button disabled={!props.selectedContentVersion || props.busy} onClick={props.onValidateContent} type="button">
+              <CheckCircle2 size={17} />
+              Validate
+            </button>
+            <button disabled={!props.selectedContentVersion || props.busy} onClick={props.onPublishContent} type="button">
+              <Send size={17} />
+              Publish
+            </button>
+          </div>
+        </div>
+
+        <textarea
+          className="content-json"
+          disabled={!props.selectedContentVersion || !canEdit}
+          onChange={(event) => props.onContentJsonChange(event.target.value)}
+          spellCheck={false}
+          value={props.contentJson}
+        />
+
+        {props.contentMessage ? <p className="form-message">{props.contentMessage}</p> : null}
+
+        {props.contentErrors.length > 0 ? (
+          <section className="gc-panel content-errors">
+            <AlertTriangle size={18} />
+            <div>
+              {props.contentErrors.map((error) => (
+                <p key={error}>{error}</p>
+              ))}
+            </div>
+          </section>
+        ) : null}
+      </section>
+    </section>
   );
 }
 
@@ -582,7 +963,7 @@ function CredentialsSection(props: {
 async function apiRequest<T = unknown>(
   path: string,
   options: {
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PUT";
     token?: string;
     body?: Record<string, unknown>;
   } = {}
@@ -627,6 +1008,12 @@ function messageForApiError(error?: string): string {
       return "Сессия истекла. Войди заново.";
     case "password_setup_required":
       return "Сначала нужно установить пароль.";
+    case "content_version_not_found":
+      return "Версия контента не найдена.";
+    case "version_not_editable":
+      return "Эту версию уже нельзя редактировать.";
+    case "invalid_content":
+      return "Контент не прошел проверку схемы.";
     default:
       return "Запрос не прошел.";
   }
@@ -637,4 +1024,21 @@ function formatDateTime(value: string): string {
     dateStyle: "short",
     timeStyle: "short"
   }).format(new Date(value));
+}
+
+function replaceContentVersion(versions: ContentVersion[], nextVersion: ContentVersion): ContentVersion[] {
+  return versions
+    .map((version) => (version.id === nextVersion.id ? nextVersion : version))
+    .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime());
+}
+
+function titleForSection(section: AdminSection): string {
+  switch (section) {
+    case "content":
+      return "Content";
+    case "credentials":
+      return "Credentials";
+    default:
+      return "Панель управления";
+  }
 }

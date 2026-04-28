@@ -1,8 +1,8 @@
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { AdminAuthService } from "./auth.js";
 import type { AdminCredentialService } from "./credentials.js";
-import { requireAdminUser } from "./http-auth.js";
+import { requireReadyAdminUser } from "./http-auth.js";
 
 const credentialNameSchema = z
   .string()
@@ -52,24 +52,4 @@ export async function registerAdminCredentialRoutes(
     const credential = await credentialService.upsertCredential(user.id, payload.data);
     return { credential };
   });
-}
-
-async function requireReadyAdminUser(
-  request: FastifyRequest,
-  reply: FastifyReply,
-  authService: AdminAuthService
-) {
-  const user = await requireAdminUser(request, authService);
-
-  if (!user) {
-    reply.status(401).send({ error: "invalid_session" });
-    return null;
-  }
-
-  if (user.mustSetPassword) {
-    reply.status(403).send({ error: "password_setup_required" });
-    return null;
-  }
-
-  return user;
 }

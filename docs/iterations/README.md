@@ -16,3 +16,4 @@
 - `0003_server_https` - выпуск TLS-сертификата, переключение Nginx на HTTPS и проверка production URL.
 - `0004_admin_auth` - bootstrap-вход в админку, установка пароля и базовые backend-сессии.
 - `0005_admin_credentials` - раздел зашифрованных credentials в админке.
+- `0006_content_versions` - версии контента, валидация, публикация и выдача текущего конфига.
