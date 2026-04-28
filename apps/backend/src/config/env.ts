@@ -1,0 +1,38 @@
+import "dotenv/config";
+import { z } from "zod";
+import { parseBootstrapEmails } from "../security/bootstrap.js";
+
+const envSchema = z.object({
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+  PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  BASE_URL: z.string().url(),
+  DATABASE_URL: z.string().min(1),
+  APP_CREDENTIALS_MASTER_KEY: z.string().min(32),
+  APP_BOOTSTRAP_ADMIN_EMAILS: z.string().min(1)
+});
+
+export interface AppEnv {
+  nodeEnv: "development" | "test" | "production";
+  port: number;
+  baseUrl: string;
+  databaseUrl: string;
+  credentialsMasterKey: string;
+  bootstrapAdminEmails: string[];
+}
+
+export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
+  const parsed = envSchema.safeParse(source);
+
+  if (!parsed.success) {
+    throw new Error(`Invalid environment: ${parsed.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
+  }
+
+  return {
+    nodeEnv: parsed.data.NODE_ENV,
+    port: parsed.data.PORT,
+    baseUrl: parsed.data.BASE_URL,
+    databaseUrl: parsed.data.DATABASE_URL,
+    credentialsMasterKey: parsed.data.APP_CREDENTIALS_MASTER_KEY,
+    bootstrapAdminEmails: parseBootstrapEmails(parsed.data.APP_BOOTSTRAP_ADMIN_EMAILS)
+  };
+}

@@ -1,0 +1,102 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  DEPLOY_HOST: 94.26.248.8
+  DEPLOY_DOMAIN: goblin-cartel.murph.ru
+  DEPLOY_PATH: /srv/goblin-cartel
+
+jobs:
+  quality-gate:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: UTF-8 check
+        run: pnpm encoding:check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Drizzle migration check
+        run: pnpm --filter @goblin-cartel/backend db:check
+
+      - name: Build
+        run: pnpm build
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    environment: production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create release archive
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=node_modules \
+            --exclude=.env \
+            --exclude=.env.production \
+            -czf release.tar.gz .
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.SELECTEL_SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+      - name: Upload release and env
+        run: |
+          printf '%s\n' "${{ secrets.PRODUCTION_ENV_FILE }}" > .env.production
+          ssh -p "${{ secrets.SELECTEL_SSH_PORT || '22' }}" "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST" "mkdir -p $DEPLOY_PATH"
+          scp -P "${{ secrets.SELECTEL_SSH_PORT || '22' }}" release.tar.gz "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST:$DEPLOY_PATH/release.tar.gz"
+          scp -P "${{ secrets.SELECTEL_SSH_PORT || '22' }}" .env.production "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST:$DEPLOY_PATH/.env.production"
+
+      - name: Deploy on server
+        run: |
+          ssh -p "${{ secrets.SELECTEL_SSH_PORT || '22' }}" "${{ secrets.SELECTEL_SSH_USER }}@$DEPLOY_HOST" <<'EOF'
+            set -euo pipefail
+            cd /srv/goblin-cartel
+            rm -rf current
+            mkdir -p current
+            tar -xzf release.tar.gz -C current
+            cp .env.production current/.env.production
+            cd current
+            docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build
+            cp deploy/nginx-goblin-cartel.http.conf /srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf
+            docker exec transcribe_nginx nginx -t
+            docker exec transcribe_nginx nginx -s reload
+            docker compose --env-file .env.production -f deploy/docker-compose.prod.yml ps
+          EOF
+
+      - name: Health check
+        run: |
+          curl --fail --retry 12 --retry-delay 5 "http://$DEPLOY_DOMAIN/api/health"

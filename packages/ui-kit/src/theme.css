@@ -1,0 +1,42 @@
+:root {
+  color-scheme: dark;
+  --gc-bg: #15110d;
+  --gc-bg-deep: #0d0a08;
+  --gc-panel: #2a2118;
+  --gc-panel-raised: #3a2b1e;
+  --gc-border: #6d4d2d;
+  --gc-border-strong: #94683a;
+  --gc-gold: #f2b84b;
+  --gc-copper: #bf6a3c;
+  --gc-iron: #9ca3ad;
+  --gc-danger: #d95b3d;
+  --gc-energy: #44c6c8;
+  --gc-success: #6fbf57;
+  --gc-text: #f6ead8;
+  --gc-muted: #b7a58f;
+  --gc-radius-sm: 4px;
+  --gc-radius-md: 8px;
+  --gc-shadow-panel: 0 8px 24px rgb(0 0 0 / 32%);
+  font-family:
+    Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: var(--gc-bg);
+  color: var(--gc-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.gc-panel {
+  background: linear-gradient(180deg, var(--gc-panel-raised), var(--gc-panel));
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-md);
+  box-shadow: var(--gc-shadow-panel);
+}

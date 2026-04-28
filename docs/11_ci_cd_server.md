@@ -1,0 +1,97 @@
+# Goblin Cartel: CI/CD и сервер
+
+**Дата:** 2026-04-28
+
+## Целевые параметры
+
+- Домен: `goblin-cartel.murph.ru`
+- Сервер: `94.26.248.8`
+- SSH alias локально: `selectel-transcribe`
+- GitHub remote: `git@github.com:pigrov/goblin-cartel.git`
+- Deploy path: `/srv/goblin-cartel`
+
+## Локальные env
+
+Локальный `.env` не коммитится. Значения `APP_CREDENTIALS_MASTER_KEY` и `APP_BOOTSTRAP_ADMIN_EMAILS` берутся из него.
+
+Для production нужен файл `.env.production` на сервере и GitHub secret `PRODUCTION_ENV_FILE` с таким же содержимым.
+
+Минимальный пример без реальных секретов:
+
+```text
+DOMAIN=goblin-cartel.murph.ru
+BASE_URL=https://goblin-cartel.murph.ru
+POSTGRES_DB=goblin_cartel
+POSTGRES_USER=goblin_cartel
+POSTGRES_PASSWORD=...
+DATABASE_URL=postgres://goblin_cartel:...@postgres:5432/goblin_cartel
+APP_CREDENTIALS_MASTER_KEY=...
+APP_BOOTSTRAP_ADMIN_EMAILS=...
+```
+
+## GitHub secrets
+
+Для deploy workflow нужны secrets:
+
+```text
+SELECTEL_SSH_USER
+SELECTEL_SSH_PRIVATE_KEY
+SELECTEL_SSH_PORT
+PRODUCTION_ENV_FILE
+```
+
+`SELECTEL_SSH_PORT` можно указать как `22`.
+
+## Что делает CI
+
+Workflow `.github/workflows/ci.yml`:
+
+1. устанавливает зависимости;
+2. запускает UTF-8/mojibake check;
+3. запускает lint;
+4. запускает typecheck;
+5. запускает unit tests;
+6. проверяет Drizzle migrations;
+7. собирает все приложения и пакеты.
+
+## Что делает CD
+
+Workflow `.github/workflows/deploy.yml`:
+
+1. повторяет quality gate;
+2. собирает архив репозитория;
+3. загружает архив и `.env.production` на сервер;
+4. распаковывает в `/srv/goblin-cartel/current`;
+5. запускает `docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build`;
+6. копирует nginx-конфиг в `/srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf`;
+7. проверяет и перезагружает общий `transcribe_nginx`;
+8. backend перед стартом применяет `drizzle-kit migrate`;
+9. workflow проверяет `http://goblin-cartel.murph.ru/api/health`.
+
+## Подготовка сервера
+
+На сервере должны быть:
+
+- Docker Engine;
+- Docker Compose plugin;
+- существующая внешняя Docker-сеть `web`;
+- общий nginx-контейнер `transcribe_nginx`, подключенный к сети `web`;
+- открытый порт `80`;
+- доступ пользователя из GitHub Actions к `/srv/goblin-cartel`.
+
+Базовая проверка:
+
+```sh
+DEPLOY_PATH=/srv/goblin-cartel sh scripts/deploy/bootstrap-server.sh
+```
+
+## DNS
+
+До первого production deploy запись `A` для `goblin-cartel.murph.ru` должна указывать на:
+
+```text
+94.26.248.8
+```
+
+Пока DNS переключается, контейнеры можно поднять, но внешний health-check начнет проходить только после корректного DNS.
+Текущий первый deploy использует HTTP-конфиг для общего nginx. После выпуска TLS-сертификата nginx-конфиг нужно заменить на HTTPS-вариант.

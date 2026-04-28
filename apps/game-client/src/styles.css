@@ -1,0 +1,216 @@
+.game-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background:
+    radial-gradient(circle at center top, rgb(148 104 58 / 22%), transparent 42%),
+    linear-gradient(180deg, #21170f, var(--gc-bg-deep));
+}
+
+.phone-frame {
+  width: min(100%, 390px);
+  min-height: min(820px, calc(100vh - 36px));
+  display: grid;
+  grid-template-rows: auto auto auto 1fr auto auto;
+  overflow: hidden;
+  border: 2px solid var(--gc-border-strong);
+  border-radius: var(--gc-radius-md);
+  background: var(--gc-bg);
+  box-shadow: 0 18px 60px rgb(0 0 0 / 45%);
+}
+
+.resource-bar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  padding: 10px;
+  background: #20160f;
+}
+
+.resource-chip {
+  min-width: 0;
+  padding: 7px 6px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-panel);
+}
+
+.resource-chip span,
+.mine-header p {
+  display: block;
+  margin: 0 0 2px;
+  color: var(--gc-muted);
+  font-size: 11px;
+}
+
+.resource-chip strong {
+  display: block;
+  overflow: hidden;
+  color: var(--gc-text);
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-chip.gold strong {
+  color: var(--gc-gold);
+}
+
+.resource-chip.copper strong {
+  color: var(--gc-copper);
+}
+
+.resource-chip.energy strong {
+  color: var(--gc-energy);
+}
+
+.mine-header,
+.boss-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid rgb(255 255 255 / 5%);
+  border-bottom: 1px solid rgb(0 0 0 / 35%);
+  background: var(--gc-panel);
+}
+
+.mine-header strong {
+  font-size: 18px;
+}
+
+.icon-button,
+.bottom-nav button,
+.boss-button {
+  border: 1px solid var(--gc-border);
+  color: var(--gc-text);
+  background: var(--gc-panel-raised);
+  cursor: pointer;
+}
+
+.icon-button {
+  width: 42px;
+  height: 42px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--gc-radius-sm);
+}
+
+.goblin-platform {
+  display: flex;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #18100b;
+}
+
+.goblin {
+  flex: 1;
+  min-height: 42px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, #314621, #1f2c17);
+  color: var(--gc-text);
+  font-weight: 700;
+}
+
+.goblin.locked {
+  filter: grayscale(1);
+  opacity: 0.55;
+}
+
+.mine-grid {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-content: start;
+  gap: 4px;
+  padding: 10px;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 10%), rgb(0 0 0 / 35%)),
+    #221811;
+}
+
+.mine-block {
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 1px solid rgb(0 0 0 / 42%);
+  border-radius: 5px;
+  color: rgb(255 255 255 / 72%);
+  font-size: 10px;
+  font-weight: 700;
+  box-shadow: inset 0 -5px 0 rgb(0 0 0 / 18%);
+}
+
+.mine-block.dirt {
+  background: #6a4a2e;
+}
+
+.mine-block.stone {
+  background: #5d6268;
+}
+
+.mine-block.copper {
+  background: linear-gradient(135deg, #62666d, #ad6236 56%, #6a3b25);
+}
+
+.mine-block.gold {
+  background: linear-gradient(135deg, #655943, #d49a35 56%, #68471b);
+}
+
+.boss-panel {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.boss-button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-color: #a86235;
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, #b65e34, #7c3524);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.energy-meter {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 10%);
+}
+
+.energy-meter span {
+  display: block;
+  width: 70%;
+  height: 100%;
+  background: var(--gc-energy);
+}
+
+.bottom-nav {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: #0f0b08;
+}
+
+.bottom-nav button {
+  min-height: 58px;
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  border-width: 1px 0 0;
+  border-radius: 0;
+  color: var(--gc-muted);
+  font-size: 12px;
+}
+
+.bottom-nav button.active {
+  color: var(--gc-gold);
+  background: #302115;
+}

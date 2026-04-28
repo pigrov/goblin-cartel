@@ -1,0 +1,66 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    container_name: goblin_cartel_backend
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      BASE_URL: ${BASE_URL}
+      DATABASE_URL: ${DATABASE_URL}
+      APP_CREDENTIALS_MASTER_KEY: ${APP_CREDENTIALS_MASTER_KEY}
+      APP_BOOTSTRAP_ADMIN_EMAILS: ${APP_BOOTSTRAP_ADMIN_EMAILS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - web
+
+  game-client:
+    container_name: goblin_cartel_game_client
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+      args:
+        APP_NAME: "@goblin-cartel/game-client"
+        APP_DIR: "apps/game-client"
+    restart: unless-stopped
+    networks:
+      - web
+
+  admin:
+    container_name: goblin_cartel_admin
+    build:
+      context: ..
+      dockerfile: deploy/frontend.Dockerfile
+      args:
+        APP_NAME: "@goblin-cartel/admin"
+        APP_DIR: "apps/admin"
+    restart: unless-stopped
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+
+volumes:
+  postgres_data:
