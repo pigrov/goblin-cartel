@@ -101,7 +101,7 @@ jobs:
             cd current
             docker compose --env-file .env.production -f deploy/docker-compose.prod.yml up -d --build
 
-            cp deploy/nginx-goblin-cartel.http.conf /srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf
+            cp deploy/nginx-goblin-cartel.https.conf /srv/transcribe-infra/nginx/conf.d/goblin-cartel.murph.ru.conf
             docker exec transcribe_nginx nginx -t
             docker exec transcribe_nginx nginx -s reload
 
@@ -109,4 +109,4 @@ jobs:
 
       - name: Health check
         run: |
-          curl --fail --retry 12 --retry-delay 5 "http://$DEPLOY_DOMAIN/api/health"
+          curl --fail --retry 12 --retry-delay 5 "https://$DEPLOY_DOMAIN/api/health"
