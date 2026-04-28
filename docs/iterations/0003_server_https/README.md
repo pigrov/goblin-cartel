@@ -34,6 +34,7 @@
 - `.github/workflows/deploy.yml` переключен на HTTPS-конфиг и HTTPS health-check.
 - Упаковка релиза в deploy workflow переведена на `git archive`, чтобы архив создавался только из отслеживаемых файлов репозитория.
 - `docs/11_ci_cd_server.md` обновлен по фактическому состоянию.
+- Первый автоматический deploy из GitHub Actions после настройки secrets прошел успешно.
 
 ## Проверки
 
@@ -63,4 +64,4 @@ pnpm encoding:check
 
 ## Открытые вопросы
 
-1. Проверить первый автоматический deploy из GitHub Actions после настройки secrets.
+Нет.
