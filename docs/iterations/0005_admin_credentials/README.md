@@ -1,7 +1,7 @@
 # 0005 admin credentials
 
 **Дата:** 2026-04-28
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -39,6 +39,8 @@
 - Раздел `Credentials` показывает список сохраненных ключей и форму сохранения нового значения.
 - После сохранения поле значения очищается, секрет обратно не отображается.
 - Добавлены unit tests для credentials service и routes.
+- Коммит `841405a` задеплоен через GitHub Actions.
+- Production endpoint `GET /api/admin/credentials` без токена возвращает `401`.
 
 ## Измененные файлы
 
@@ -72,6 +74,22 @@ pnpm build
 ```
 
 Результат: пройдено.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/admin/credentials без токена -> 401
+```
 
 ## UTF-8 и текст
 
