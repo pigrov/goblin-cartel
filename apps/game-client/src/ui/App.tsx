@@ -40,7 +40,7 @@ const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyTickMs = 500;
 const offlineFinalHitDelayMs = 900;
-const hitEffectLifetimeMs = 780;
+const hitEffectLifetimeMs = 900;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
 let hitEffectSequence = 0;
@@ -116,6 +116,7 @@ interface GoblinWorkerAssignment {
 }
 
 interface HitEffect {
+  damage: number;
   id: number;
   row: number;
   col: number;
@@ -380,7 +381,7 @@ export function App() {
             continue;
           }
 
-          spawnHitEffect(worker.targetCell, "goblin");
+          spawnHitEffect(worker.targetCell, "goblin", worker.damagePerSecond);
 
           const next = hitMineBlock(nextSession, contentState.content.blockTypes, {
             row: target.row,
@@ -418,7 +419,7 @@ export function App() {
           return current;
         }
 
-        spawnHitEffect(pendingOfflineFinalHit, "boss");
+        spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp));
 
         const next = hitMineBlock(current, contentState.content.blockTypes, {
           row: target.row,
@@ -490,10 +491,10 @@ export function App() {
     [placeGoblinOnCellKey]
   );
 
-  function spawnHitEffect(cell: { row: number; col: number }, variant: HitEffectVariant) {
+  function spawnHitEffect(cell: { row: number; col: number }, variant: HitEffectVariant, damage: number) {
     const id = ++hitEffectSequence;
 
-    setHitEffects((current) => [...current.slice(-16), { id, row: cell.row, col: cell.col, variant }]);
+    setHitEffects((current) => [...current.slice(-16), { damage, id, row: cell.row, col: cell.col, variant }]);
     window.setTimeout(() => {
       setHitEffects((current) => current.filter((effect) => effect.id !== id));
     }, hitEffectLifetimeMs);
@@ -520,7 +521,7 @@ export function App() {
       return;
     }
 
-    spawnHitEffect(targetCell, attack.critical ? "critical" : "boss");
+    spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage);
 
     setSession((current) => {
       const next = hitMineBlock(current, contentState.content.blockTypes, {

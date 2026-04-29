@@ -29,6 +29,7 @@ export interface MinePixiGoblin {
 export type MinePixiHitEffectVariant = "boss" | "goblin" | "critical";
 
 export interface MinePixiHitEffect {
+  damage: number;
   id: number;
   row: number;
   col: number;
@@ -69,6 +70,8 @@ interface AnimatedBlockImpact {
 }
 
 interface AnimatedHitEffect {
+  damageLabel: Container | null;
+  damageLabelBaseY: number;
   duration: number;
   id: number;
   node: Container;
@@ -107,6 +110,8 @@ interface RenderedPixiNode {
 }
 
 interface DrawnHitEffect {
+  damageLabel: Container | null;
+  damageLabelBaseY: number;
   duration: number;
   node: Container;
   particles: AnimatedHitParticle[];
@@ -576,24 +581,6 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     clearLayer(layers.drag);
     drawDragPreview(layers.drag, layout, props, dragState);
   }, [dragState, layout, props.goblins, readyTick]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-
-    if (!host) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      const top = props.currentPlatformRow === 0 ? 0 : Math.max(0, layout.platformY - 8);
-      host.scrollTo({
-        top,
-        behavior: "smooth"
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [layout.platformY, props.currentPlatformRow, readyTick]);
 
   return (
     <section className="pixi-playfield" ref={hostRef} aria-label="Игровая область">
@@ -1106,6 +1093,7 @@ function reconcileHitEffects(
       effect.row,
       effect.col,
       effect.variant,
+      effect.damage,
       destroyed ? 1 : 0,
       layout.cellSize,
       x,
@@ -1126,6 +1114,8 @@ function reconcileHitEffects(
     const drawnEffect = drawHitEffect(effect, x, y, layout.cellSize, destroyed);
     root.addChild(drawnEffect.node);
     animatedHitEffectsRef.current.push({
+      damageLabel: drawnEffect.damageLabel,
+      damageLabelBaseY: drawnEffect.damageLabelBaseY,
       duration: drawnEffect.duration,
       id: effect.id,
       node: drawnEffect.node,
@@ -1161,8 +1151,10 @@ function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: nu
   const particles: AnimatedHitParticle[] = [];
   const palette = hitEffectPalette(effect.variant, destroyed);
   const particleCount = destroyed ? 16 : effect.variant === "critical" ? 14 : effect.variant === "boss" ? 11 : 8;
-  const duration = destroyed ? 720 : effect.variant === "critical" ? 620 : 540;
+  const duration = destroyed ? 820 : effect.variant === "critical" ? 720 : 620;
   const flashScale = effect.variant === "critical" ? 1.18 : effect.variant === "goblin" ? 0.82 : 1;
+  const damageLabel = drawDamageLabel(effect, size);
+  const damageLabelBaseY = -size * (effect.variant === "critical" ? 0.72 : 0.54);
 
   burst.position.set(x, y);
   burst.alpha = 0.98;
@@ -1224,7 +1216,12 @@ function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: nu
     });
   }
 
+  damageLabel.position.set(0, damageLabelBaseY);
+  burst.addChild(damageLabel);
+
   return {
+    damageLabel,
+    damageLabelBaseY,
     duration,
     node: burst,
     particles,
@@ -1305,6 +1302,13 @@ function animateHitEffects(now: number, animatedEffects: AnimatedHitEffect[]) {
       item.slash.scale.set(0.55 + eased * 0.92, 1);
     }
 
+    if (item.damageLabel) {
+      const labelRise = -28 * eased;
+      item.damageLabel.y = item.damageLabelBaseY + labelRise;
+      item.damageLabel.alpha = progress < 0.18 ? progress / 0.18 : Math.max(0, 1 - (progress - 0.34) / 0.66);
+      item.damageLabel.scale.set(1 + (1 - progress) * 0.18);
+    }
+
     for (const particle of item.particles) {
       const particleProgress = clamp01((progress - particle.delay) / Math.max(0.01, 1 - particle.delay));
       const particleEase = 1 - Math.pow(1 - particleProgress, 2);
@@ -1347,6 +1351,50 @@ function hitEffectPalette(variant: MinePixiHitEffectVariant, destroyed: boolean)
     ring: 0xf2b84b,
     slash: 0xf7ead8
   };
+}
+
+function drawDamageLabel(effect: MinePixiHitEffect, size: number): Container {
+  const label = new Container();
+  const critical = effect.variant === "critical";
+  const fontSize = Math.max(13, Math.floor(size * (critical ? 0.34 : 0.29)));
+  const text = `${critical ? "КРИТ " : ""}-${formatDamageAmount(effect.damage)}`;
+  const fill = critical ? 0xffffff : effect.variant === "boss" ? 0xf2b84b : 0xf7ead8;
+  const shadowFill = critical ? 0x7a1f16 : 0x120c08;
+  const shadow = createText({
+    color: shadowFill,
+    fontSize,
+    fontWeight: "800",
+    text
+  });
+  const main = createText({
+    color: fill,
+    fontSize,
+    fontWeight: "800",
+    text
+  });
+
+  shadow.anchor.set(0.5);
+  shadow.position.set(1.5, 1.5);
+  main.anchor.set(0.5);
+  label.addChild(shadow, main);
+
+  if (critical) {
+    const flash = new Graphics()
+      .roundRect(-size * 0.48, -fontSize * 0.58, size * 0.96, fontSize * 1.15, 6)
+      .fill({ color: 0xf2b84b, alpha: 0.18 })
+      .stroke({ color: 0xffffff, alpha: 0.44, width: 1 });
+    label.addChildAt(flash, 0);
+  }
+
+  return label;
+}
+
+function formatDamageAmount(damage: number): string {
+  if (!Number.isFinite(damage)) {
+    return "0";
+  }
+
+  return Number.isInteger(damage) ? String(damage) : damage.toFixed(1);
 }
 
 function clamp01(value: number): number {
@@ -1418,9 +1466,10 @@ function platformDropOffset(progress: number): number {
     return 0;
   }
 
-  const eased = 1 - Math.pow(1 - progress, 3);
-  const settle = Math.sin(progress * Math.PI * 2.5) * (1 - progress) * 8;
-  return -30 * (1 - eased) + settle;
+  const eased = progress < 0.5
+    ? 4 * progress * progress * progress
+    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  return -30 * (1 - eased);
 }
 
 function blockColor(blockTypeId: string, blockType: BlockTypeConfig | undefined): number {

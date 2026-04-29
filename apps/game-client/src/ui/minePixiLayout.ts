@@ -49,7 +49,7 @@ export const minePixiLayoutConfig = {
   minePaddingBottom: 16,
   minePaddingTop: 12,
   minSceneWidth: 320,
-  platformGap: 6,
+  platformGap: 2,
   platformHeight: 58,
   surfaceHeight: 132
 } as const;

@@ -35,6 +35,7 @@ describe("minePixiLayout", () => {
   it("keeps a visual gap between the platform and the top row block", () => {
     const layout = createMinePixiLayout(mine, 430, 0);
 
+    expect(minePixiLayoutConfig.platformGap).toBe(2);
     expect(layout.gridY - (layout.platformY + layout.platformHeight)).toBe(minePixiLayoutConfig.platformGap);
   });
 
