@@ -1,7 +1,7 @@
 # 0012 goblin auto mining
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -36,6 +36,8 @@
 - Если offline progress разрушил блоки, клиент показывает summary и добивает последний pending-блок финальным ударом после короткой задержки.
 - Удар босса отделен от урона гоблинов: кнопка бьет фиксированным boss damage, а гоблины показываются как DPS.
 - В UI добавлен блок offline report и строка `Гоблины X/сек`.
+- Коммит `f3fd7b9` задеплоен через GitHub Actions.
+- На production опубликован content `0.0.3`, API возвращает 8 гоблинов.
 
 ## Измененные файлы
 
@@ -74,6 +76,25 @@ git diff --check
 ## CI/CD и миграции
 
 Новая миграция не планируется: offline progress считается из локального save.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.3
+current content goblins: 8
+server containers: up
+```
 
 ## Открытые вопросы
 
