@@ -32,7 +32,7 @@ import {
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
 import { Bot, Pickaxe, RotateCcw, Settings, Users, Warehouse, X } from "lucide-react";
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent } from "react";
 
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
@@ -121,6 +121,13 @@ interface HitEffect {
   variant: HitEffectVariant;
 }
 
+interface PlatformLayerMetrics {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}
+
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: starterContentBundle,
@@ -147,7 +154,9 @@ export function App() {
   const [clockNow, setClockNow] = useState(() => Date.now());
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const playfieldRef = useRef<HTMLElement | null>(null);
+  const mineGridRef = useRef<HTMLElement | null>(null);
   const previousPlatformRowRef = useRef(0);
+  const [platformLayerMetrics, setPlatformLayerMetrics] = useState<PlatformLayerMetrics | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -344,10 +353,57 @@ export function App() {
     previousPlatformRowRef.current = currentPlatformRow;
     setPlatformDropAnimating(true);
 
-    const timeoutId = window.setTimeout(() => setPlatformDropAnimating(false), 680);
+    const timeoutId = window.setTimeout(() => setPlatformDropAnimating(false), 1450);
 
     return () => window.clearTimeout(timeoutId);
   }, [currentPlatformRow, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || activeSection !== "mine") {
+      return;
+    }
+
+    const mineGrid = mineGridRef.current;
+
+    if (!mineGrid) {
+      return;
+    }
+
+    function updatePlatformLayerMetrics() {
+      const currentMineGrid = mineGridRef.current;
+      const targetRow = currentMineGrid?.querySelector<HTMLElement>(`[data-mine-row="${currentPlatformRow}"]`);
+      const firstBlock = targetRow?.querySelector<HTMLElement>(".mine-block");
+      const lastBlock = targetRow?.querySelector<HTMLElement>(".mine-block:last-of-type");
+
+      if (!currentMineGrid || !targetRow || !firstBlock || !lastBlock) {
+        return;
+      }
+
+      const gridRect = currentMineGrid.getBoundingClientRect();
+      const rowRect = targetRow.getBoundingClientRect();
+      const firstBlockRect = firstBlock.getBoundingClientRect();
+      const lastBlockRect = lastBlock.getBoundingClientRect();
+      const height = Math.max(48, Math.min(62, firstBlockRect.height * 0.86));
+
+      setPlatformLayerMetrics({
+        top: Math.max(3, rowRect.top - gridRect.top - height + 12),
+        left: firstBlockRect.left - gridRect.left,
+        width: lastBlockRect.right - firstBlockRect.left,
+        height
+      });
+    }
+
+    updatePlatformLayerMetrics();
+
+    const resizeObserver = new ResizeObserver(updatePlatformLayerMetrics);
+    resizeObserver.observe(mineGrid);
+    window.addEventListener("resize", updatePlatformLayerMetrics);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updatePlatformLayerMetrics);
+    };
+  }, [activeSection, currentPlatformRow, session.blocks, session.mine.width, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady || activeSection !== "mine") {
@@ -670,6 +726,16 @@ export function App() {
     );
   }
 
+  const platformLayerStyle: CSSProperties | undefined = platformLayerMetrics
+    ? {
+        top: platformLayerMetrics.top,
+        left: platformLayerMetrics.left,
+        width: platformLayerMetrics.width,
+        height: platformLayerMetrics.height,
+        gridTemplateColumns: `repeat(${session.mine.width}, minmax(0, 1fr))`
+      }
+    : undefined;
+
   return (
     <main className="game-shell">
       <section className="phone-frame" aria-label="Игровой экран">
@@ -726,96 +792,95 @@ export function App() {
               </div>
             </section>
 
-            <section className="mine-grid" aria-label="Рудник">
+            <section className="mine-grid" ref={mineGridRef} aria-label="Рудник">
+              {platformLayerMetrics ? (
+                <div
+                  className={platformDropAnimating ? "mine-platform-layer lowering" : "mine-platform-layer"}
+                  data-platform-row={currentPlatformRow}
+                  style={platformLayerStyle}
+                >
+                  <span className="platform-deck" aria-hidden="true" />
+                  <span className="platform-rail left" aria-hidden="true" />
+                  <span className="platform-rail right" aria-hidden="true" />
+                  {Array.from({ length: session.mine.width }, (_, col) => {
+                    const placedGoblin = placedGoblinByColumn.get(col);
+                    const worker = workerByColumn.get(col);
+                    const targetCell = { row: currentPlatformRow, col };
+                    const targetCellKey = cellKey(targetCell);
+                    const platformBlock = session.blocks[currentPlatformRow]?.[col];
+                    const canDropOnPlatform = Boolean(draggingGoblinId) && Boolean(platformBlock && !platformBlock.destroyed);
+                    const slotClassName = [
+                      "platform-slot",
+                      placedGoblin?.id === draggingGoblinId ? "dragging-source" : "",
+                      canDropOnPlatform ? "drop-target" : "",
+                      platformBlock?.destroyed ? "empty" : ""
+                    ]
+                      .filter(Boolean)
+                      .join(" ");
+
+                    return (
+                      <div
+                        className={slotClassName}
+                        data-goblin-drop-cell={canDropOnPlatform ? targetCellKey : undefined}
+                        key={col}
+                        onDragOver={(event) => {
+                          if (canDropOnPlatform) {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDrop={(event) => handleGoblinDrop(event, targetCellKey)}
+                      >
+                        {placedGoblin ? renderPlacedGoblin(placedGoblin, Boolean(worker)) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+
               {session.blocks.map((row, rowIndex) => (
-                <Fragment key={rowIndex}>
-                  {rowIndex === currentPlatformRow ? (
-                    <div
-                      className={platformDropAnimating ? "mine-platform-row lowering" : "mine-platform-row"}
-                      data-platform-row={rowIndex}
-                      style={{ gridTemplateColumns: `34px repeat(${session.mine.width}, minmax(0, 1fr))` }}
-                    >
-                      <span className="platform-cable-column" aria-hidden="true">
-                        <i />
-                      </span>
-                      {Array.from({ length: session.mine.width }, (_, col) => {
-                        const placedGoblin = placedGoblinByColumn.get(col);
-                        const worker = workerByColumn.get(col);
-                        const targetCell = { row: currentPlatformRow, col };
-                        const targetCellKey = cellKey(targetCell);
-                        const platformBlock = session.blocks[currentPlatformRow]?.[col];
-                        const canDropOnPlatform = Boolean(draggingGoblinId) && Boolean(platformBlock && !platformBlock.destroyed);
-                        const slotClassName = [
-                          "platform-slot",
-                          placedGoblin?.id === draggingGoblinId ? "dragging-source" : "",
-                          canDropOnPlatform ? "drop-target" : "",
-                          platformBlock?.destroyed ? "empty" : ""
-                        ]
-                          .filter(Boolean)
-                          .join(" ");
+                <div
+                  className={rowIndex === currentPlatformRow ? "mine-row platform-depth" : "mine-row"}
+                  data-mine-row={rowIndex}
+                  key={rowIndex}
+                  style={{ gridTemplateColumns: `34px repeat(${session.mine.width}, minmax(0, 1fr))` }}
+                >
+                  <span className={rowIndex === currentPlatformRow ? "depth-marker current" : "depth-marker"}>
+                    {depthMarkerLabel(session, rowIndex, currentPlatformRow)}
+                  </span>
+                  {row.map((block) => {
+                    const blockType = blockTypeById.get(block.blockTypeId);
+                    const targetCell = { row: block.row, col: block.col };
+                    const targetCellKey = cellKey(targetCell);
+                    const canDropGoblin = Boolean(draggingGoblinId) && !block.destroyed && platformCellKeys.has(targetCellKey);
+                    const blockHitEffects = hitEffectsByCell.get(targetCellKey) ?? [];
 
-                        return (
-                          <div
-                            className={slotClassName}
-                            data-goblin-drop-cell={canDropOnPlatform ? targetCellKey : undefined}
-                            key={col}
-                            onDragOver={(event) => {
-                              if (canDropOnPlatform) {
-                                event.preventDefault();
-                                event.dataTransfer.dropEffect = "move";
-                              }
-                            }}
-                            onDrop={(event) => handleGoblinDrop(event, targetCellKey)}
-                          >
-                            {placedGoblin ? renderPlacedGoblin(placedGoblin, Boolean(worker)) : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-
-                  <div
-                    className={rowIndex === currentPlatformRow ? "mine-row platform-depth" : "mine-row"}
-                    data-mine-row={rowIndex}
-                    style={{ gridTemplateColumns: `34px repeat(${session.mine.width}, minmax(0, 1fr))` }}
-                  >
-                    <span className={rowIndex === currentPlatformRow ? "depth-marker current" : "depth-marker"}>
-                      {depthMarkerLabel(session, rowIndex, currentPlatformRow)}
-                    </span>
-                    {row.map((block) => {
-                      const blockType = blockTypeById.get(block.blockTypeId);
-                      const targetCell = { row: block.row, col: block.col };
-                      const targetCellKey = cellKey(targetCell);
-                      const canDropGoblin = Boolean(draggingGoblinId) && !block.destroyed && platformCellKeys.has(targetCellKey);
-                      const blockHitEffects = hitEffectsByCell.get(targetCellKey) ?? [];
-
-                      return (
-                        <button
-                          className={blockClassName(block, selectedCell, exposedCellKeys, hitEffectCellKeys, canDropGoblin, currentPlatformRow)}
-                          data-goblin-drop-cell={canDropGoblin ? targetCellKey : undefined}
-                          disabled={block.destroyed || !exposedCellKeys.has(targetCellKey)}
-                          key={`${block.row}:${block.col}`}
-                          onDragOver={(event) => {
-                            if (canDropGoblin) {
-                              event.preventDefault();
-                              event.dataTransfer.dropEffect = "move";
-                            }
-                          }}
-                          onDrop={(event) => handleGoblinDrop(event, targetCellKey)}
-                          onClick={() => handleBlockHit(block)}
-                          type="button"
-                        >
-                          <span>{block.destroyed ? "" : block.hp}</span>
-                          <i style={{ width: `${blockHpPercent(block)}%` }} />
-                          <b>{shortBlockLabel(blockType)}</b>
-                          {blockHitEffects.map((effect) => (
-                            <em className={`hit-effect ${effect.variant}`} key={effect.id} aria-hidden="true" />
-                          ))}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </Fragment>
+                    return (
+                      <button
+                        className={blockClassName(block, selectedCell, exposedCellKeys, hitEffectCellKeys, canDropGoblin, currentPlatformRow)}
+                        data-goblin-drop-cell={canDropGoblin ? targetCellKey : undefined}
+                        disabled={block.destroyed || !exposedCellKeys.has(targetCellKey)}
+                        key={`${block.row}:${block.col}`}
+                        onDragOver={(event) => {
+                          if (canDropGoblin) {
+                            event.preventDefault();
+                            event.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDrop={(event) => handleGoblinDrop(event, targetCellKey)}
+                        onClick={() => handleBlockHit(block)}
+                        type="button"
+                      >
+                        <span>{block.destroyed ? "" : block.hp}</span>
+                        <i style={{ width: `${blockHpPercent(block)}%` }} />
+                        <b>{shortBlockLabel(blockType)}</b>
+                        {blockHitEffects.map((effect) => (
+                          <em className={`hit-effect ${effect.variant}`} key={effect.id} aria-hidden="true" />
+                        ))}
+                      </button>
+                    );
+                  })}
+                </div>
               ))}
             </section>
           </section>
