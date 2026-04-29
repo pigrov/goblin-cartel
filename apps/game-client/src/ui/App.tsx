@@ -1,5 +1,6 @@
 import {
-  calculateCrewHitDamage,
+  applyAutoMining,
+  calculateCrewAutoDamagePerSecond,
   canHireGoblin,
   createMiningSession,
   createInitialGoblinRoster,
@@ -29,6 +30,9 @@ const bossBaseDamage = 18;
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
 const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
+const autoMiningTickMs = 1000;
+const offlineFinalHitDelayMs = 900;
+const maxOfflineMiningSeconds = 6 * 60 * 60;
 
 type GameSection = "mine" | "goblins";
 
@@ -42,11 +46,36 @@ interface ContentState {
 interface StoredMineSave {
   contentVersion: string;
   save: MiningSessionSave;
+  activeCell?: {
+    row: number;
+    col: number;
+  };
+  savedAt?: number;
 }
 
 interface StoredGoblinRoster {
   contentVersion: string;
   roster: GoblinRosterState;
+}
+
+interface RestoredMiningState {
+  session: MiningSession;
+  activeCell: {
+    row: number;
+    col: number;
+  };
+  offlineSummary: OfflineMiningSummary | null;
+  pendingOfflineFinalHit: {
+    row: number;
+    col: number;
+  } | null;
+}
+
+interface OfflineMiningSummary {
+  seconds: number;
+  destroyedBlocks: number;
+  rewards: Record<string, number>;
+  pendingFinalHit: boolean;
 }
 
 export function App() {
@@ -63,6 +92,8 @@ export function App() {
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
   const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(starterContentBundle.goblins));
   const [rosterMessage, setRosterMessage] = useState<string | null>(null);
+  const [offlineSummary, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
+  const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -91,29 +122,33 @@ export function App() {
             source: "published" as const,
             message: "Опубликованный контент"
           };
-          const nextSession = createRestoredSession(payload.content, payload.version.version);
           const nextRoster = createRestoredGoblinRoster(payload.content, payload.version.version);
+          const restoredMining = createRestoredMiningState(payload.content, payload.version.version, nextRoster);
           setContentState({
             ...nextContentState
           });
-          setSession(nextSession);
+          setSession(restoredMining.session);
           setRoster(nextRoster);
-          setActiveCell(findFirstPlayableCell(nextSession));
+          setActiveCell(restoredMining.activeCell);
+          setOfflineSummary(restoredMining.offlineSummary);
+          setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setSessionReady(true);
         }
       } catch (error) {
         if (active) {
-          const nextSession = createRestoredSession(starterContentBundle, "fallback");
           const nextRoster = createRestoredGoblinRoster(starterContentBundle, "fallback");
+          const restoredMining = createRestoredMiningState(starterContentBundle, "fallback", nextRoster);
           setContentState({
             content: starterContentBundle,
             version: "fallback",
             source: "fallback",
             message: error instanceof Error ? error.message : "Стартовый локальный контент"
           });
-          setSession(nextSession);
+          setSession(restoredMining.session);
           setRoster(nextRoster);
-          setActiveCell(findFirstPlayableCell(nextSession));
+          setActiveCell(restoredMining.activeCell);
+          setOfflineSummary(restoredMining.offlineSummary);
+          setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setSessionReady(true);
         }
       } finally {
@@ -135,8 +170,8 @@ export function App() {
       return;
     }
 
-    saveMiningSession(contentState.version, session);
-  }, [contentState.version, session, sessionReady]);
+    saveMiningSession(contentState.version, session, activeCell);
+  }, [activeCell, contentState.version, session, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -160,16 +195,90 @@ export function App() {
   const visibleGoblins = useMemo(() => availableGoblins.slice(0, 3), [availableGoblins]);
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
   const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
-  const hitDamage = useMemo(
+  const bossHitDamage = bossBaseDamage;
+  const goblinDamagePerSecond = useMemo(
     () =>
-      calculateCrewHitDamage({
-        baseDamage: bossBaseDamage,
+      calculateCrewAutoDamagePerSecond({
         blockTags: activeBlock?.tags ?? [],
         goblins: availableGoblins,
         roster
       }),
     [activeBlock?.tags, availableGoblins, roster]
   );
+
+  useEffect(() => {
+    if (!sessionReady || pendingOfflineFinalHit) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setSession((current) => {
+        const targetBlock = current.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(current);
+
+        if (!targetBlock || targetBlock.destroyed) {
+          return current;
+        }
+
+        const autoDamage = calculateCrewAutoDamagePerSecond({
+          blockTags: targetBlock.tags,
+          goblins: availableGoblins,
+          roster
+        });
+
+        if (autoDamage <= 0) {
+          return current;
+        }
+
+        const result = applyAutoMining(current, contentState.content.blockTypes, {
+          startCell: activeCell,
+          damage: autoDamage
+        });
+
+        setActiveCell(result.nextTargetCell);
+        return result.session;
+      });
+    }, autoMiningTickMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeCell, availableGoblins, contentState.content.blockTypes, pendingOfflineFinalHit, roster, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady || !pendingOfflineFinalHit) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setSession((current) => {
+        const target = current.blocks[pendingOfflineFinalHit.row]?.[pendingOfflineFinalHit.col];
+
+        if (!target || target.destroyed) {
+          return current;
+        }
+
+        const next = hitMineBlock(current, contentState.content.blockTypes, {
+          row: target.row,
+          col: target.col,
+          damage: Math.max(1, target.hp)
+        });
+
+        setActiveCell(findFirstPlayableCell(next));
+        setOfflineSummary((currentSummary) =>
+          currentSummary
+            ? {
+                ...currentSummary,
+                destroyedBlocks: currentSummary.destroyedBlocks + 1,
+                rewards: mergeResourceMaps(currentSummary.rewards, next.lastRewards),
+                pendingFinalHit: false
+              }
+            : null
+        );
+        setPendingOfflineFinalHit(null);
+        return next;
+      });
+    }, offlineFinalHitDelayMs);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [contentState.content.blockTypes, pendingOfflineFinalHit, sessionReady]);
 
   function handleBlockHit(block: MiningBlockState) {
     if (block.destroyed) {
@@ -181,7 +290,7 @@ export function App() {
       const next = hitMineBlock(current, contentState.content.blockTypes, {
         row: block.row,
         col: block.col,
-        damage: hitDamage
+        damage: bossHitDamage
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
       setActiveCell(targetDestroyed ? findFirstPlayableCell(next) : { row: block.row, col: block.col });
@@ -191,9 +300,12 @@ export function App() {
 
   function handleResetMine() {
     const nextSession = createSession(contentState.content);
+    const nextActiveCell = findFirstPlayableCell(nextSession);
     setSession(nextSession);
-    setActiveCell(findFirstPlayableCell(nextSession));
-    saveMiningSession(contentState.version, nextSession);
+    setActiveCell(nextActiveCell);
+    setOfflineSummary(null);
+    setPendingOfflineFinalHit(null);
+    saveMiningSession(contentState.version, nextSession, nextActiveCell);
   }
 
   function handleHireGoblin(goblin: GoblinConfig) {
@@ -309,7 +421,7 @@ export function App() {
             type="button"
           >
             <Hammer size={20} />
-            Удар босса · {hitDamage}
+            Удар босса · {bossHitDamage}
           </button>
           <div className="active-block">
             <span>{activeBlock ? blockName(activeBlock, blockTypeById, labels) : "Нет блока"}</span>
@@ -317,6 +429,19 @@ export function App() {
               {activeBlock && !activeBlock.destroyed ? `${activeBlock.hp}/${activeBlock.maxHp} HP` : "разбит"}
             </strong>
           </div>
+          <div className="active-block">
+            <span>Гоблины</span>
+            <strong>{goblinDamagePerSecond}/сек</strong>
+          </div>
+          {offlineSummary ? (
+            <div className="offline-report">
+              <span>
+                Пока тебя не было: {offlineSummary.destroyedBlocks} блоков,{" "}
+                {formatRewards(offlineSummary.rewards, resourceById, labels)}
+              </span>
+              {offlineSummary.pendingFinalHit ? <strong>Финальный удар</strong> : null}
+            </div>
+          ) : null}
           <div className="reward-line">
             {Object.keys(session.lastRewards).length > 0
               ? Object.entries(session.lastRewards)
@@ -368,19 +493,102 @@ function createSession(content: ContentBundle): MiningSession {
   });
 }
 
-function createRestoredSession(content: ContentBundle, contentVersion: string): MiningSession {
+function createRestoredMiningState(
+  content: ContentBundle,
+  contentVersion: string,
+  roster: GoblinRosterState
+): RestoredMiningState {
   const session = createSession(content);
   const storedSave = loadMiningSessionSave();
 
   if (!storedSave || storedSave.contentVersion !== contentVersion) {
-    return session;
+    return {
+      session,
+      activeCell: findFirstPlayableCell(session),
+      offlineSummary: null,
+      pendingOfflineFinalHit: null
+    };
   }
 
   try {
-    return restoreMiningSession(session, storedSave.save);
+    const restoredSession = restoreMiningSession(session, storedSave.save);
+    const restoredActiveCell = storedSave.activeCell ?? findFirstPlayableCell(restoredSession);
+    return applyOfflineMining(content, restoredSession, restoredActiveCell, roster, storedSave.savedAt);
   } catch {
-    return session;
+    return {
+      session,
+      activeCell: findFirstPlayableCell(session),
+      offlineSummary: null,
+      pendingOfflineFinalHit: null
+    };
   }
+}
+
+function applyOfflineMining(
+  content: ContentBundle,
+  session: MiningSession,
+  activeCell: { row: number; col: number },
+  roster: GoblinRosterState,
+  savedAt: number | undefined
+): RestoredMiningState {
+  if (!savedAt) {
+    return {
+      session,
+      activeCell,
+      offlineSummary: null,
+      pendingOfflineFinalHit: null
+    };
+  }
+
+  const offlineSeconds = Math.min(maxOfflineMiningSeconds, Math.max(0, Math.floor((Date.now() - savedAt) / 1000)));
+  const targetBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
+
+  if (offlineSeconds < 5 || !targetBlock) {
+    return {
+      session,
+      activeCell,
+      offlineSummary: null,
+      pendingOfflineFinalHit: null
+    };
+  }
+
+  const availableGoblins = createAvailableGoblins(content);
+  const autoDamage = calculateCrewAutoDamagePerSecond({
+    blockTags: targetBlock.tags,
+    goblins: availableGoblins,
+    roster
+  });
+
+  if (autoDamage <= 0) {
+    return {
+      session,
+      activeCell,
+      offlineSummary: null,
+      pendingOfflineFinalHit: null
+    };
+  }
+
+  const result = applyAutoMining(session, content.blockTypes, {
+    startCell: activeCell,
+    damage: offlineSeconds * autoDamage,
+    holdLastDestroy: true
+  });
+
+  const hasOfflineProgress = result.report.destroyedBlocks > 0 || Boolean(result.report.pendingFinalHit);
+
+  return {
+    session: result.session,
+    activeCell: result.nextTargetCell,
+    offlineSummary: hasOfflineProgress
+      ? {
+          seconds: offlineSeconds,
+          destroyedBlocks: result.report.destroyedBlocks,
+          rewards: result.report.rewards,
+          pendingFinalHit: Boolean(result.report.pendingFinalHit)
+        }
+      : null,
+    pendingOfflineFinalHit: result.report.pendingFinalHit
+  };
 }
 
 function createRestoredGoblinRoster(content: ContentBundle, contentVersion: string): GoblinRosterState {
@@ -422,7 +630,7 @@ function GoblinSection(props: {
           <p>Бригада</p>
           <strong>{props.roster.hiredGoblinIds.length} нанято</strong>
         </div>
-        <span>Сила {calculateCrewHitDamage({ baseDamage: bossBaseDamage, goblins: props.availableGoblins, roster: props.roster })}</span>
+        <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: props.availableGoblins, roster: props.roster })}/сек</span>
       </header>
 
       <div className="goblin-list">
@@ -439,7 +647,9 @@ function GoblinSection(props: {
             <article className={hired ? "goblin-card hired" : "goblin-card"} key={goblin.id}>
               <div>
                 <strong>{goblinName(goblin, props.labels)}</strong>
-                <span>{goblinClassLabel(goblin.class)} · сила {calculateCrewHitDamage({ goblins: [goblin], roster: { hiredGoblinIds: [goblin.id] } })}</span>
+                <span>
+                  {goblinClassLabel(goblin.class)} · {calculateCrewAutoDamagePerSecond({ goblins: [goblin], roster: { hiredGoblinIds: [goblin.id] } })}/сек
+                </span>
               </div>
               <p>{labelFromNameKey(goblin.descriptionKey, goblin.id, props.labels)}</p>
               <footer>
@@ -620,6 +830,32 @@ function messageForHireFailure(reason: string): string {
   }
 }
 
+function formatRewards(
+  rewards: Record<string, number>,
+  resourceById: Map<string, ResourceConfig>,
+  labels: Record<string, string>
+): string {
+  const entries = Object.entries(rewards);
+
+  if (entries.length === 0) {
+    return "награда ждет финального удара";
+  }
+
+  return entries
+    .map(([resourceId, amount]) => `+${amount} ${resourceLabel(resourceById.get(resourceId), resourceId, labels)}`)
+    .join(" · ");
+}
+
+function mergeResourceMaps(left: Record<string, number>, right: Record<string, number>): Record<string, number> {
+  const result = { ...left };
+
+  for (const [resourceId, amount] of Object.entries(right)) {
+    result[resourceId] = (result[resourceId] ?? 0) + amount;
+  }
+
+  return result;
+}
+
 function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {
   const block = findFirstPlayableBlock(session);
   return block ? { row: block.row, col: block.col } : { row: 0, col: 0 };
@@ -629,10 +865,12 @@ function findFirstPlayableBlock(session: MiningSession): MiningBlockState | unde
   return session.blocks.flat().find((block) => !block.destroyed) ?? session.blocks[0]?.[0];
 }
 
-function saveMiningSession(contentVersion: string, session: MiningSession): void {
+function saveMiningSession(contentVersion: string, session: MiningSession, activeCell: { row: number; col: number }): void {
   const payload: StoredMineSave = {
     contentVersion,
-    save: exportMiningSessionSave(session)
+    save: exportMiningSessionSave(session),
+    activeCell,
+    savedAt: Date.now()
   };
   localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
 }

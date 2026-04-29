@@ -472,6 +472,36 @@
   font-size: 12px;
 }
 
+.offline-report {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 8px;
+  border: 1px solid rgb(242 184 75 / 34%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(242 184 75 / 9%);
+  color: var(--gc-gold);
+  font-size: 12px;
+}
+
+.offline-report span,
+.offline-report strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.offline-report span {
+  min-width: 0;
+}
+
+.offline-report strong {
+  flex: 0 0 auto;
+  color: var(--gc-text);
+  font-size: 11px;
+}
+
 .energy-meter span {
   display: block;
   width: 70%;

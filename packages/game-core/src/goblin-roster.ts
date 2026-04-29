@@ -109,6 +109,12 @@ export interface CrewHitDamageInput {
   roster: GoblinRosterState;
 }
 
+export interface CrewAutoDamageInput {
+  blockTags?: string[];
+  goblins: GoblinRosterGoblin[];
+  roster: GoblinRosterState;
+}
+
 export function createInitialGoblinRoster(goblins: GoblinRosterGoblin[]): GoblinRosterState {
   const firstFreeGoblin = [...goblins]
     .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -250,7 +256,21 @@ export function calculateCrewHitDamage(input: CrewHitDamageInput): number {
     0
   );
 
-  return Math.max(1, Math.ceil(baseDamage + crewDamage));
+  return Math.max(0, Math.ceil(baseDamage + crewDamage));
+}
+
+export function calculateCrewAutoDamagePerSecond(input: CrewAutoDamageInput): number {
+  const crewDamage = calculateCrewHitDamage({
+    blockTags: input.blockTags,
+    goblins: input.goblins,
+    roster: input.roster
+  });
+
+  if (crewDamage === 0) {
+    return 0;
+  }
+
+  return Math.max(1, Math.floor(crewDamage * 0.35));
 }
 
 function resolveHiredGoblins(goblins: GoblinRosterGoblin[], roster: GoblinRosterState): GoblinRosterGoblin[] {

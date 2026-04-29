@@ -27,6 +27,11 @@ export interface MiningBlockState {
   specialBehavior: "none" | "explosion" | "chest";
 }
 
+export interface MiningCell {
+  row: number;
+  col: number;
+}
+
 export interface MiningSession {
   mine: GeneratedMine;
   blocks: MiningBlockState[][];
@@ -60,6 +65,26 @@ export interface HitMineBlockInput {
   col: number;
   damage: number;
   random?: () => number;
+}
+
+export interface ApplyAutoMiningInput {
+  startCell: MiningCell;
+  damage: number;
+  holdLastDestroy?: boolean;
+  random?: () => number;
+}
+
+export interface AutoMiningReport {
+  damageApplied: number;
+  destroyedBlocks: number;
+  rewards: Record<string, number>;
+  pendingFinalHit: MiningCell | null;
+}
+
+export interface ApplyAutoMiningResult {
+  session: MiningSession;
+  nextTargetCell: MiningCell;
+  report: AutoMiningReport;
 }
 
 export function createMiningSession(input: CreateMiningSessionInput): MiningSession {
@@ -147,6 +172,65 @@ export function hitMineBlock(
   };
 }
 
+export function applyAutoMining(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyAutoMiningInput
+): ApplyAutoMiningResult {
+  if (!Number.isFinite(input.damage) || input.damage <= 0) {
+    return {
+      session,
+      nextTargetCell: findPlayableCell(session, input.startCell),
+      report: {
+        damageApplied: 0,
+        destroyedBlocks: 0,
+        rewards: {},
+        pendingFinalHit: null
+      }
+    };
+  }
+
+  if (input.holdLastDestroy) {
+    const simulation = applyAutoMiningInternal(session, blockTypes, {
+      damage: input.damage,
+      random: () => 0,
+      startCell: input.startCell
+    });
+
+    const lastDestroyed = simulation.lastDestroyed;
+
+    if (lastDestroyed) {
+      const heldDamage = lastDestroyed.damageConsumedBefore + Math.max(0, lastDestroyed.hpBefore - 1);
+      const heldResult = applyAutoMiningInternal(session, blockTypes, {
+        damage: heldDamage,
+        random: input.random ?? Math.random,
+        startCell: input.startCell
+      });
+
+      return {
+        session: heldResult.session,
+        nextTargetCell: lastDestroyed.cell,
+        report: {
+          ...heldResult.report,
+          pendingFinalHit: lastDestroyed.cell
+        }
+      };
+    }
+  }
+
+  const result = applyAutoMiningInternal(session, blockTypes, {
+    damage: input.damage,
+    random: input.random ?? Math.random,
+    startCell: input.startCell
+  });
+
+  return {
+    session: result.session,
+    nextTargetCell: result.nextTargetCell,
+    report: result.report
+  };
+}
+
 export function exportMiningSessionSave(session: MiningSession): MiningSessionSave {
   return {
     mineTemplateId: session.mine.templateId,
@@ -217,4 +301,123 @@ function rollRewards(rewardTable: MiningRewardEntry[], random: () => number): Re
   }
 
   return rewards;
+}
+
+interface ApplyAutoMiningInternalInput {
+  startCell: MiningCell;
+  damage: number;
+  random: () => number;
+}
+
+interface LastDestroyedBlock {
+  cell: MiningCell;
+  damageConsumedBefore: number;
+  hpBefore: number;
+}
+
+interface ApplyAutoMiningInternalResult extends ApplyAutoMiningResult {
+  lastDestroyed: LastDestroyedBlock | null;
+}
+
+function applyAutoMiningInternal(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyAutoMiningInternalInput
+): ApplyAutoMiningInternalResult {
+  let nextSession = session;
+  let remainingDamage = input.damage;
+  let damageApplied = 0;
+  let destroyedBlocks = 0;
+  let targetCell = findPlayableCell(nextSession, input.startCell);
+  let lastDestroyed: LastDestroyedBlock | null = null;
+  const rewards: Record<string, number> = {};
+
+  while (remainingDamage > 0) {
+    const target = nextSession.blocks[targetCell.row]?.[targetCell.col];
+
+    if (!target || target.destroyed) {
+      const nextTargetCell = findFirstPlayableCell(nextSession);
+
+      if (!nextTargetCell) {
+        break;
+      }
+
+      targetCell = nextTargetCell;
+      continue;
+    }
+
+    const damageToApply = Math.min(remainingDamage, target.hp);
+    const willDestroy = damageToApply >= target.hp;
+    const damageConsumedBefore = damageApplied;
+    const hpBefore = target.hp;
+
+    nextSession = hitMineBlock(nextSession, blockTypes, {
+      row: target.row,
+      col: target.col,
+      damage: damageToApply,
+      random: input.random
+    });
+
+    damageApplied += damageToApply;
+    remainingDamage -= damageToApply;
+
+    if (!willDestroy) {
+      break;
+    }
+
+    destroyedBlocks += 1;
+    lastDestroyed = {
+      cell: {
+        row: target.row,
+        col: target.col
+      },
+      damageConsumedBefore,
+      hpBefore
+    };
+    mergeRewards(rewards, nextSession.lastRewards);
+
+    const nextTargetCell = findFirstPlayableCell(nextSession);
+
+    if (!nextTargetCell) {
+      break;
+    }
+
+    targetCell = nextTargetCell;
+  }
+
+  return {
+    session: nextSession,
+    nextTargetCell: findPlayableCell(nextSession, targetCell),
+    report: {
+      damageApplied,
+      destroyedBlocks,
+      rewards,
+      pendingFinalHit: null
+    },
+    lastDestroyed
+  };
+}
+
+function findPlayableCell(session: MiningSession, preferredCell: MiningCell): MiningCell {
+  const preferred = session.blocks[preferredCell.row]?.[preferredCell.col];
+
+  if (preferred && !preferred.destroyed) {
+    return {
+      row: preferred.row,
+      col: preferred.col
+    };
+  }
+
+  return findFirstPlayableCell(session) ?? { row: 0, col: 0 };
+}
+
+function findFirstPlayableCell(session: MiningSession): MiningCell | null {
+  const block = session.blocks.flat().find((item) => !item.destroyed);
+  return block ? { row: block.row, col: block.col } : null;
+}
+
+function mergeRewards(target: Record<string, number>, source: Record<string, number>): void {
+  for (const [resourceId, amount] of Object.entries(source)) {
+    target[resourceId] = (target[resourceId] ?? 0) + amount;
+  }
 }

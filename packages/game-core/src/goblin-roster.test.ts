@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateCrewAutoDamagePerSecond,
   calculateCrewHitDamage,
   canHireGoblin,
   createInitialGoblinRoster,
@@ -94,6 +95,28 @@ describe("goblin roster", () => {
 
     expect(damage).toBe(42);
   });
+
+  it("calculates crew auto damage per second without boss damage", () => {
+    expect(
+      calculateCrewAutoDamagePerSecond({
+        blockTags: ["rock"],
+        goblins,
+        roster: {
+          hiredGoblinIds: ["starter_miner", "second_miner"]
+        }
+      })
+    ).toBe(7);
+
+    expect(
+      calculateCrewAutoDamagePerSecond({
+        goblins,
+        roster: {
+          hiredGoblinIds: []
+        }
+      })
+    ).toBe(0);
+  });
+
 
   it("hires unlocked goblin and deducts resources", () => {
     const result = hireGoblin({
