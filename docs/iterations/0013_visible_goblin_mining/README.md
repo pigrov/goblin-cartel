@@ -1,7 +1,7 @@
 # 0013 visible goblin mining
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -35,6 +35,8 @@
 - После разрушения активного блока цель переносится на следующий открытый блок по колонкам.
 - Boss hit и клик по блоку теперь работают только по открытым сверху блокам.
 - Закрытые нижние блоки затемняются и отключаются для клика.
+- Коммит `cbbc17c` задеплоен через GitHub Actions.
+- Production bundle содержит новую разметку worker slots и CSS для мини-гоблина/закрытых блоков.
 
 ## Измененные файлы
 
@@ -68,6 +70,26 @@ git diff --check
 ## CI/CD и миграции
 
 Новая миграция не планируется.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.3
+current content goblins: 8
+server containers: up
+game-client bundle contains worker slots and worker CSS
+```
 
 ## Открытые вопросы
 
