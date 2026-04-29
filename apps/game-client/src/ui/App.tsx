@@ -78,6 +78,15 @@ interface OfflineMiningSummary {
   pendingFinalHit: boolean;
 }
 
+interface GoblinWorkerAssignment {
+  goblin: GoblinConfig;
+  targetCell: {
+    row: number;
+    col: number;
+  };
+  damagePerSecond: number;
+}
+
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: starterContentBundle,
@@ -192,19 +201,21 @@ export function App() {
   const mineTemplate = contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
   const availableGoblins = useMemo(() => createAvailableGoblins(contentState.content), [contentState.content]);
-  const visibleGoblins = useMemo(() => availableGoblins.slice(0, 3), [availableGoblins]);
-  const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
-  const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
-  const bossHitDamage = bossBaseDamage;
-  const goblinDamagePerSecond = useMemo(
-    () =>
-      calculateCrewAutoDamagePerSecond({
-        blockTags: activeBlock?.tags ?? [],
-        goblins: availableGoblins,
-        roster
-      }),
-    [activeBlock?.tags, availableGoblins, roster]
+  const hiredGoblins = useMemo(
+    () => availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)),
+    [availableGoblins, roster]
   );
+  const exposedCells = useMemo(() => findExposedCells(session), [session]);
+  const exposedCellKeys = useMemo(() => new Set(exposedCells.map(cellKey)), [exposedCells]);
+  const selectedCell = useMemo(() => findExposedCellForPreferred(session, activeCell), [activeCell, session]);
+  const workerAssignments = useMemo(
+    () => assignGoblinWorkers(session, hiredGoblins, selectedCell),
+    [hiredGoblins, selectedCell, session]
+  );
+  const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
+  const activeBlock = session.blocks[selectedCell.row]?.[selectedCell.col] ?? findFirstPlayableBlock(session);
+  const bossHitDamage = bossBaseDamage;
+  const goblinDamagePerSecond = workerAssignments.reduce((total, worker) => total + worker.damagePerSecond, 0);
 
   useEffect(() => {
     if (!sessionReady || pendingOfflineFinalHit) {
@@ -213,34 +224,43 @@ export function App() {
 
     const intervalId = window.setInterval(() => {
       setSession((current) => {
-        const targetBlock = current.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(current);
+        const currentSelectedCell = findExposedCellForPreferred(current, activeCell);
+        const currentWorkers = assignGoblinWorkers(current, hiredGoblins, currentSelectedCell);
 
-        if (!targetBlock || targetBlock.destroyed) {
+        if (currentWorkers.length === 0) {
           return current;
         }
 
-        const autoDamage = calculateCrewAutoDamagePerSecond({
-          blockTags: targetBlock.tags,
-          goblins: availableGoblins,
-          roster
-        });
+        let nextSession = current;
+        let nextActiveCell = currentSelectedCell;
 
-        if (autoDamage <= 0) {
-          return current;
+        for (const worker of currentWorkers) {
+          const target = nextSession.blocks[worker.targetCell.row]?.[worker.targetCell.col];
+
+          if (!target || target.destroyed || worker.damagePerSecond <= 0 || !isExposedCell(nextSession, worker.targetCell)) {
+            continue;
+          }
+
+          const next = hitMineBlock(nextSession, contentState.content.blockTypes, {
+            row: target.row,
+            col: target.col,
+            damage: worker.damagePerSecond
+          });
+
+          if (next.blocks[target.row]?.[target.col]?.destroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
+            nextActiveCell = findNextExposedCell(next, worker.targetCell);
+          }
+
+          nextSession = next;
         }
 
-        const result = applyAutoMining(current, contentState.content.blockTypes, {
-          startCell: activeCell,
-          damage: autoDamage
-        });
-
-        setActiveCell(result.nextTargetCell);
-        return result.session;
+        setActiveCell(nextActiveCell);
+        return nextSession;
       });
     }, autoMiningTickMs);
 
     return () => window.clearInterval(intervalId);
-  }, [activeCell, availableGoblins, contentState.content.blockTypes, pendingOfflineFinalHit, roster, sessionReady]);
+  }, [activeCell, contentState.content.blockTypes, hiredGoblins, pendingOfflineFinalHit, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady || !pendingOfflineFinalHit) {
@@ -281,8 +301,9 @@ export function App() {
   }, [contentState.content.blockTypes, pendingOfflineFinalHit, sessionReady]);
 
   function handleBlockHit(block: MiningBlockState) {
-    if (block.destroyed) {
-      setActiveCell({ row: block.row, col: block.col });
+    const targetCell = { row: block.row, col: block.col };
+
+    if (block.destroyed || !exposedCellKeys.has(cellKey(targetCell))) {
       return;
     }
 
@@ -293,7 +314,7 @@ export function App() {
         damage: bossHitDamage
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
-      setActiveCell(targetDestroyed ? findFirstPlayableCell(next) : { row: block.row, col: block.col });
+      setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);
       return next;
     });
   }
@@ -358,25 +379,21 @@ export function App() {
         </section>
 
         <section className="goblin-platform" aria-label="Бригада">
-          {visibleGoblins.length > 0 ? (
-            visibleGoblins.map((goblin) => (
-              <div
-                className={isGoblinHired(roster, goblin.id) ? "goblin hired" : "goblin locked"}
-                key={goblin.id}
-                title={labelFromNameKey(goblin.descriptionKey, goblin.id, labels)}
-              >
-                <strong>{goblinName(goblin, labels)}</strong>
-                <span>
-                  {goblinClassLabel(goblin.class)} · {goblin.baseStats.strength}
-                </span>
+          {Array.from({ length: session.mine.width }, (_, col) => {
+            const worker = workerAssignments.find((item) => item.targetCell.col === col);
+
+            return (
+              <div className="goblin-slot" key={col}>
+                {worker ? (
+                  <div className="worker-goblin drilling" title={goblinName(worker.goblin, labels)}>
+                    <span className="worker-head" />
+                    <span className="worker-body" />
+                    <span className="worker-tool" />
+                  </div>
+                ) : null}
               </div>
-            ))
-          ) : (
-            <div className="goblin locked">
-              <strong>Нет бригады</strong>
-              <span>0</span>
-            </div>
-          )}
+            );
+          })}
         </section>
 
         {activeSection === "goblins" ? (
@@ -398,8 +415,8 @@ export function App() {
               const blockType = blockTypeById.get(block.blockTypeId);
               return (
                 <button
-                  className={blockClassName(block, activeCell)}
-                  disabled={block.destroyed}
+                  className={blockClassName(block, selectedCell, exposedCellKeys)}
+                  disabled={block.destroyed || !exposedCellKeys.has(cellKey({ row: block.row, col: block.col }))}
                   key={`${block.row}:${block.col}`}
                   onClick={() => handleBlockHit(block)}
                   type="button"
@@ -668,11 +685,20 @@ function GoblinSection(props: {
   );
 }
 
-function blockClassName(block: MiningBlockState, activeCell: { row: number; col: number }): string {
+function blockClassName(
+  block: MiningBlockState,
+  activeCell: { row: number; col: number },
+  exposedCellKeys: Set<string>
+): string {
   const classes = ["mine-block", block.blockTypeId.replaceAll("_", "-"), blockDamageClass(block)];
+  const blockCell = { row: block.row, col: block.col };
 
   if (block.destroyed) {
     classes.push("destroyed");
+  }
+
+  if (!block.destroyed && !exposedCellKeys.has(cellKey(blockCell))) {
+    classes.push("covered");
   }
 
   if (block.row === activeCell.row && block.col === activeCell.col) {
@@ -854,6 +880,92 @@ function mergeResourceMaps(left: Record<string, number>, right: Record<string, n
   }
 
   return result;
+}
+
+function assignGoblinWorkers(
+  session: MiningSession,
+  hiredGoblins: GoblinConfig[],
+  preferredCell: { row: number; col: number }
+): GoblinWorkerAssignment[] {
+  const targets = orderExposedCells(findExposedCells(session), preferredCell).slice(0, hiredGoblins.length);
+
+  return hiredGoblins
+    .slice(0, targets.length)
+    .map((goblin, index) => {
+      const targetCell = targets[index] ?? preferredCell;
+      const targetBlock = session.blocks[targetCell.row]?.[targetCell.col];
+
+      return {
+        goblin,
+        targetCell,
+        damagePerSecond: calculateCrewAutoDamagePerSecond({
+          blockTags: targetBlock?.tags ?? [],
+          goblins: [goblin],
+          roster: {
+            hiredGoblinIds: [goblin.id]
+          }
+        })
+      };
+    });
+}
+
+function findExposedCellForPreferred(
+  session: MiningSession,
+  preferredCell: { row: number; col: number }
+): { row: number; col: number } {
+  const exposedCells = findExposedCells(session);
+
+  if (exposedCells.some((cell) => cell.row === preferredCell.row && cell.col === preferredCell.col)) {
+    return preferredCell;
+  }
+
+  return findNextExposedCell(session, preferredCell);
+}
+
+function findNextExposedCell(session: MiningSession, fromCell: { row: number; col: number }): { row: number; col: number } {
+  const exposedCells = findExposedCells(session);
+
+  if (exposedCells.length === 0) {
+    return { row: 0, col: 0 };
+  }
+
+  const byColumn = [...exposedCells].sort((left, right) => left.col - right.col || left.row - right.row);
+  const nextByColumn = byColumn.find((cell) => cell.col > fromCell.col);
+
+  return nextByColumn ?? byColumn[0] ?? { row: 0, col: 0 };
+}
+
+function orderExposedCells(
+  exposedCells: Array<{ row: number; col: number }>,
+  preferredCell: { row: number; col: number }
+): Array<{ row: number; col: number }> {
+  if (exposedCells.length === 0) {
+    return [];
+  }
+
+  const sorted = [...exposedCells].sort((left, right) => left.col - right.col || left.row - right.row);
+  const preferredIndex = sorted.findIndex((cell) => cell.row === preferredCell.row && cell.col === preferredCell.col);
+
+  if (preferredIndex === -1) {
+    return sorted;
+  }
+
+  return [...sorted.slice(preferredIndex), ...sorted.slice(0, preferredIndex)];
+}
+
+function findExposedCells(session: MiningSession): Array<{ row: number; col: number }> {
+  return Array.from({ length: session.mine.width }, (_, col) => {
+    const block = session.blocks.map((row) => row[col]).find((item): item is MiningBlockState => Boolean(item && !item.destroyed));
+    return block ? { row: block.row, col: block.col } : null;
+  }).filter((cell): cell is { row: number; col: number } => Boolean(cell));
+}
+
+function isExposedCell(session: MiningSession, cell: { row: number; col: number }): boolean {
+  return findExposedCells(session).some((item) => item.row === cell.row && item.col === cell.col);
+}
+
+function cellKey(cell: { row: number; col: number }): string {
+  return `${cell.row}:${cell.col}`;
 }
 
 function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {
