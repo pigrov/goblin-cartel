@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { generateMine, type MineTemplate } from "./mine-generator";
-import { createMiningSession, hitMineBlock, type MiningBlockType } from "./mining-session";
+import {
+  createMiningSession,
+  exportMiningSessionSave,
+  hitMineBlock,
+  restoreMiningSession,
+  type MiningBlockType
+} from "./mining-session";
 
 const template: MineTemplate = {
   id: "old_well_01",
@@ -68,5 +74,48 @@ describe("mining session", () => {
     expect(destroyed.blocks[0]?.[0]?.destroyed).toBe(true);
     expect(destroyed.resources).toEqual({ stone: 2 });
     expect(ignored.resources).toEqual({ stone: 2 });
+  });
+
+  it("exports and restores damaged blocks and resources", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+    const damaged = hitMineBlock(session, blockTypes, {
+      row: 0,
+      col: 0,
+      damage: 5,
+      random: () => 0
+    });
+    const destroyed = hitMineBlock(damaged, blockTypes, {
+      row: 0,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+
+    const save = exportMiningSessionSave(destroyed);
+    const restored = restoreMiningSession(createMiningSession({ mine, blockTypes }), save);
+
+    expect(save.blocks).toEqual([
+      { row: 0, col: 0, hp: 5, destroyed: false },
+      { row: 0, col: 1, hp: 0, destroyed: true }
+    ]);
+    expect(restored.blocks[0]?.[0]?.hp).toBe(5);
+    expect(restored.blocks[0]?.[1]?.destroyed).toBe(true);
+    expect(restored.resources).toEqual({ stone: 2 });
+    expect(restored.destroyedBlocks).toBe(1);
+  });
+
+  it("rejects save for another mine", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+
+    expect(() =>
+      restoreMiningSession(session, {
+        mineTemplateId: "another_mine",
+        seed: "player-1",
+        resources: {},
+        blocks: []
+      })
+    ).toThrow("Mining save does not match current mine");
   });
 });

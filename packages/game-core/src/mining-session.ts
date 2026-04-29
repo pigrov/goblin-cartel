@@ -35,6 +35,20 @@ export interface MiningSession {
   destroyedBlocks: number;
 }
 
+export interface MiningBlockSave {
+  row: number;
+  col: number;
+  hp: number;
+  destroyed: boolean;
+}
+
+export interface MiningSessionSave {
+  mineTemplateId: string;
+  seed: string;
+  resources: Record<string, number>;
+  blocks: MiningBlockSave[];
+}
+
 export interface CreateMiningSessionInput {
   mine: GeneratedMine;
   blockTypes: MiningBlockType[];
@@ -130,6 +144,62 @@ export function hitMineBlock(
     resources: nextResources,
     lastRewards: rewards,
     destroyedBlocks: session.destroyedBlocks + (destroyed ? 1 : 0)
+  };
+}
+
+export function exportMiningSessionSave(session: MiningSession): MiningSessionSave {
+  return {
+    mineTemplateId: session.mine.templateId,
+    seed: session.mine.seed,
+    resources: { ...session.resources },
+    blocks: session.blocks
+      .flat()
+      .filter((block) => block.destroyed || block.hp < block.maxHp)
+      .map((block) => ({
+        row: block.row,
+        col: block.col,
+        hp: block.hp,
+        destroyed: block.destroyed
+      }))
+  };
+}
+
+export function restoreMiningSession(session: MiningSession, save: MiningSessionSave): MiningSession {
+  if (save.mineTemplateId !== session.mine.templateId || save.seed !== session.mine.seed) {
+    throw new Error("Mining save does not match current mine");
+  }
+
+  const savedBlocks = new Map(save.blocks.map((block) => [`${block.row}:${block.col}`, block]));
+  let destroyedBlocks = 0;
+  const blocks = session.blocks.map((row) =>
+    row.map((block) => {
+      const savedBlock = savedBlocks.get(`${block.row}:${block.col}`);
+
+      if (!savedBlock) {
+        return block;
+      }
+
+      const hp = Math.max(0, Math.min(block.maxHp, savedBlock.hp));
+      const destroyed = savedBlock.destroyed || hp === 0;
+
+      if (destroyed) {
+        destroyedBlocks += 1;
+      }
+
+      return {
+        ...block,
+        hp: destroyed ? 0 : hp,
+        destroyed
+      };
+    })
+  );
+
+  return {
+    ...session,
+    blocks,
+    resources: { ...save.resources },
+    lastRewards: {},
+    destroyedBlocks
   };
 }
 

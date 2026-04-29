@@ -18,3 +18,4 @@
 - `0005_admin_credentials` - раздел зашифрованных credentials в админке.
 - `0006_content_versions` - версии контента, валидация, публикация и выдача текущего конфига.
 - `0007_game_client_content_loop` - подключение игрового клиента к content bundle и первый playable mining loop.
+- `0008_mine_screen_save` - улучшение экрана рудника и локальное сохранение прогресса.

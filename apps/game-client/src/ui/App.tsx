@@ -1,9 +1,12 @@
 import {
   createMiningSession,
+  exportMiningSessionSave,
   generateMine,
   hitMineBlock,
+  restoreMiningSession,
   type MiningBlockState,
-  type MiningSession
+  type MiningSession,
+  type MiningSessionSave
 } from "@goblin-cartel/game-core";
 import {
   starterContentBundle,
@@ -17,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const hitDamage = 28;
 const mineSeed = "local-player-001";
+const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
 
 interface ContentState {
   content: ContentBundle;
@@ -24,6 +28,23 @@ interface ContentState {
   source: "published" | "fallback";
   message: string;
 }
+
+interface StoredMineSave {
+  contentVersion: string;
+  save: MiningSessionSave;
+}
+
+const nameKeyLabels: Record<string, string> = {
+  "resource.gold.name": "Золото",
+  "resource.stone.name": "Камень",
+  "resource.copper_ore.name": "Медь",
+  "resource.boss_energy.name": "Энергия",
+  "block.dirt.name": "Земля",
+  "block.stone.name": "Камень",
+  "block.copper_ore.name": "Медная руда",
+  "block.chest_wooden.name": "Деревянный сундук",
+  "mine.old_well.name": "Старый колодец"
+};
 
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
@@ -34,6 +55,7 @@ export function App() {
   }));
   const [loadingContent, setLoadingContent] = useState(true);
   const [session, setSession] = useState<MiningSession>(() => createSession(starterContentBundle));
+  const [sessionReady, setSessionReady] = useState(false);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
 
   useEffect(() => {
@@ -57,23 +79,32 @@ export function App() {
         };
 
         if (active) {
-          setContentState({
+          const nextContentState = {
             content: payload.content,
             version: payload.version.version,
-            source: "published",
+            source: "published" as const,
             message: "Опубликованный контент"
+          };
+          const nextSession = createRestoredSession(payload.content, payload.version.version);
+          setContentState({
+            ...nextContentState
           });
-          setSession(createSession(payload.content));
+          setSession(nextSession);
+          setActiveCell(findFirstPlayableCell(nextSession));
+          setSessionReady(true);
         }
       } catch (error) {
         if (active) {
+          const nextSession = createRestoredSession(starterContentBundle, "fallback");
           setContentState({
             content: starterContentBundle,
             version: "fallback",
             source: "fallback",
             message: error instanceof Error ? error.message : "Стартовый локальный контент"
           });
-          setSession(createSession(starterContentBundle));
+          setSession(nextSession);
+          setActiveCell(findFirstPlayableCell(nextSession));
+          setSessionReady(true);
         }
       } finally {
         if (active) {
@@ -89,6 +120,14 @@ export function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!sessionReady) {
+      return;
+    }
+
+    saveMiningSession(contentState.version, session);
+  }, [contentState.version, session, sessionReady]);
+
   const resourceById = useMemo(
     () => new Map(contentState.content.resources.map((resource) => [resource.id, resource])),
     [contentState.content.resources]
@@ -99,7 +138,7 @@ export function App() {
   );
   const mineTemplate = contentState.content.mineTemplates[0];
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
-  const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? visibleBlocks[0];
+  const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
 
   function handleBlockHit(block: MiningBlockState) {
     if (block.destroyed) {
@@ -107,19 +146,23 @@ export function App() {
       return;
     }
 
-    setActiveCell({ row: block.row, col: block.col });
-    setSession((current) =>
-      hitMineBlock(current, contentState.content.blockTypes, {
+    setSession((current) => {
+      const next = hitMineBlock(current, contentState.content.blockTypes, {
         row: block.row,
         col: block.col,
         damage: hitDamage
-      })
-    );
+      });
+      const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
+      setActiveCell(targetDestroyed ? findFirstPlayableCell(next) : { row: block.row, col: block.col });
+      return next;
+    });
   }
 
   function handleResetMine() {
-    setSession(createSession(contentState.content));
-    setActiveCell({ row: 0, col: 0 });
+    const nextSession = createSession(contentState.content);
+    setSession(nextSession);
+    setActiveCell(findFirstPlayableCell(nextSession));
+    saveMiningSession(contentState.version, nextSession);
   }
 
   return (
@@ -163,7 +206,7 @@ export function App() {
             const blockType = blockTypeById.get(block.blockTypeId);
             return (
               <button
-                className={blockClassName(block)}
+                className={blockClassName(block, activeCell)}
                 disabled={block.destroyed}
                 key={`${block.row}:${block.col}`}
                 onClick={() => handleBlockHit(block)}
@@ -244,6 +287,21 @@ function createSession(content: ContentBundle): MiningSession {
   });
 }
 
+function createRestoredSession(content: ContentBundle, contentVersion: string): MiningSession {
+  const session = createSession(content);
+  const storedSave = loadMiningSessionSave();
+
+  if (!storedSave || storedSave.contentVersion !== contentVersion) {
+    return session;
+  }
+
+  try {
+    return restoreMiningSession(session, storedSave.save);
+  } catch {
+    return session;
+  }
+}
+
 function ResourceChip(props: { resource: ResourceConfig; value: number }) {
   return (
     <div className={`resource-chip ${resourceClassName(props.resource.id)}`}>
@@ -253,14 +311,40 @@ function ResourceChip(props: { resource: ResourceConfig; value: number }) {
   );
 }
 
-function blockClassName(block: MiningBlockState): string {
-  const classes = ["mine-block", block.blockTypeId.replaceAll("_", "-")];
+function blockClassName(block: MiningBlockState, activeCell: { row: number; col: number }): string {
+  const classes = ["mine-block", block.blockTypeId.replaceAll("_", "-"), blockDamageClass(block)];
 
   if (block.destroyed) {
     classes.push("destroyed");
   }
 
+  if (block.row === activeCell.row && block.col === activeCell.col) {
+    classes.push("active");
+  }
+
   return classes.join(" ");
+}
+
+function blockDamageClass(block: MiningBlockState): string {
+  if (block.destroyed) {
+    return "damage-destroyed";
+  }
+
+  const ratio = block.hp / block.maxHp;
+
+  if (ratio <= 0.34) {
+    return "damage-breaking";
+  }
+
+  if (ratio <= 0.67) {
+    return "damage-cracked";
+  }
+
+  if (ratio < 1) {
+    return "damage-chipped";
+  }
+
+  return "damage-intact";
 }
 
 function blockHpPercent(block: MiningBlockState): number {
@@ -300,7 +384,8 @@ function shortBlockLabel(blockType?: BlockTypeConfig): string {
 }
 
 function blockName(block: MiningBlockState, blockTypeById: Map<string, BlockTypeConfig>): string {
-  return blockTypeById.get(block.blockTypeId)?.nameKey ?? block.blockTypeId;
+  const blockType = blockTypeById.get(block.blockTypeId);
+  return blockType ? labelFromNameKey(blockType.nameKey, blockType.id) : block.blockTypeId;
 }
 
 function resourceLabel(resource: ResourceConfig | undefined, fallback: string): string {
@@ -308,14 +393,7 @@ function resourceLabel(resource: ResourceConfig | undefined, fallback: string): 
     return fallback;
   }
 
-  const labels: Record<string, string> = {
-    gold: "Золото",
-    stone: "Камень",
-    copper_ore: "Медь",
-    boss_energy: "Энергия"
-  };
-
-  return labels[resource.id] ?? resource.id;
+  return labelFromNameKey(resource.nameKey, resource.id);
 }
 
 function mineTitle(mineTemplate: MineTemplateConfig | undefined): string {
@@ -323,9 +401,41 @@ function mineTitle(mineTemplate: MineTemplateConfig | undefined): string {
     return "Рудник не найден";
   }
 
-  if (mineTemplate.id === "old_well_01") {
-    return `Старый колодец · ${mineTemplate.depthMeters} м`;
+  return `${labelFromNameKey(mineTemplate.displayNameKey, mineTemplate.id)} · ${mineTemplate.depthMeters} м`;
+}
+
+function labelFromNameKey(nameKey: string, fallback: string): string {
+  return nameKeyLabels[nameKey] ?? fallback;
+}
+
+function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {
+  const block = findFirstPlayableBlock(session);
+  return block ? { row: block.row, col: block.col } : { row: 0, col: 0 };
+}
+
+function findFirstPlayableBlock(session: MiningSession): MiningBlockState | undefined {
+  return session.blocks.flat().find((block) => !block.destroyed) ?? session.blocks[0]?.[0];
+}
+
+function saveMiningSession(contentVersion: string, session: MiningSession): void {
+  const payload: StoredMineSave = {
+    contentVersion,
+    save: exportMiningSessionSave(session)
+  };
+  localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
+}
+
+function loadMiningSessionSave(): StoredMineSave | null {
+  const raw = localStorage.getItem(mineSaveStorageKey);
+
+  if (!raw) {
+    return null;
   }
 
-  return `${mineTemplate.id} · ${mineTemplate.depthMeters} м`;
+  try {
+    return JSON.parse(raw) as StoredMineSave;
+  } catch {
+    localStorage.removeItem(mineSaveStorageKey);
+    return null;
+  }
 }
