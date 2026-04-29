@@ -1,7 +1,7 @@
 # 0011 goblin roster
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -32,6 +32,8 @@
 - Вкладка "Гоблины" показывает список гоблинов, стоимость, статус найма и силу.
 - Найм списывает ресурсы из текущей mining session и сразу сохраняется.
 - Нижняя навигация переключает "Рудник" / "Гоблины"; будущие разделы пока заблокированы.
+- Коммит `f9dd9c6` задеплоен через GitHub Actions.
+- Текущая production-версия контента `0.0.2` остается legacy и отдает `goblins: []`; game-client использует starter fallback.
 
 ## Измененные файлы
 
@@ -69,6 +71,26 @@ git diff --check
 ## CI/CD и миграции
 
 Новая миграция не планируется: состояние игрока пока хранится локально в браузере.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.2
+current content goblins: []
+game-client bundle contains goblin roster local save key
+server containers: up
+```
 
 ## Открытые вопросы
 
