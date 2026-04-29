@@ -12,6 +12,7 @@ import {
   starterContentBundle,
   type BlockTypeConfig,
   type ContentBundle,
+  type GoblinConfig,
   type MineTemplateConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
@@ -126,6 +127,10 @@ export function App() {
   );
   const mineTemplate = contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
+  const visibleGoblins = useMemo(
+    () => [...(contentState.content.goblins ?? [])].sort((left, right) => left.sortOrder - right.sortOrder).slice(0, 3),
+    [contentState.content.goblins]
+  );
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
   const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
 
@@ -182,9 +187,25 @@ export function App() {
         </section>
 
         <section className="goblin-platform" aria-label="Бригада">
-          <div className="goblin">Грызз</div>
-          <div className="goblin">Мык</div>
-          <div className="goblin locked">Пип</div>
+          {visibleGoblins.length > 0 ? (
+            visibleGoblins.map((goblin) => (
+              <div
+                className={goblin.unlockRequirements.length > 0 ? "goblin locked" : "goblin"}
+                key={goblin.id}
+                title={labelFromNameKey(goblin.descriptionKey, goblin.id, labels)}
+              >
+                <strong>{goblinName(goblin, labels)}</strong>
+                <span>
+                  {goblinClassLabel(goblin.class)} · {goblin.baseStats.strength}
+                </span>
+              </div>
+            ))
+          ) : (
+            <div className="goblin locked">
+              <strong>Нет бригады</strong>
+              <span>0</span>
+            </div>
+          )}
         </section>
 
         <section
@@ -409,8 +430,25 @@ function labelFromNameKey(nameKey: string, fallback: string, labels: Record<stri
 function createLabels(content: ContentBundle): Record<string, string> {
   return {
     ...(starterContentBundle.localization.ru ?? {}),
-    ...(content.localization.ru ?? {})
+    ...(content.localization?.ru ?? {})
   };
+}
+
+function goblinName(goblin: GoblinConfig, labels: Record<string, string>): string {
+  return labelFromNameKey(goblin.nameKey, goblin.id, labels);
+}
+
+function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
+  switch (goblinClass) {
+    case "builder":
+      return "Строитель";
+    case "collector":
+      return "Сборщик";
+    case "foreman":
+      return "Бригадир";
+    default:
+      return "Шахтер";
+  }
 }
 
 function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {

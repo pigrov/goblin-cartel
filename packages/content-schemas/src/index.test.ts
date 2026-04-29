@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTypeSchema, starterContentBundle, validateContentBundle } from "./index";
+import { blockTypeSchema, goblinSchema, starterContentBundle, validateContentBundle } from "./index";
 
 describe("content schemas", () => {
   it("accepts a valid block type", () => {
@@ -41,6 +41,12 @@ describe("content schemas", () => {
       ok: true,
       errors: []
     });
+  });
+
+  it("accepts a valid goblin config", () => {
+    const result = goblinSchema.safeParse(starterContentBundle.goblins[0]);
+
+    expect(result.success).toBe(true);
   });
 
   it("rejects missing resource references", () => {
@@ -89,5 +95,33 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("localization.ru is missing key block.dirt.name");
+  });
+
+  it("rejects goblin hire cost with missing resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const goblin = broken.goblins[0];
+
+    if (goblin) {
+      goblin.hireCost.push({ resourceId: "missing_resource", amount: 10 });
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblins.gryzz_crooked_tooth.hireCost references missing resource missing_resource");
+  });
+
+  it("rejects missing goblin localization keys when locale exists", () => {
+    const broken = structuredClone(starterContentBundle);
+    const ru = broken.localization.ru;
+
+    if (ru) {
+      delete ru["goblin.gryzz.name"];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("localization.ru is missing key goblin.gryzz.name");
   });
 });

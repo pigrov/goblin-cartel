@@ -55,6 +55,7 @@ class MemoryContentStore implements ContentStore {
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
+      ...content.goblins.map((goblin) => this.createEntity(contentVersionId, "goblin", goblin.id, goblin)),
       ...Object.entries(content.localization).map(([locale, messages]) =>
         this.createEntity(contentVersionId, "localization", locale, messages)
       )
@@ -138,6 +139,7 @@ describe("content service", () => {
       notes: "first balance"
     });
     expect(detail.content.resources.map((resource) => resource.id)).toContain("gold");
+    expect(detail.content.goblins.map((goblin) => goblin.id)).toContain("gryzz_crooked_tooth");
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
   });
 

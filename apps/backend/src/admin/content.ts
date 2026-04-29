@@ -7,7 +7,7 @@ import {
 } from "@goblin-cartel/content-schemas";
 
 export type ContentVersionStatus = "draft" | "validated" | "published" | "archived";
-export type ContentEntityType = "resource" | "blockType" | "mineTemplate" | "localization";
+export type ContentEntityType = "resource" | "blockType" | "mineTemplate" | "goblin" | "localization";
 
 export interface ContentVersionRecord {
   id: string;
@@ -329,6 +329,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     resources: entities.filter((entity) => entity.entityType === "resource").map((entity) => entity.data),
     blockTypes: entities.filter((entity) => entity.entityType === "blockType").map((entity) => entity.data),
     mineTemplates: entities.filter((entity) => entity.entityType === "mineTemplate").map((entity) => entity.data),
+    goblins: entities.filter((entity) => entity.entityType === "goblin").map((entity) => entity.data),
     localization
   } as ContentBundle;
 }

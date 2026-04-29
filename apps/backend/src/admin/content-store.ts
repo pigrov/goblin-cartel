@@ -78,6 +78,12 @@ export class DrizzleContentStore implements ContentStore {
           entityId: mineTemplate.id,
           data: mineTemplate
         })),
+        ...content.goblins.map((goblin) => ({
+          contentVersionId,
+          entityType: "goblin",
+          entityId: goblin.id,
+          data: goblin
+        })),
         ...Object.entries(content.localization).map(([locale, messages]) => ({
           contentVersionId,
           entityType: "localization",

@@ -20,3 +20,4 @@
 - `0007_game_client_content_loop` - подключение игрового клиента к content bundle и первый playable mining loop.
 - `0008_mine_screen_save` - улучшение экрана рудника и локальное сохранение прогресса.
 - `0009_content_localization` - локализация названий через content bundle вместо клиентской таблицы.
+- `0010_goblin_content` - базовые сущности гоблинов в content bundle и отображение бригады из контента.

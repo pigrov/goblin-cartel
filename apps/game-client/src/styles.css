@@ -119,14 +119,34 @@
 
 .goblin {
   flex: 1;
+  min-width: 0;
   min-height: 42px;
   display: grid;
   place-items: center;
+  padding: 5px;
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius-sm);
   background: linear-gradient(180deg, #314621, #1f2c17);
   color: var(--gc-text);
   font-weight: 700;
+}
+
+.goblin strong,
+.goblin span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goblin strong {
+  font-size: 12px;
+}
+
+.goblin span {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 600;
 }
 
 .goblin.locked {

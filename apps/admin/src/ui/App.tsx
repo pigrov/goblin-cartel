@@ -60,6 +60,8 @@ interface ContentBundle {
   resources: unknown[];
   blockTypes: unknown[];
   mineTemplates: unknown[];
+  goblins: unknown[];
+  localization?: Record<string, Record<string, string>>;
 }
 
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
