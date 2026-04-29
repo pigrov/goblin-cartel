@@ -1,7 +1,7 @@
 # 0010 goblin content
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -35,6 +35,8 @@
 - Game-client показывает бригаду из content bundle вместо локального JSX-хардкода.
 - Для старого опубликованного контента без `goblins` или с пустым массивом клиент использует fallback из `starterContentBundle.goblins`.
 - Добавлены unit tests для goblin schema, missing hire cost resource и missing goblin localization key.
+- Коммиты `2fcd025` и `f806399` задеплоены через GitHub Actions.
+- Текущая опубликованная production-версия контента `0.0.2` была создана до этой итерации и возвращает `goblins: []`; game-client корректно использует starter fallback до новой публикации контента.
 
 ## Измененные файлы
 
@@ -79,7 +81,26 @@ git diff --check
 
 Новая миграция не планируется: используется существующая таблица `content_entities`.
 
-CI/CD будет запущен после коммита и push.
+CI/CD запущен после push в `main`.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.2
+current content goblins: []
+game-client bundle contains starter goblin fallback
+```
 
 ## Открытые вопросы
 
