@@ -154,6 +154,137 @@
   opacity: 0.55;
 }
 
+.goblin.hired {
+  border-color: rgb(111 191 87 / 72%);
+}
+
+.goblin-roster {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 10px;
+  padding: 10px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 12%), rgb(0 0 0 / 32%)),
+    #221811;
+}
+
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-panel);
+}
+
+.section-title p,
+.section-title strong,
+.section-title span {
+  margin: 0;
+}
+
+.section-title p,
+.goblin-card span {
+  color: var(--gc-muted);
+  font-size: 11px;
+}
+
+.section-title strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.section-title span {
+  flex: 0 0 auto;
+  color: var(--gc-gold);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.goblin-list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  overflow-y: auto;
+}
+
+.goblin-card {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-panel);
+}
+
+.goblin-card.hired {
+  border-color: rgb(111 191 87 / 72%);
+  background: linear-gradient(180deg, #283720, var(--gc-panel));
+}
+
+.goblin-card > div,
+.goblin-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.goblin-card strong,
+.goblin-card span,
+.goblin-card p,
+.roster-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.goblin-card strong {
+  font-size: 14px;
+}
+
+.goblin-card p {
+  margin: 0;
+  color: var(--gc-text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.goblin-card footer span {
+  white-space: nowrap;
+}
+
+.goblin-card button {
+  min-width: 82px;
+  min-height: 34px;
+  border: 1px solid #a86235;
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-text);
+  background: linear-gradient(180deg, #b65e34, #7c3524);
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.goblin-card button:disabled {
+  border-color: var(--gc-border);
+  background: var(--gc-panel-raised);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.roster-message {
+  min-height: 18px;
+  margin: 0;
+  color: var(--gc-gold);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
 .mine-grid {
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
@@ -369,4 +500,9 @@
 .bottom-nav button.active {
   color: var(--gc-gold);
   background: #302115;
+}
+
+.bottom-nav button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
