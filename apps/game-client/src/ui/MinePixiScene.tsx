@@ -2,6 +2,14 @@ import { Application, Container, Graphics, Rectangle, Text, type FederatedPointe
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
+import {
+  cellKey,
+  createMinePixiLayout,
+  pointToPlatformCell,
+  type MinePixiCell,
+  type MinePixiLayout,
+  type MinePixiPoint
+} from "./minePixiLayout";
 
 export interface MinePixiGoblin {
   id: string;
@@ -37,23 +45,6 @@ interface MinePixiSceneProps {
   session: MiningSession;
 }
 
-interface SceneLayout {
-  cellSize: number;
-  contentHeight: number;
-  depthWidth: number;
-  gap: number;
-  gridHeight: number;
-  gridWidth: number;
-  gridX: number;
-  gridY: number;
-  platformHeight: number;
-  platformWidth: number;
-  platformY: number;
-  rowStep: number;
-  surfaceHeight: number;
-  width: number;
-}
-
 interface AnimatedItem {
   baseY: number;
   node: Container;
@@ -61,27 +52,40 @@ interface AnimatedItem {
   working: boolean;
 }
 
+interface SceneLayers {
+  background: Container;
+  effects: Container;
+  markers: Container;
+  mine: Container;
+  platform: Container;
+  surface: Container;
+}
+
+interface DragState {
+  goblinId: string;
+  point: MinePixiPoint;
+  targetCell: MinePixiCell | null;
+}
+
 const minSceneWidth = 320;
-const surfaceHeight = 132;
-const platformHeight = 58;
-const minePaddingTop = 12;
-const minePaddingBottom = 16;
-const depthWidth = 34;
-const gap = 4;
 
 export function MinePixiScene(props: MinePixiSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
   const rootRef = useRef<Container | null>(null);
-  const layoutRef = useRef<SceneLayout | null>(null);
+  const layoutRef = useRef<MinePixiLayout | null>(null);
   const animatedGoblinsRef = useRef<AnimatedItem[]>([]);
+  const currentPlatformRowRef = useRef(props.currentPlatformRow);
+  const dragStateRef = useRef<DragState | null>(null);
   const onBlockHitRef = useRef(props.onBlockHit);
+  const onPlaceGoblinRef = useRef(props.onPlaceGoblin);
+  const platformCellKeysRef = useRef(props.platformCellKeys);
   const platformRef = useRef<AnimatedItem | null>(null);
   const platformDropAnimatingRef = useRef(false);
   const platformAnimationStartedAtRef = useRef(0);
   const [readyTick, setReadyTick] = useState(0);
   const [viewportWidth, setViewportWidth] = useState(minSceneWidth);
-  const [draggingGoblinId, setDraggingGoblinId] = useState<string | null>(null);
+  const [dragState, setDragState] = useState<DragState | null>(null);
 
   const hitEffectsByCell = useMemo(() => {
     const effectsByCell = new Map<string, MinePixiHitEffect[]>();
@@ -99,8 +103,24 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, [props.platformDropAnimating]);
 
   useEffect(() => {
+    currentPlatformRowRef.current = props.currentPlatformRow;
+  }, [props.currentPlatformRow]);
+
+  useEffect(() => {
+    dragStateRef.current = dragState;
+  }, [dragState]);
+
+  useEffect(() => {
     onBlockHitRef.current = props.onBlockHit;
   }, [props.onBlockHit]);
+
+  useEffect(() => {
+    onPlaceGoblinRef.current = props.onPlaceGoblin;
+  }, [props.onPlaceGoblin]);
+
+  useEffect(() => {
+    platformCellKeysRef.current = props.platformCellKeys;
+  }, [props.platformCellKeys]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -194,47 +214,71 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, []);
 
   useEffect(() => {
-    if (!draggingGoblinId) {
+    if (!dragState?.goblinId) {
       return;
     }
 
-    const activeDraggingGoblinId = draggingGoblinId;
+    const activeDraggingGoblinId = dragState.goblinId;
+
+    function updateDragPoint(event: PointerEvent): MinePixiPoint | null {
+      const layout = layoutRef.current;
+      const canvas = appRef.current?.canvas;
+
+      if (!layout || !canvas) {
+        return null;
+      }
+
+      const point = pointFromCanvasEvent(event, canvas);
+      const targetCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
+
+      setDragState((current) => current
+        ? {
+            ...current,
+            point,
+            targetCell: targetCell && platformCellKeysRef.current.has(cellKey(targetCell)) ? targetCell : null
+          }
+        : current);
+
+      return point;
+    }
 
     function finishDrag(event: PointerEvent) {
       const layout = layoutRef.current;
       const canvas = appRef.current?.canvas;
 
       if (!layout || !canvas) {
-        setDraggingGoblinId(null);
+        setDragState(null);
         return;
       }
 
-      const rect = canvas.getBoundingClientRect();
-      const point = {
-        x: event.clientX - rect.left,
-        y: event.clientY - rect.top
-      };
-      const targetCell = pointToPlatformCell(point, layout, props.currentPlatformRow);
+      const point = updateDragPoint(event) ?? pointFromCanvasEvent(event, canvas);
+      const targetCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
 
-      if (targetCell && props.platformCellKeys.has(cellKey(targetCell))) {
-        props.onPlaceGoblin(activeDraggingGoblinId, targetCell);
+      if (targetCell && platformCellKeysRef.current.has(cellKey(targetCell))) {
+        onPlaceGoblinRef.current(activeDraggingGoblinId, targetCell);
       }
 
-      setDraggingGoblinId(null);
+      setDragState(null);
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      updateDragPoint(event);
     }
 
     function cancelDrag() {
-      setDraggingGoblinId(null);
+      setDragState(null);
     }
 
+    window.addEventListener("pointermove", handlePointerMove);
     window.addEventListener("pointerup", finishDrag);
     window.addEventListener("pointercancel", cancelDrag);
 
     return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
       window.removeEventListener("pointerup", finishDrag);
       window.removeEventListener("pointercancel", cancelDrag);
     };
-  }, [draggingGoblinId, props]);
+  }, [dragState?.goblinId]);
 
   useEffect(() => {
     const app = appRef.current;
@@ -245,7 +289,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    const layout = createLayout(props.session, viewportWidth, props.currentPlatformRow);
+    const layout = createMinePixiLayout(props.session.mine, viewportWidth, props.currentPlatformRow);
     layoutRef.current = layout;
     animatedGoblinsRef.current = [];
     platformRef.current = null;
@@ -259,12 +303,21 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       child.destroy({ children: true });
     }
 
-    drawSceneBackground(root, layout);
-    drawSurface(root, layout, props.currentPlatformRow);
-    drawMineBlocks(root, layout, props, hitEffectsByCell, onBlockHitRef);
-    drawDepthMarkers(root, layout, props);
-    drawLiftCables(root, layout);
-    drawPlatform(root, layout, props, draggingGoblinId, animatedGoblinsRef, platformRef, setDraggingGoblinId);
+    const layers = createSceneLayers(root);
+    drawSceneBackground(layers.background, layout);
+    drawSurface(layers.surface, layout, props.currentPlatformRow);
+    drawMineBlocks(layers.mine, layers.effects, layout, props, hitEffectsByCell, onBlockHitRef);
+    drawDepthMarkers(layers.markers, layout, props);
+    drawLiftCables(layers.surface, layout);
+    drawPlatform(
+      layers.platform,
+      layout,
+      props,
+      dragState,
+      animatedGoblinsRef,
+      platformRef,
+      setDragState
+    );
 
     if (props.platformDropAnimating) {
       platformAnimationStartedAtRef.current = performance.now();
@@ -280,7 +333,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
 
     return () => window.cancelAnimationFrame(frameId);
   }, [
-    draggingGoblinId,
+    dragState,
     hitEffectsByCell,
     props.activeCell,
     props.blockTypeById,
@@ -301,37 +354,21 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   );
 }
 
-function createLayout(session: MiningSession, viewportWidth: number, platformRow: number): SceneLayout {
-  const width = Math.max(minSceneWidth, viewportWidth);
-  const gridX = 6 + depthWidth + gap;
-  const usableGridWidth = width - gridX - 10;
-  const cellSize = Math.max(28, Math.floor((usableGridWidth - gap * (session.mine.width - 1)) / session.mine.width));
-  const rowStep = cellSize + gap;
-  const gridY = surfaceHeight + minePaddingTop;
-  const gridWidth = session.mine.width * cellSize + Math.max(0, session.mine.width - 1) * gap;
-  const gridHeight = session.mine.height * rowStep - gap;
-  const normalizedPlatformRow = Math.max(0, Math.min(session.mine.height - 1, platformRow));
-  const platformY = Math.max(surfaceHeight - platformHeight + 10, gridY + normalizedPlatformRow * rowStep - platformHeight + 14);
-
-  return {
-    cellSize,
-    contentHeight: gridY + gridHeight + minePaddingBottom,
-    depthWidth,
-    gap,
-    gridHeight,
-    gridWidth,
-    gridX,
-    gridY,
-    platformHeight,
-    platformWidth: gridWidth,
-    platformY,
-    rowStep,
-    surfaceHeight,
-    width
+function createSceneLayers(root: Container): SceneLayers {
+  const layers: SceneLayers = {
+    background: new Container(),
+    effects: new Container(),
+    markers: new Container(),
+    mine: new Container(),
+    platform: new Container(),
+    surface: new Container()
   };
+
+  root.addChild(layers.background, layers.surface, layers.mine, layers.markers, layers.platform, layers.effects);
+  return layers;
 }
 
-function drawSceneBackground(root: Container, layout: SceneLayout) {
+function drawSceneBackground(root: Container, layout: MinePixiLayout) {
   root.addChild(
     new Graphics()
       .rect(0, 0, layout.width, layout.contentHeight)
@@ -344,7 +381,7 @@ function drawSceneBackground(root: Container, layout: SceneLayout) {
   );
 }
 
-function drawSurface(root: Container, layout: SceneLayout, platformRow: number) {
+function drawSurface(root: Container, layout: MinePixiLayout, platformRow: number) {
   const surface = new Container();
 
   surface.addChild(
@@ -390,8 +427,9 @@ function drawSurface(root: Container, layout: SceneLayout, platformRow: number) 
 }
 
 function drawMineBlocks(
-  root: Container,
-  layout: SceneLayout,
+  mineLayer: Container,
+  effectsLayer: Container,
+  layout: MinePixiLayout,
   props: MinePixiSceneProps,
   hitEffectsByCell: ReadonlyMap<string, MinePixiHitEffect[]>,
   onBlockHitRef: MutableRefObject<(block: MiningBlockState) => void>
@@ -419,16 +457,16 @@ function drawMineBlocks(
         blockGraphics.on("pointertap", () => onBlockHitRef.current(block));
       }
 
-      root.addChild(blockGraphics);
+      mineLayer.addChild(blockGraphics);
 
       for (const effect of hitEffectsByCell.get(blockKey) ?? []) {
-        root.addChild(drawHitEffect(effect, x + layout.cellSize / 2, y + layout.cellSize / 2, layout.cellSize));
+        effectsLayer.addChild(drawHitEffect(effect, x + layout.cellSize / 2, y + layout.cellSize / 2, layout.cellSize));
       }
     }
   }
 }
 
-function drawDepthMarkers(root: Container, layout: SceneLayout, props: MinePixiSceneProps) {
+function drawDepthMarkers(root: Container, layout: MinePixiLayout, props: MinePixiSceneProps) {
   for (let row = 0; row < props.session.mine.height; row += 1) {
     const label = props.depthMarkerLabel(row);
 
@@ -449,7 +487,7 @@ function drawDepthMarkers(root: Container, layout: SceneLayout, props: MinePixiS
   }
 }
 
-function drawLiftCables(root: Container, layout: SceneLayout) {
+function drawLiftCables(root: Container, layout: MinePixiLayout) {
   const cableX = layout.gridX;
   const cableTop = layout.surfaceHeight - 104;
   const cableBottom = Math.max(layout.surfaceHeight, layout.platformY + layout.platformHeight - 18);
@@ -469,12 +507,12 @@ function drawLiftCables(root: Container, layout: SceneLayout) {
 
 function drawPlatform(
   root: Container,
-  layout: SceneLayout,
+  layout: MinePixiLayout,
   props: MinePixiSceneProps,
-  draggingGoblinId: string | null,
+  dragState: DragState | null,
   animatedGoblinsRef: MutableRefObject<AnimatedItem[]>,
   platformRef: MutableRefObject<AnimatedItem | null>,
-  setDraggingGoblinId: (id: string | null) => void
+  setDragState: (state: DragState | null) => void
 ) {
   const platform = new Container();
   platform.position.set(0, layout.platformY);
@@ -496,12 +534,13 @@ function drawPlatform(
     const block = props.session.blocks[props.currentPlatformRow]?.[col];
     const slotX = layout.gridX + col * layout.rowStep;
     const canPlace = Boolean(block && !block.destroyed);
+    const isTarget = dragState?.targetCell?.col === col;
     const slot = new Graphics()
       .roundRect(slotX + 3, layout.platformHeight - 23, layout.cellSize - 6, 10, 4)
       .fill({ color: canPlace ? 0xa8753f : 0x3b2a1b, alpha: canPlace ? 1 : 0.56 });
 
-    if (draggingGoblinId && canPlace) {
-      slot.stroke({ color: 0x6fbf57, alpha: 0.75, width: 2 });
+    if (dragState?.goblinId && canPlace) {
+      slot.stroke({ color: isTarget ? 0xf2b84b : 0x6fbf57, alpha: isTarget ? 0.95 : 0.75, width: isTarget ? 3 : 2 });
     }
 
     platform.addChild(slot);
@@ -514,13 +553,24 @@ function drawPlatform(
 
     const x = layout.gridX + goblin.col * layout.rowStep + layout.cellSize / 2;
     const y = layout.platformHeight - 45;
-    const goblinNode = drawGoblin(layout.cellSize, goblin.working, goblin.id === draggingGoblinId);
+    const isDragging = goblin.id === dragState?.goblinId;
+    const goblinNode = drawGoblin(layout.cellSize, goblin.working, isDragging);
     goblinNode.position.set(x, y);
     goblinNode.eventMode = "static";
     goblinNode.cursor = "grab";
     goblinNode.on("pointerdown", (event: FederatedPointerEvent) => {
       event.stopPropagation();
-      setDraggingGoblinId(goblin.id);
+      event.preventDefault();
+      const point = {
+        x: event.global.x,
+        y: event.global.y
+      };
+      const targetCell = pointToPlatformCell(point, layout, props.currentPlatformRow);
+      setDragState({
+        goblinId: goblin.id,
+        point,
+        targetCell: targetCell && props.platformCellKeys.has(cellKey(targetCell)) ? targetCell : null
+      });
     });
 
     platform.addChild(goblinNode);
@@ -533,12 +583,45 @@ function drawPlatform(
   }
 
   root.addChild(platform);
+  drawDragPreview(root, layout, props, dragState);
   platformRef.current = {
     baseY: layout.platformY,
     node: platform,
     phase: 0,
     working: false
   };
+}
+
+function drawDragPreview(
+  root: Container,
+  layout: MinePixiLayout,
+  props: MinePixiSceneProps,
+  dragState: DragState | null
+) {
+  if (!dragState) {
+    return;
+  }
+
+  const sourceGoblin = props.goblins.find((goblin) => goblin.id === dragState.goblinId);
+
+  if (!sourceGoblin) {
+    return;
+  }
+
+  const preview = drawGoblin(layout.cellSize, sourceGoblin.working, false);
+  preview.alpha = 0.82;
+  preview.position.set(dragState.point.x, dragState.point.y - layout.platformHeight * 0.55);
+  preview.scale.set(preview.scale.x * 1.08);
+  root.addChild(preview);
+
+  if (dragState.targetCell) {
+    const targetX = layout.gridX + dragState.targetCell.col * layout.rowStep;
+    root.addChild(
+      new Graphics()
+        .roundRect(targetX + 2, layout.platformY + layout.platformHeight - 27, layout.cellSize - 4, 16, 5)
+        .stroke({ color: 0xf2b84b, alpha: 0.95, width: 3 })
+    );
+  }
 }
 
 function drawBlock(
@@ -708,28 +791,6 @@ function drawTree(container: Container, x: number, y: number, scale: number) {
   container.addChild(tree);
 }
 
-function pointToPlatformCell(
-  point: { x: number; y: number },
-  layout: SceneLayout,
-  platformRow: number
-): { row: number; col: number } | null {
-  const localY = point.y - layout.platformY;
-
-  if (localY < 0 || localY > layout.platformHeight + layout.cellSize * 0.35) {
-    return null;
-  }
-
-  const relativeX = point.x - layout.gridX;
-  const col = Math.floor(relativeX / layout.rowStep);
-  const colX = relativeX - col * layout.rowStep;
-
-  if (!Number.isInteger(col) || col < 0 || colX < 0 || colX > layout.cellSize) {
-    return null;
-  }
-
-  return { row: platformRow, col };
-}
-
 function platformDropOffset(progress: number): number {
   if (progress <= 0) {
     return -30;
@@ -813,6 +874,11 @@ function createText(options: {
   });
 }
 
-function cellKey(cell: { row: number; col: number }): string {
-  return `${cell.row}:${cell.col}`;
+function pointFromCanvasEvent(event: PointerEvent, canvas: HTMLCanvasElement): MinePixiPoint {
+  const rect = canvas.getBoundingClientRect();
+
+  return {
+    x: event.clientX - rect.left,
+    y: event.clientY - rect.top
+  };
 }
