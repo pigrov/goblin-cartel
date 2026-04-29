@@ -33,7 +33,7 @@
 - Backend content store сохраняет гоблинов как `entityType=goblin`.
 - Admin content JSON тип обновлен под новое поле `goblins`.
 - Game-client показывает бригаду из content bundle вместо локального JSX-хардкода.
-- Для старого опубликованного контента без `goblins` клиент показывает пустую бригаду без падения.
+- Для старого опубликованного контента без `goblins` или с пустым массивом клиент использует fallback из `starterContentBundle.goblins`.
 - Добавлены unit tests для goblin schema, missing hire cost resource и missing goblin localization key.
 
 ## Измененные файлы

@@ -127,10 +127,7 @@ export function App() {
   );
   const mineTemplate = contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
-  const visibleGoblins = useMemo(
-    () => [...(contentState.content.goblins ?? [])].sort((left, right) => left.sortOrder - right.sortOrder).slice(0, 3),
-    [contentState.content.goblins]
-  );
+  const visibleGoblins = useMemo(() => createVisibleGoblins(contentState.content), [contentState.content]);
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
   const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
 
@@ -432,6 +429,11 @@ function createLabels(content: ContentBundle): Record<string, string> {
     ...(starterContentBundle.localization.ru ?? {}),
     ...(content.localization?.ru ?? {})
   };
+}
+
+function createVisibleGoblins(content: ContentBundle): GoblinConfig[] {
+  const source = content.goblins?.length ? content.goblins : starterContentBundle.goblins;
+  return [...source].sort((left, right) => left.sortOrder - right.sortOrder).slice(0, 3);
 }
 
 function goblinName(goblin: GoblinConfig, labels: Record<string, string>): string {
