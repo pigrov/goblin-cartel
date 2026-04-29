@@ -23,7 +23,7 @@ body,
   height: 100dvh;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto clamp(104px, 20dvh, 160px) minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   border: 2px solid var(--gc-border-strong);
   border-radius: var(--gc-radius-md);
@@ -131,15 +131,33 @@ body,
   border-radius: var(--gc-radius-sm);
 }
 
+.playfield-scroll {
+  min-height: 0;
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 30%)),
+    #221811;
+}
+
 .surface-scene {
   position: relative;
-  min-height: 0;
+  height: clamp(112px, 22dvh, 170px);
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr);
   overflow: hidden;
   border-bottom: 1px solid rgb(0 0 0 / 38%);
   background:
     linear-gradient(180deg, #395a63 0 46%, #2f5633 47% 65%, #49311d 66% 100%);
+}
+
+.surface-scene.lowering .lift-wheel {
+  animation: lift-wheel-spin 680ms ease-in-out;
+}
+
+.surface-scene.lowering .lift-cable {
+  animation: lift-cable-pull 680ms ease-in-out;
 }
 
 .surface-landscape {
@@ -206,14 +224,13 @@ body,
 
 .surface-shaft {
   position: absolute;
-  left: 50%;
+  left: 40px;
   bottom: 0;
-  width: 42%;
+  width: calc(100% - 50px);
   height: 38%;
   border: 1px solid rgb(0 0 0 / 38%);
   border-bottom: 0;
   border-radius: 10px 10px 0 0;
-  transform: translateX(-50%);
   background:
     linear-gradient(90deg, rgb(0 0 0 / 22%), transparent 18% 82%, rgb(0 0 0 / 24%)),
     #1b130d;
@@ -244,15 +261,100 @@ body,
   line-height: 1;
 }
 
-.surface-platform {
+.surface-lift {
+  position: absolute;
+  left: 6px;
+  bottom: 12px;
+  z-index: 3;
+  width: 34px;
+  height: 78px;
+}
+
+.lift-wheel {
+  position: absolute;
+  left: 5px;
+  top: 3px;
+  width: 24px;
+  height: 24px;
+  border: 3px solid #9ca3ad;
+  border-radius: 50%;
+  background:
+    linear-gradient(90deg, transparent 44%, #9ca3ad 45% 55%, transparent 56%),
+    linear-gradient(0deg, transparent 44%, #9ca3ad 45% 55%, transparent 56%),
+    #352719;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 42%);
+}
+
+.lift-base {
+  position: absolute;
+  left: 3px;
+  right: 4px;
+  bottom: 0;
+  height: 52px;
+  border: 1px solid rgb(0 0 0 / 48%);
+  border-radius: 5px 5px 2px 2px;
+  background:
+    linear-gradient(90deg, transparent 0 38%, #604122 39% 61%, transparent 62%),
+    repeating-linear-gradient(180deg, #7c5530 0 7px, #5a3b22 8px 12px);
+}
+
+.lift-cable {
+  position: absolute;
+  left: 16px;
+  top: 27px;
+  bottom: -16px;
+  width: 2px;
+  background: #9ca3ad;
+  box-shadow: 4px 0 0 rgb(156 163 173 / 52%);
+}
+
+.mine-platform-row {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: grid;
   gap: 4px;
-  padding: 0 10px 6px;
+  align-items: end;
+  margin-top: 4px;
+}
+
+.mine-platform-row.lowering {
+  animation: platform-lower 680ms ease-in-out;
+}
+
+.platform-cable-column {
+  position: relative;
+  min-width: 0;
+}
+
+.platform-cable-column::before,
+.platform-cable-column::after {
+  position: absolute;
+  top: -78px;
+  bottom: 9px;
+  width: 2px;
+  background: #9ca3ad;
+  content: "";
+}
+
+.platform-cable-column::before {
+  left: 14px;
+}
+
+.platform-cable-column::after {
+  left: 18px;
+  opacity: 0.54;
+}
+
+.platform-cable-column i {
+  position: absolute;
+  left: 10px;
+  right: 8px;
+  bottom: 4px;
+  height: 9px;
+  border: 1px solid rgb(0 0 0 / 44%);
+  border-radius: 3px;
   background:
-    linear-gradient(180deg, transparent, rgb(0 0 0 / 18%)),
-    #18100b;
+    linear-gradient(180deg, #9ca3ad, #5d6268);
 }
 
 .platform-slot {
@@ -417,6 +519,41 @@ body,
 
   100% {
     transform: translateY(3px) rotate(2deg);
+  }
+}
+
+@keyframes lift-wheel-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes lift-cable-pull {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  45% {
+    transform: translateY(5px);
+  }
+}
+
+@keyframes platform-lower {
+  0% {
+    transform: translateY(-22px);
+  }
+
+  60% {
+    transform: translateY(4px);
+  }
+
+  100% {
+    transform: translateY(0);
   }
 }
 
@@ -589,12 +726,9 @@ body,
 }
 
 .mine-grid {
-  min-height: 0;
   display: grid;
   align-content: start;
   gap: 4px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
   padding: 10px 10px 10px 6px;
   background:
     linear-gradient(180deg, rgb(0 0 0 / 10%), rgb(0 0 0 / 35%)),
