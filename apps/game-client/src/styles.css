@@ -1,8 +1,17 @@
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
 .game-shell {
-  min-height: 100vh;
+  height: 100dvh;
+  min-height: 100dvh;
   display: grid;
   place-items: center;
-  padding: 18px;
+  overflow: hidden;
+  padding: 0;
   background:
     radial-gradient(circle at center top, rgb(148 104 58 / 22%), transparent 42%),
     linear-gradient(180deg, #21170f, var(--gc-bg-deep));
@@ -10,10 +19,11 @@
 
 .phone-frame {
   position: relative;
-  width: min(100%, 390px);
-  min-height: min(820px, calc(100vh - 36px));
+  width: min(100vw, 430px);
+  height: 100dvh;
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto 1fr auto auto;
+  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   border: 2px solid var(--gc-border-strong);
   border-radius: var(--gc-radius-md);
@@ -66,13 +76,23 @@
   color: var(--gc-energy);
 }
 
-.mine-header,
-.boss-panel {
+.mine-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
   padding: 10px 12px;
+  border-top: 1px solid rgb(255 255 255 / 5%);
+  border-bottom: 1px solid rgb(0 0 0 / 35%);
+  background: var(--gc-panel);
+}
+
+.boss-panel {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px 10px;
   border-top: 1px solid rgb(255 255 255 / 5%);
   border-bottom: 1px solid rgb(0 0 0 / 35%);
   background: var(--gc-panel);
@@ -426,10 +446,13 @@
 }
 
 .mine-grid {
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(8, minmax(0, 1fr));
   align-content: start;
   gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 10px;
   background:
     linear-gradient(180deg, rgb(0 0 0 / 10%), rgb(0 0 0 / 35%)),
@@ -727,24 +750,30 @@
   }
 }
 
-.boss-panel {
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.boss-energy-card {
-  min-height: 60px;
+.boss-energy-card,
+.goblin-info-card {
+  min-width: 0;
+  min-height: 64px;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
+  grid-template-columns: 28px minmax(0, 1fr);
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  gap: 8px;
+  padding: 8px;
   border-color: rgb(71 138 191 / 56%);
   border-radius: var(--gc-radius-sm);
   background:
     linear-gradient(180deg, rgb(69 141 199 / 18%), rgb(31 48 67 / 24%)),
     var(--gc-panel-raised);
   text-align: left;
+}
+
+.goblin-info-card {
+  border: 1px solid rgb(111 191 87 / 48%);
+  color: var(--gc-text);
+  cursor: pointer;
+  background:
+    linear-gradient(180deg, rgb(111 191 87 / 16%), rgb(38 58 34 / 24%)),
+    var(--gc-panel-raised);
 }
 
 .boss-energy-card.warn {
@@ -777,14 +806,18 @@
 }
 
 .boss-energy-main,
-.boss-energy-stats {
+.boss-energy-stats,
+.goblin-info-main,
+.goblin-info-stats {
   min-width: 0;
   display: grid;
   gap: 2px;
 }
 
 .boss-energy-main span,
-.boss-energy-stats span {
+.boss-energy-stats span,
+.goblin-info-main span,
+.goblin-info-stats span {
   overflow: hidden;
   color: var(--gc-muted);
   font-size: 11px;
@@ -793,18 +826,61 @@
   white-space: nowrap;
 }
 
-.boss-energy-main strong {
+.boss-energy-main strong,
+.goblin-info-main strong {
   color: var(--gc-text);
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
 }
 
-.boss-energy-stats {
-  justify-items: end;
+.boss-energy-stats span:first-child,
+.goblin-info-stats span:last-child {
+  color: var(--gc-gold);
 }
 
-.boss-energy-stats span:first-child {
-  color: var(--gc-gold);
+.boss-energy-stats,
+.goblin-info-stats {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.goblin-info-icon {
+  position: relative;
+  width: 28px;
+  height: 42px;
+  display: block;
+}
+
+.goblin-info-icon span {
+  position: absolute;
+  display: block;
+  border: 1px solid #18210f;
+  background: #75a94b;
+}
+
+.goblin-info-icon span:nth-child(1) {
+  left: 6px;
+  top: 2px;
+  width: 16px;
+  height: 14px;
+  border-radius: 8px 8px 5px 5px;
+}
+
+.goblin-info-icon span:nth-child(2) {
+  left: 8px;
+  top: 17px;
+  width: 13px;
+  height: 14px;
+  border-radius: 5px;
+  background: #6b4d2e;
+}
+
+.goblin-info-icon span:nth-child(3) {
+  left: 3px;
+  bottom: 1px;
+  width: 22px;
+  height: 7px;
+  border-radius: 999px;
 }
 
 .energy-meter {
@@ -965,6 +1041,25 @@
 
   75% {
     transform: translateX(-2px);
+  }
+}
+
+@media (min-width: 520px) {
+  .game-shell {
+    padding: 18px;
+  }
+
+  .phone-frame {
+    width: min(100%, 430px);
+    height: min(860px, calc(100dvh - 36px));
+  }
+}
+
+@media (max-width: 480px) {
+  .phone-frame {
+    width: 100vw;
+    border: 0;
+    border-radius: 0;
   }
 }
 

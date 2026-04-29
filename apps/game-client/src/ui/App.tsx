@@ -47,7 +47,7 @@ type GoblinPlacementMap = Record<string, number>;
 type HitEffectVariant = "boss" | "goblin" | "critical";
 
 const bossEnergyConfig: BossEnergyConfig = {
-  maxEnergy: 100,
+  maxEnergy: 600,
   energyPerHit: 18,
   regenPerSecond: 6,
   damagePerTap: 18,
@@ -124,14 +124,14 @@ export function App() {
     source: "fallback",
     message: "Стартовый локальный контент"
   }));
-  const [loadingContent, setLoadingContent] = useState(true);
+  const [, setLoadingContent] = useState(true);
   const [session, setSession] = useState<MiningSession>(() => createSession(starterContentBundle));
   const [sessionReady, setSessionReady] = useState(false);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
   const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(starterContentBundle.goblins));
   const [rosterMessage, setRosterMessage] = useState<string | null>(null);
-  const [offlineSummary, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
+  const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
   const [goblinPlacements, setGoblinPlacements] = useState<GoblinPlacementMap>({});
   const [draggingGoblinId, setDraggingGoblinId] = useState<string | null>(null);
@@ -253,16 +253,16 @@ export function App() {
     return () => window.clearTimeout(timeoutId);
   }, [bossEnergyFeedback]);
 
-  const resourceById = useMemo(
-    () => new Map(contentState.content.resources.map((resource) => [resource.id, resource])),
-    [contentState.content.resources]
-  );
   const blockTypeById = useMemo(
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
   );
   const mineTemplate = contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
+  const displayedResources = useMemo(
+    () => contentState.content.resources.filter((resource) => resource.id !== "boss_energy").slice(0, 4),
+    [contentState.content.resources]
+  );
   const availableGoblins = useMemo(() => createAvailableGoblins(contentState.content), [contentState.content]);
   const hiredGoblins = useMemo(
     () => availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)),
@@ -294,7 +294,6 @@ export function App() {
     [hitEffectsByCell]
   );
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
-  const activeBlock = session.blocks[selectedCell.row]?.[selectedCell.col] ?? findFirstPlayableBlock(session);
   const visibleBossEnergy = useMemo(() => regenerateBossEnergy(bossEnergy, bossEnergyConfig, clockNow), [bossEnergy, clockNow]);
   const bossEnergyPercent = bossEnergyConfig.maxEnergy > 0 ? (visibleBossEnergy.currentEnergy / bossEnergyConfig.maxEnergy) * 100 : 0;
   const bossSecondsUntilReady = useMemo(
@@ -302,6 +301,7 @@ export function App() {
     [bossEnergy, clockNow]
   );
   const goblinDamagePerSecond = workerAssignments.reduce((total, worker) => total + worker.damagePerSecond, 0);
+  const activeGoblinWorkers = workerAssignments.length;
 
   useEffect(() => {
     if (!sessionReady || pendingOfflineFinalHit) {
@@ -545,8 +545,8 @@ export function App() {
   return (
     <main className="game-shell">
       <section className="phone-frame" aria-label="Игровой экран">
-        <header className="resource-bar">
-          {contentState.content.resources.slice(0, 4).map((resource) => (
+        <header className="resource-bar" style={{ gridTemplateColumns: `repeat(${Math.max(1, displayedResources.length)}, minmax(0, 1fr))` }}>
+          {displayedResources.map((resource) => (
             <ResourceChip
               key={resource.id}
               labels={labels}
@@ -686,34 +686,21 @@ export function App() {
               <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
             </span>
           </button>
-          <div className="active-block">
-            <span>{activeBlock ? blockName(activeBlock, blockTypeById, labels) : "Нет блока"}</span>
-            <strong>
-              {activeBlock && !activeBlock.destroyed ? `${activeBlock.hp}/${activeBlock.maxHp} HP` : "разбит"}
-            </strong>
-          </div>
-          <div className="active-block">
-            <span>Гоблины</span>
-            <strong>{goblinDamagePerSecond}/сек</strong>
-          </div>
-          {offlineSummary ? (
-            <div className="offline-report">
-              <span>
-                Пока тебя не было: {offlineSummary.destroyedBlocks} блоков,{" "}
-                {formatRewards(offlineSummary.rewards, resourceById, labels)}
-              </span>
-              {offlineSummary.pendingFinalHit ? <strong>Финальный удар</strong> : null}
-            </div>
-          ) : null}
-          <div className="reward-line">
-            {Object.keys(session.lastRewards).length > 0
-              ? Object.entries(session.lastRewards)
-                  .map(([resourceId, amount]) => `+${amount} ${resourceLabel(resourceById.get(resourceId), resourceId, labels)}`)
-                  .join(" · ")
-              : loadingContent
-                ? "Загружаем контент"
-                : `${session.destroyedBlocks} блоков разбито`}
-          </div>
+          <button className="goblin-info-card" onClick={() => setActiveSection("goblins")} type="button">
+            <span className="goblin-info-icon" aria-hidden="true">
+              <span />
+              <span />
+              <span />
+            </span>
+            <span className="goblin-info-main">
+              <span>Гоблины</span>
+              <strong>{hiredGoblins.length} нанято</strong>
+            </span>
+            <span className="goblin-info-stats">
+              <span>{activeGoblinWorkers} работают</span>
+              <span>{goblinDamagePerSecond}/сек</span>
+            </span>
+          </button>
         </section>
 
         {bossDetailsOpen ? (
@@ -1113,15 +1100,6 @@ function shortBlockLabel(blockType?: BlockTypeConfig): string {
   return blockType.id.slice(0, 2).toUpperCase();
 }
 
-function blockName(
-  block: MiningBlockState,
-  blockTypeById: Map<string, BlockTypeConfig>,
-  labels: Record<string, string>
-): string {
-  const blockType = blockTypeById.get(block.blockTypeId);
-  return blockType ? labelFromNameKey(blockType.nameKey, blockType.id, labels) : block.blockTypeId;
-}
-
 function resourceLabel(
   resource: ResourceConfig | undefined,
   fallback: string,
@@ -1221,22 +1199,6 @@ function formatSeconds(value: number): string {
   }
 
   return `${Math.max(0, value).toFixed(1)} сек`;
-}
-
-function formatRewards(
-  rewards: Record<string, number>,
-  resourceById: Map<string, ResourceConfig>,
-  labels: Record<string, string>
-): string {
-  const entries = Object.entries(rewards);
-
-  if (entries.length === 0) {
-    return "награда ждет финального удара";
-  }
-
-  return entries
-    .map(([resourceId, amount]) => `+${amount} ${resourceLabel(resourceById.get(resourceId), resourceId, labels)}`)
-    .join(" · ");
 }
 
 function mergeResourceMaps(left: Record<string, number>, right: Record<string, number>): Record<string, number> {
