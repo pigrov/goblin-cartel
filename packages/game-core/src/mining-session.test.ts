@@ -3,9 +3,12 @@ import { generateMine, type MineTemplate } from "./mine-generator";
 import {
   applyAutoMining,
   applyColumnAutoMining,
+  applyPlatformAutoMining,
   createMiningSession,
   exportMiningSessionSave,
+  findPlatformRow,
   hitMineBlock,
+  isMineRowCleared,
   restoreMiningSession,
   type MiningBlockType
 } from "./mining-session";
@@ -201,6 +204,112 @@ describe("mining session", () => {
     });
     expect(result.session.blocks[0]?.[1]?.hp).toBe(10);
     expect(result.nextTargetCell).toEqual({ row: 1, col: 0 });
+  });
+
+  it("applies platform mining only to the block directly under the goblin", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+
+    const result = applyPlatformAutoMining(session, blockTypes, {
+      platformRow: 0,
+      column: 0,
+      damage: 25,
+      random: () => 0
+    });
+
+    expect(result.report).toEqual({
+      damageApplied: 10,
+      destroyedBlocks: 1,
+      rewards: { stone: 2 },
+      pendingFinalHit: null
+    });
+    expect(result.session.blocks[0]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[0]?.destroyed).toBe(false);
+    expect(result.platformRow).toBe(0);
+    expect(result.nextTargetCell).toEqual({ row: 0, col: 0 });
+  });
+
+  it("drops the platform and continues in the same column after a row is cleared", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+    const rowReadyToClear = hitMineBlock(session, blockTypes, {
+      row: 0,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+
+    const result = applyPlatformAutoMining(rowReadyToClear, blockTypes, {
+      platformRow: 0,
+      column: 0,
+      damage: 25,
+      random: () => 0
+    });
+
+    expect(result.report).toEqual({
+      damageApplied: 20,
+      destroyedBlocks: 2,
+      rewards: { stone: 4 },
+      pendingFinalHit: null
+    });
+    expect(result.session.blocks[0]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[1]?.destroyed).toBe(false);
+    expect(result.platformRow).toBe(1);
+    expect(result.nextTargetCell).toEqual({ row: 1, col: 0 });
+  });
+
+  it("can hold the last platform destroy at one hp for offline return", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+    const rowReadyToClear = hitMineBlock(session, blockTypes, {
+      row: 0,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+
+    const result = applyPlatformAutoMining(rowReadyToClear, blockTypes, {
+      platformRow: 0,
+      column: 0,
+      damage: 25,
+      holdLastDestroy: true,
+      random: () => 0
+    });
+
+    expect(result.report).toEqual({
+      damageApplied: 19,
+      destroyedBlocks: 1,
+      rewards: { stone: 2 },
+      pendingFinalHit: { row: 1, col: 0 }
+    });
+    expect(result.session.blocks[0]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[0]).toMatchObject({
+      hp: 1,
+      destroyed: false
+    });
+    expect(result.platformRow).toBe(1);
+    expect(result.nextTargetCell).toEqual({ row: 1, col: 0 });
+  });
+
+  it("finds the active platform row after cleared rows", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+    const clearedTopLeft = hitMineBlock(session, blockTypes, {
+      row: 0,
+      col: 0,
+      damage: 10,
+      random: () => 0
+    });
+    const clearedTopRow = hitMineBlock(clearedTopLeft, blockTypes, {
+      row: 0,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+
+    expect(isMineRowCleared(clearedTopRow, 0)).toBe(true);
+    expect(findPlatformRow(clearedTopRow, 0)).toBe(1);
   });
 
   it("rejects save for another mine", () => {

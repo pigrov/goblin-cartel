@@ -23,7 +23,7 @@ body,
   height: 100dvh;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto auto clamp(104px, 20dvh, 160px) minmax(0, 1fr) auto auto;
   overflow: hidden;
   border: 2px solid var(--gc-border-strong);
   border-radius: var(--gc-radius-md);
@@ -131,28 +131,167 @@ body,
   border-radius: var(--gc-radius-sm);
 }
 
-.goblin-platform {
+.surface-scene {
+  position: relative;
+  min-height: 0;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
-  gap: 4px;
-  padding: 8px 10px 6px;
-  background: #18100b;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  border-bottom: 1px solid rgb(0 0 0 / 38%);
+  background:
+    linear-gradient(180deg, #395a63 0 46%, #2f5633 47% 65%, #49311d 66% 100%);
 }
 
-.goblin-slot {
+.surface-landscape {
+  position: relative;
+  min-height: 0;
+}
+
+.surface-landscape::before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34%;
+  background:
+    linear-gradient(180deg, rgb(70 111 55 / 88%), rgb(34 69 38 / 96%)),
+    repeating-linear-gradient(90deg, transparent 0 18px, rgb(255 255 255 / 7%) 19px 20px);
+  content: "";
+}
+
+.surface-tree {
+  position: absolute;
+  bottom: 20%;
+  width: 24px;
+  height: 54px;
+  border-radius: 16px 16px 8px 8px;
+  background:
+    linear-gradient(90deg, transparent 0 42%, #4a321e 43% 57%, transparent 58%),
+    linear-gradient(180deg, #2f6b3b, #1f4a2c);
+}
+
+.surface-tree::before,
+.surface-tree::after {
+  position: absolute;
+  left: -10px;
+  width: 44px;
+  height: 20px;
+  border-radius: 10px;
+  background: #2f6b3b;
+  content: "";
+}
+
+.surface-tree::before {
+  top: 10px;
+}
+
+.surface-tree::after {
+  top: 24px;
+  background: #255933;
+}
+
+.tree-left {
+  left: 16px;
+}
+
+.tree-mid {
+  left: 76px;
+  transform: scale(0.82);
+}
+
+.tree-right {
+  right: 22px;
+  transform: scale(0.92);
+}
+
+.surface-shaft {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 42%;
+  height: 38%;
+  border: 1px solid rgb(0 0 0 / 38%);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+  transform: translateX(-50%);
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 22%), transparent 18% 82%, rgb(0 0 0 / 24%)),
+    #1b130d;
+}
+
+.surface-depth {
+  position: absolute;
+  left: 10px;
+  top: 9px;
+  z-index: 2;
+  display: grid;
+  gap: 1px;
+  padding: 5px 7px;
+  border: 1px solid rgb(0 0 0 / 28%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(21 17 13 / 76%);
+}
+
+.surface-depth span {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.surface-depth strong {
+  color: var(--gc-gold);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.surface-platform {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  padding: 0 10px 6px;
+  background:
+    linear-gradient(180deg, transparent, rgb(0 0 0 / 18%)),
+    #18100b;
+}
+
+.platform-slot {
+  position: relative;
   min-width: 0;
-  height: 42px;
+  height: 48px;
   display: grid;
   place-items: end center;
-  border-bottom: 2px solid rgb(109 77 45 / 62%);
 }
 
-.goblin-slot.dragging-source {
-  border-bottom-color: var(--gc-gold);
+.platform-slot::before {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 4px;
+  height: 7px;
+  border: 1px solid rgb(0 0 0 / 36%);
+  border-radius: 5px;
+  background:
+    linear-gradient(180deg, #8c6338, #51341e);
+  box-shadow: 0 3px 0 rgb(0 0 0 / 22%);
+  content: "";
+}
+
+.platform-slot.empty::before {
+  opacity: 0.58;
+}
+
+.platform-slot.dragging-source::before,
+.platform-slot.drop-target::before {
+  border-color: var(--gc-gold);
+  box-shadow:
+    0 0 0 2px rgb(242 184 75 / 28%),
+    0 3px 0 rgb(0 0 0 / 22%);
 }
 
 .worker-goblin {
   position: relative;
+  z-index: 1;
   width: 34px;
   height: 38px;
   cursor: grab;
@@ -168,6 +307,10 @@ body,
 
 .worker-goblin.drilling {
   animation: worker-drill 300ms steps(2, end) infinite;
+}
+
+.worker-goblin.idle {
+  transform: translateY(1px);
 }
 
 .worker-head,
@@ -448,15 +591,39 @@ body,
 .mine-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
   align-content: start;
   gap: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 10px;
+  padding: 10px 10px 10px 6px;
   background:
     linear-gradient(180deg, rgb(0 0 0 / 10%), rgb(0 0 0 / 35%)),
     #221811;
+}
+
+.mine-row {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  align-items: stretch;
+}
+
+.depth-marker {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 2px;
+  color: rgb(183 165 143 / 58%);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.depth-marker.current {
+  color: var(--gc-gold);
 }
 
 .mine-block {
@@ -553,6 +720,20 @@ body,
   z-index: 1;
   background: rgb(0 0 0 / 34%);
   content: "";
+}
+
+.mine-block.boss-open:not(.destroyed)::before {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 1;
+  height: 3px;
+  background: rgb(68 198 200 / 52%);
+  content: "";
+}
+
+.mine-block.platform-row:not(.destroyed) {
+  outline: 1px solid rgb(242 184 75 / 28%);
+  outline-offset: -2px;
 }
 
 .mine-block.active {

@@ -2,6 +2,7 @@ export interface MineTemplate {
   id: string;
   width: number;
   height: number;
+  depthMeters?: number;
   strata: MineStratum[];
   guaranteedObjects?: GuaranteedObject[];
 }
@@ -34,6 +35,7 @@ export interface GeneratedMine {
   seed: string;
   width: number;
   height: number;
+  depthMeters: number;
   blocks: GeneratedBlock[][];
 }
 
@@ -61,6 +63,7 @@ export function generateMine(template: MineTemplate, seed: string): GeneratedMin
     seed,
     width: template.width,
     height: template.height,
+    depthMeters: template.depthMeters ?? template.height,
     blocks
   };
 }

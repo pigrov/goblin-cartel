@@ -81,6 +81,14 @@ export interface ApplyColumnAutoMiningInput {
   random?: () => number;
 }
 
+export interface ApplyPlatformAutoMiningInput {
+  platformRow: number;
+  column: number;
+  damage: number;
+  holdLastDestroy?: boolean;
+  random?: () => number;
+}
+
 export interface AutoMiningReport {
   damageApplied: number;
   destroyedBlocks: number;
@@ -92,6 +100,10 @@ export interface ApplyAutoMiningResult {
   session: MiningSession;
   nextTargetCell: MiningCell;
   report: AutoMiningReport;
+}
+
+export interface ApplyPlatformAutoMiningResult extends ApplyAutoMiningResult {
+  platformRow: number;
 }
 
 export function createMiningSession(input: CreateMiningSessionInput): MiningSession {
@@ -297,6 +309,103 @@ export function applyColumnAutoMining(
   };
 }
 
+export function applyPlatformAutoMining(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyPlatformAutoMiningInput
+): ApplyPlatformAutoMiningResult {
+  const column = normalizeColumn(session, input.column) ?? 0;
+  const platformRow = findPlatformRow(session, input.platformRow);
+
+  if (!Number.isFinite(input.damage) || input.damage <= 0) {
+    return {
+      session,
+      platformRow,
+      nextTargetCell: { row: platformRow, col: column },
+      report: {
+        damageApplied: 0,
+        destroyedBlocks: 0,
+        rewards: {},
+        pendingFinalHit: null
+      }
+    };
+  }
+
+  if (input.holdLastDestroy) {
+    const simulation = applyPlatformAutoMiningInternal(session, blockTypes, {
+      column: input.column,
+      damage: input.damage,
+      platformRow: input.platformRow,
+      random: () => 0
+    });
+
+    const lastDestroyed = simulation.lastDestroyed;
+
+    if (lastDestroyed) {
+      const heldDamage = lastDestroyed.damageConsumedBefore + Math.max(0, lastDestroyed.hpBefore - 1);
+      const heldResult = applyPlatformAutoMiningInternal(session, blockTypes, {
+        column: input.column,
+        damage: heldDamage,
+        platformRow: input.platformRow,
+        random: input.random ?? Math.random
+      });
+
+      return {
+        session: heldResult.session,
+        platformRow: heldResult.platformRow,
+        nextTargetCell: lastDestroyed.cell,
+        report: {
+          ...heldResult.report,
+          pendingFinalHit: lastDestroyed.cell
+        }
+      };
+    }
+  }
+
+  const result = applyPlatformAutoMiningInternal(session, blockTypes, {
+    column: input.column,
+    damage: input.damage,
+    platformRow: input.platformRow,
+    random: input.random ?? Math.random
+  });
+
+  return {
+    session: result.session,
+    platformRow: result.platformRow,
+    nextTargetCell: result.nextTargetCell,
+    report: result.report
+  };
+}
+
+export function findPlatformRow(session: MiningSession, preferredRow: number): number {
+  const rowCount = session.blocks.length;
+
+  if (rowCount === 0) {
+    return 0;
+  }
+
+  const normalizedRow = normalizeRow(session, preferredRow) ?? 0;
+
+  for (let row = normalizedRow; row < rowCount; row += 1) {
+    if (!isMineRowCleared(session, row)) {
+      return row;
+    }
+  }
+
+  return Math.min(normalizedRow, rowCount - 1);
+}
+
+export function isMineRowCleared(session: MiningSession, row: number): boolean {
+  const normalizedRow = normalizeRow(session, row);
+
+  if (normalizedRow === null) {
+    return true;
+  }
+
+  const rowBlocks = session.blocks[normalizedRow] ?? [];
+  return rowBlocks.length === 0 || rowBlocks.every((block) => block.destroyed);
+}
+
 export function exportMiningSessionSave(session: MiningSession): MiningSessionSave {
   return {
     mineTemplateId: session.mine.templateId,
@@ -470,6 +579,13 @@ interface ApplyColumnAutoMiningInternalInput {
   random: () => number;
 }
 
+interface ApplyPlatformAutoMiningInternalInput {
+  platformRow: number;
+  column: number;
+  damage: number;
+  random: () => number;
+}
+
 function applyColumnAutoMiningInternal(
   session: MiningSession,
   blockTypes: MiningBlockType[],
@@ -563,6 +679,120 @@ function applyColumnAutoMiningInternal(
   };
 }
 
+interface ApplyPlatformAutoMiningInternalResult extends ApplyPlatformAutoMiningResult {
+  lastDestroyed: LastDestroyedBlock | null;
+}
+
+function applyPlatformAutoMiningInternal(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyPlatformAutoMiningInternalInput
+): ApplyPlatformAutoMiningInternalResult {
+  const normalizedColumn = normalizeColumn(session, input.column);
+  let platformRow = findPlatformRow(session, input.platformRow);
+
+  if (normalizedColumn === null) {
+    return {
+      session,
+      platformRow,
+      nextTargetCell: { row: platformRow, col: 0 },
+      report: {
+        damageApplied: 0,
+        destroyedBlocks: 0,
+        rewards: {},
+        pendingFinalHit: null
+      },
+      lastDestroyed: null
+    };
+  }
+
+  let nextSession = session;
+  let remainingDamage = input.damage;
+  let damageApplied = 0;
+  let destroyedBlocks = 0;
+  let lastDestroyed: LastDestroyedBlock | null = null;
+  const rewards: Record<string, number> = {};
+
+  while (remainingDamage > 0) {
+    platformRow = findPlatformRow(nextSession, platformRow);
+    const targetCell: MiningCell = { row: platformRow, col: normalizedColumn };
+
+    const target = nextSession.blocks[targetCell.row]?.[targetCell.col];
+
+    if (!target || target.destroyed) {
+      if (!isMineRowCleared(nextSession, platformRow)) {
+        break;
+      }
+
+      const nextPlatformRow = findPlatformRow(nextSession, platformRow + 1);
+
+      if (nextPlatformRow === platformRow) {
+        break;
+      }
+
+      platformRow = nextPlatformRow;
+      continue;
+    }
+
+    const damageToApply = Math.min(remainingDamage, target.hp);
+    const willDestroy = damageToApply >= target.hp;
+    const damageConsumedBefore = damageApplied;
+    const hpBefore = target.hp;
+
+    nextSession = hitMineBlock(nextSession, blockTypes, {
+      row: target.row,
+      col: target.col,
+      damage: damageToApply,
+      random: input.random
+    });
+
+    damageApplied += damageToApply;
+    remainingDamage -= damageToApply;
+
+    if (!willDestroy) {
+      break;
+    }
+
+    destroyedBlocks += 1;
+    lastDestroyed = {
+      cell: {
+        row: target.row,
+        col: target.col
+      },
+      damageConsumedBefore,
+      hpBefore
+    };
+    mergeRewards(rewards, nextSession.lastRewards);
+
+    if (!isMineRowCleared(nextSession, platformRow)) {
+      break;
+    }
+
+    const nextPlatformRow = findPlatformRow(nextSession, platformRow + 1);
+
+    if (nextPlatformRow === platformRow) {
+      break;
+    }
+
+    platformRow = nextPlatformRow;
+  }
+
+  platformRow = findPlatformRow(nextSession, platformRow);
+
+  return {
+    session: nextSession,
+    platformRow,
+    nextTargetCell: { row: platformRow, col: normalizedColumn },
+    report: {
+      damageApplied,
+      destroyedBlocks,
+      rewards,
+      pendingFinalHit: null
+    },
+    lastDestroyed
+  };
+}
+
 function findPlayableCell(session: MiningSession, preferredCell: MiningCell): MiningCell {
   const preferred = session.blocks[preferredCell.row]?.[preferredCell.col];
 
@@ -607,6 +837,20 @@ function normalizeColumn(session: MiningSession, column: number): number | null 
   }
 
   return normalizedColumn;
+}
+
+function normalizeRow(session: MiningSession, row: number): number | null {
+  if (!Number.isFinite(row)) {
+    return null;
+  }
+
+  const rowCount = session.blocks.length;
+
+  if (rowCount <= 0) {
+    return null;
+  }
+
+  return Math.min(Math.max(0, Math.trunc(row)), rowCount - 1);
 }
 
 function mergeRewards(target: Record<string, number>, source: Record<string, number>): void {
