@@ -1,7 +1,7 @@
 # 0008 mine screen save
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -44,6 +44,8 @@
   - destroyed.
 - Активный блок подсвечивается.
 - После разрушения блока активная цель переключается на следующий доступный блок.
+- Коммит `5ca5d9d` задеплоен через GitHub Actions.
+- Production game-client отдает бандл с local save key `goblin-cartel.player.mine-save.v1`.
 
 ## Измененные файлы
 
@@ -71,6 +73,23 @@ pnpm build
 ```
 
 Результат: пройдено.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+game-client bundle содержит local save
+```
 
 ## UTF-8 и текст
 
