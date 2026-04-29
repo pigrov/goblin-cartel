@@ -1,15 +1,22 @@
 import {
+  applyBossAttack,
   applyColumnAutoMining,
   calculateCrewAutoDamagePerSecond,
   canHireGoblin,
+  createBossEnergyState,
   createMiningSession,
   createInitialGoblinRoster,
   exportMiningSessionSave,
   generateMine,
+  getBossEnergySecondsUntilReady,
   hitMineBlock,
   hireGoblin,
   isGoblinHired,
+  regenerateBossEnergy,
+  restoreBossEnergyState,
   restoreMiningSession,
+  type BossEnergyConfig,
+  type BossEnergyState,
   type GoblinRosterState,
   type MiningBlockState,
   type MiningSession,
@@ -23,21 +30,30 @@ import {
   type MineTemplateConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
-import { Bot, Hammer, Pickaxe, RotateCcw, Settings, Users, Warehouse } from "lucide-react";
+import { Bot, Pickaxe, RotateCcw, Settings, Users, Warehouse, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-const bossBaseDamage = 18;
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
 const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
+const bossEnergyTickMs = 500;
 const offlineFinalHitDelayMs = 900;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 let hitEffectSequence = 0;
 
 type GameSection = "mine" | "goblins";
 type GoblinPlacementMap = Record<string, number>;
-type HitEffectVariant = "boss" | "goblin";
+type HitEffectVariant = "boss" | "goblin" | "critical";
+
+const bossEnergyConfig: BossEnergyConfig = {
+  maxEnergy: 100,
+  energyPerHit: 18,
+  regenPerSecond: 6,
+  damagePerTap: 18,
+  critChance: 0.12,
+  critMultiplier: 2
+};
 
 interface ContentState {
   content: ContentBundle;
@@ -54,6 +70,7 @@ interface StoredMineSave {
     col: number;
   };
   goblinPlacements?: GoblinPlacementMap;
+  bossEnergy?: BossEnergyState;
   savedAt?: number;
 }
 
@@ -74,6 +91,7 @@ interface RestoredMiningState {
     col: number;
   } | null;
   goblinPlacements: GoblinPlacementMap;
+  bossEnergy: BossEnergyState;
 }
 
 interface OfflineMiningSummary {
@@ -118,6 +136,10 @@ export function App() {
   const [goblinPlacements, setGoblinPlacements] = useState<GoblinPlacementMap>({});
   const [draggingGoblinId, setDraggingGoblinId] = useState<string | null>(null);
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
+  const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(bossEnergyConfig, Date.now()));
+  const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
+  const [bossEnergyFeedback, setBossEnergyFeedback] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
   useEffect(() => {
     let active = true;
@@ -157,6 +179,8 @@ export function App() {
           setOfflineSummary(restoredMining.offlineSummary);
           setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setGoblinPlacements(restoredMining.goblinPlacements);
+          setBossEnergy(restoredMining.bossEnergy);
+          setClockNow(Date.now());
           setSessionReady(true);
         }
       } catch (error) {
@@ -175,6 +199,8 @@ export function App() {
           setOfflineSummary(restoredMining.offlineSummary);
           setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setGoblinPlacements(restoredMining.goblinPlacements);
+          setBossEnergy(restoredMining.bossEnergy);
+          setClockNow(Date.now());
           setSessionReady(true);
         }
       } finally {
@@ -196,8 +222,8 @@ export function App() {
       return;
     }
 
-    saveMiningSession(contentState.version, session, activeCell, goblinPlacements);
-  }, [activeCell, contentState.version, goblinPlacements, session, sessionReady]);
+    saveMiningSession(contentState.version, session, activeCell, goblinPlacements, bossEnergy);
+  }, [activeCell, bossEnergy, contentState.version, goblinPlacements, session, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -206,6 +232,26 @@ export function App() {
 
     saveGoblinRoster(contentState.version, roster);
   }, [contentState.version, roster, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => setClockNow(Date.now()), bossEnergyTickMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [sessionReady]);
+
+  useEffect(() => {
+    if (!bossEnergyFeedback) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => setBossEnergyFeedback(false), 450);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [bossEnergyFeedback]);
 
   const resourceById = useMemo(
     () => new Map(contentState.content.resources.map((resource) => [resource.id, resource])),
@@ -249,7 +295,12 @@ export function App() {
   );
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
   const activeBlock = session.blocks[selectedCell.row]?.[selectedCell.col] ?? findFirstPlayableBlock(session);
-  const bossHitDamage = bossBaseDamage;
+  const visibleBossEnergy = useMemo(() => regenerateBossEnergy(bossEnergy, bossEnergyConfig, clockNow), [bossEnergy, clockNow]);
+  const bossEnergyPercent = bossEnergyConfig.maxEnergy > 0 ? (visibleBossEnergy.currentEnergy / bossEnergyConfig.maxEnergy) * 100 : 0;
+  const bossSecondsUntilReady = useMemo(
+    () => getBossEnergySecondsUntilReady(bossEnergy, bossEnergyConfig, clockNow),
+    [bossEnergy, clockNow]
+  );
   const goblinDamagePerSecond = workerAssignments.reduce((total, worker) => total + worker.damagePerSecond, 0);
 
   useEffect(() => {
@@ -424,13 +475,27 @@ export function App() {
       return;
     }
 
-    spawnHitEffect(targetCell, "boss");
+    const now = Date.now();
+    const attack = applyBossAttack(bossEnergy, bossEnergyConfig, {
+      now,
+      random: Math.random
+    });
+
+    setBossEnergy(attack.state);
+    setClockNow(now);
+
+    if (!attack.ok) {
+      setBossEnergyFeedback(true);
+      return;
+    }
+
+    spawnHitEffect(targetCell, attack.critical ? "critical" : "boss");
 
     setSession((current) => {
       const next = hitMineBlock(current, contentState.content.blockTypes, {
         row: block.row,
         col: block.col,
-        damage: bossHitDamage
+        damage: attack.damage
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
       setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);
@@ -439,15 +504,19 @@ export function App() {
   }
 
   function handleResetMine() {
+    const resetAt = Date.now();
     const nextSession = createSession(contentState.content);
     const nextActiveCell = findFirstPlayableCell(nextSession);
     const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, hiredGoblins);
+    const nextBossEnergy = createBossEnergyState(bossEnergyConfig, resetAt);
     setSession(nextSession);
     setActiveCell(nextActiveCell);
     setGoblinPlacements(nextGoblinPlacements);
+    setBossEnergy(nextBossEnergy);
+    setClockNow(resetAt);
     setOfflineSummary(null);
     setPendingOfflineFinalHit(null);
-    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextGoblinPlacements);
+    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextGoblinPlacements, nextBossEnergy);
   }
 
   function handleHireGoblin(goblin: GoblinConfig) {
@@ -599,13 +668,23 @@ export function App() {
 
         <section className="boss-panel">
           <button
-            className="boss-button"
-            disabled={!activeBlock || activeBlock.destroyed}
-            onClick={() => activeBlock && handleBlockHit(activeBlock)}
+            className={bossEnergyFeedback ? "boss-energy-card warn" : "boss-energy-card"}
+            onClick={() => setBossDetailsOpen(true)}
             type="button"
           >
-            <Hammer size={20} />
-            Удар босса · {bossHitDamage}
+            <span className="boss-energy-tank" aria-hidden="true">
+              <i style={{ height: `${bossEnergyPercent}%` }} />
+            </span>
+            <span className="boss-energy-main">
+              <span>Энергия босса</span>
+              <strong>
+                {formatNumber(visibleBossEnergy.currentEnergy)}/{bossEnergyConfig.maxEnergy}
+              </strong>
+            </span>
+            <span className="boss-energy-stats">
+              <span>{bossEnergyConfig.damagePerTap} урон</span>
+              <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
+            </span>
           </button>
           <div className="active-block">
             <span>{activeBlock ? blockName(activeBlock, blockTypeById, labels) : "Нет блока"}</span>
@@ -636,6 +715,33 @@ export function App() {
                 : `${session.destroyedBlocks} блоков разбито`}
           </div>
         </section>
+
+        {bossDetailsOpen ? (
+          <div className="boss-modal-backdrop" onClick={() => setBossDetailsOpen(false)} role="presentation">
+            <section className="boss-modal" aria-label="Параметры босса" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <p>Босс</p>
+                  <strong>Параметры удара</strong>
+                </div>
+                <button className="icon-button" onClick={() => setBossDetailsOpen(false)} type="button" aria-label="Закрыть">
+                  <X size={18} />
+                </button>
+              </header>
+              <div className="boss-stat-grid">
+                <BossStat label="Энергия" value={`${formatNumber(visibleBossEnergy.currentEnergy)}/${bossEnergyConfig.maxEnergy}`} />
+                <BossStat label="Расход" value={`${bossEnergyConfig.energyPerHit}/удар`} />
+                <BossStat label="Урон" value={`${bossEnergyConfig.damagePerTap}/тап`} />
+                <BossStat label="Реген" value={`+${bossEnergyConfig.regenPerSecond}/сек`} />
+                <BossStat label="Крит" value={formatPercent(bossEnergyConfig.critChance)} />
+                <BossStat label="Множитель" value={`x${formatNumber(bossEnergyConfig.critMultiplier)}`} />
+              </div>
+              <div className="boss-ready-line">
+                {bossSecondsUntilReady === 0 ? "Удар готов" : `Следующий удар через ${formatSeconds(bossSecondsUntilReady)}`}
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         <nav className="bottom-nav" aria-label="Основная навигация">
           <button className={activeSection === "mine" ? "active" : ""} onClick={() => setActiveSection("mine")} type="button">
@@ -685,6 +791,7 @@ function createRestoredMiningState(
   const session = createSession(content);
   const storedSave = loadMiningSessionSave();
   const hiredGoblins = createHiredGoblins(content, roster);
+  const now = Date.now();
 
   if (!storedSave || storedSave.contentVersion !== contentVersion) {
     return {
@@ -692,7 +799,8 @@ function createRestoredMiningState(
       activeCell: findFirstPlayableCell(session),
       offlineSummary: null,
       pendingOfflineFinalHit: null,
-      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins)
+      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins),
+      bossEnergy: createBossEnergyState(bossEnergyConfig, now)
     };
   }
 
@@ -702,15 +810,17 @@ function createRestoredMiningState(
     const restoredPlacements = storedSave.goblinPlacements
       ? normalizeGoblinPlacements(restoredSession, hiredGoblins, storedSave.goblinPlacements, { placeMissing: true })
       : createDefaultGoblinPlacements(restoredSession, hiredGoblins);
+    const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
 
-    return applyOfflineMining(content, restoredSession, restoredActiveCell, roster, restoredPlacements, storedSave.savedAt);
+    return applyOfflineMining(content, restoredSession, restoredActiveCell, roster, restoredPlacements, restoredBossEnergy, storedSave.savedAt);
   } catch {
     return {
       session,
       activeCell: findFirstPlayableCell(session),
       offlineSummary: null,
       pendingOfflineFinalHit: null,
-      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins)
+      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins),
+      bossEnergy: createBossEnergyState(bossEnergyConfig, now)
     };
   }
 }
@@ -721,6 +831,7 @@ function applyOfflineMining(
   activeCell: { row: number; col: number },
   roster: GoblinRosterState,
   goblinPlacements: GoblinPlacementMap,
+  bossEnergy: BossEnergyState,
   savedAt: number | undefined
 ): RestoredMiningState {
   if (!savedAt) {
@@ -729,7 +840,8 @@ function applyOfflineMining(
       activeCell,
       offlineSummary: null,
       pendingOfflineFinalHit: null,
-      goblinPlacements
+      goblinPlacements,
+      bossEnergy
     };
   }
 
@@ -741,7 +853,8 @@ function applyOfflineMining(
       activeCell,
       offlineSummary: null,
       pendingOfflineFinalHit: null,
-      goblinPlacements
+      goblinPlacements,
+      bossEnergy
     };
   }
 
@@ -756,7 +869,8 @@ function applyOfflineMining(
       activeCell,
       offlineSummary: null,
       pendingOfflineFinalHit: null,
-      goblinPlacements: restoredPlacements
+      goblinPlacements: restoredPlacements,
+      bossEnergy
     };
   }
 
@@ -816,7 +930,8 @@ function applyOfflineMining(
         }
       : null,
     pendingOfflineFinalHit: pendingFinalHit,
-    goblinPlacements: normalizeGoblinPlacements(nextSession, hiredGoblins, restoredPlacements, { placeMissing: false })
+    goblinPlacements: normalizeGoblinPlacements(nextSession, hiredGoblins, restoredPlacements, { placeMissing: false }),
+    bossEnergy
   };
 }
 
@@ -839,6 +954,15 @@ function ResourceChip(props: { labels: Record<string, string>; resource: Resourc
   return (
     <div className={`resource-chip ${resourceClassName(props.resource.id)}`}>
       <span>{resourceLabel(props.resource, props.resource.id, props.labels)}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function BossStat(props: { label: string; value: string }) {
+  return (
+    <div className="boss-stat">
+      <span>{props.label}</span>
       <strong>{props.value}</strong>
     </div>
   );
@@ -1083,6 +1207,22 @@ function messageForHireFailure(reason: string): string {
   }
 }
 
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatSeconds(value: number): string {
+  if (!Number.isFinite(value)) {
+    return "∞";
+  }
+
+  return `${Math.max(0, value).toFixed(1)} сек`;
+}
+
 function formatRewards(
   rewards: Record<string, number>,
   resourceById: Map<string, ResourceConfig>,
@@ -1283,13 +1423,15 @@ function saveMiningSession(
   contentVersion: string,
   session: MiningSession,
   activeCell: { row: number; col: number },
-  goblinPlacements: GoblinPlacementMap
+  goblinPlacements: GoblinPlacementMap,
+  bossEnergy: BossEnergyState
 ): void {
   const payload: StoredMineSave = {
     contentVersion,
     save: exportMiningSessionSave(session),
     activeCell,
     goblinPlacements,
+    bossEnergy,
     savedAt: Date.now()
   };
   localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
