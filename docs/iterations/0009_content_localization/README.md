@@ -1,7 +1,7 @@
 # 0009 content localization
 
 **Дата:** 2026-04-29
-**Статус:** реализовано локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -33,6 +33,8 @@
 - Game-client берет подписи из `content.localization`.
 - Для старых опубликованных версий без localization game-client использует fallback из `starterContentBundle.localization`.
 - Добавлены tests для legacy content без localization и отсутствующих localization keys.
+- Коммит `3e7e545` задеплоен через GitHub Actions.
+- Текущая опубликованная production-версия была создана до этой итерации, поэтому возвращает `localization: {}`; game-client корректно использует fallback labels.
 
 ## Измененные файлы
 
@@ -64,6 +66,23 @@ pnpm build
 ```
 
 Результат: пройдено.
+
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+game-client bundle содержит localization fallback
+```
 
 ## UTF-8 и текст
 
