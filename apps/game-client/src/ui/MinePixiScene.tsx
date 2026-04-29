@@ -14,6 +14,10 @@ import {
   type MinePixiViewport,
   type MinePixiVisibleRowRange
 } from "./minePixiLayout";
+import {
+  createMinePixiBlockRenderSignature,
+  createMinePixiVisibleCellKeySet
+} from "./minePixiRenderState";
 
 export interface MinePixiGoblin {
   id: string;
@@ -66,6 +70,11 @@ interface SceneLayers {
   surface: Container;
 }
 
+interface RenderedPixiNode {
+  node: Container;
+  signature: string;
+}
+
 interface DragState {
   goblinId: string;
   point: MinePixiPoint;
@@ -81,6 +90,9 @@ const defaultSceneViewport: MinePixiViewport = {
 export function MinePixiScene(props: MinePixiSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
+  const blockNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
+  const depthMarkerNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
+  const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
   const layoutRef = useRef<MinePixiLayout | null>(null);
@@ -105,17 +117,6 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     () => createVisibleRowRange(layout, sceneViewport),
     [layout, sceneViewport]
   );
-
-  const hitEffectsByCell = useMemo(() => {
-    const effectsByCell = new Map<string, MinePixiHitEffect[]>();
-
-    for (const effect of props.hitEffects) {
-      const key = cellKey(effect);
-      effectsByCell.set(key, [...(effectsByCell.get(key) ?? []), effect]);
-    }
-
-    return effectsByCell;
-  }, [props.hitEffects]);
 
   useEffect(() => {
     platformDropAnimatingRef.current = props.platformDropAnimating;
@@ -204,6 +205,9 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       layersRef.current = null;
       rootRef.current = null;
       animatedGoblinsRef.current = [];
+      blockNodesRef.current.clear();
+      depthMarkerNodesRef.current.clear();
+      hitEffectNodesRef.current.clear();
       platformRef.current = null;
       if (initialized) {
         app.destroy({ removeView: true }, { children: true });
@@ -350,10 +354,8 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.mine);
-    clearLayer(layers.markers);
-    drawMineBlocks(layers.mine, layout, props, visibleRowRange, onBlockHitRef);
-    drawDepthMarkers(layers.markers, layout, props, visibleRowRange);
+    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange, onBlockHitRef);
+    reconcileDepthMarkers(layers.markers, depthMarkerNodesRef.current, layout, props, visibleRowRange);
   }, [
     layout,
     props.activeCell,
@@ -373,9 +375,8 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.effects);
-    drawHitEffects(layers.effects, layout, hitEffectsByCell, visibleRowRange);
-  }, [hitEffectsByCell, layout, readyTick, visibleRowRange]);
+    reconcileHitEffects(layers.effects, hitEffectNodesRef.current, layout, props.hitEffects, visibleRowRange);
+  }, [layout, props.hitEffects, readyTick, visibleRowRange]);
 
   useEffect(() => {
     const layers = layersRef.current;
@@ -466,6 +467,16 @@ function clearLayer(layer: Container) {
   }
 }
 
+function removeRenderedNode(
+  renderedNodes: Map<string, RenderedPixiNode>,
+  key: string,
+  renderedNode: RenderedPixiNode
+) {
+  renderedNode.node.parent?.removeChild(renderedNode.node);
+  renderedNode.node.destroy({ children: true });
+  renderedNodes.delete(key);
+}
+
 function drawSceneBackground(root: Container, layout: MinePixiLayout) {
   root.addChild(
     new Graphics()
@@ -524,14 +535,29 @@ function drawSurface(root: Container, layout: MinePixiLayout, platformRow: numbe
   root.addChild(surface);
 }
 
-function drawMineBlocks(
+function reconcileMineBlocks(
   mineLayer: Container,
+  renderedBlocks: Map<string, RenderedPixiNode>,
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
   visibleRowRange: MinePixiVisibleRowRange,
   onBlockHitRef: MutableRefObject<(block: MiningBlockState) => void>
 ) {
-  for (const row of props.session.blocks.slice(visibleRowRange.startRow, visibleRowRange.endRow + 1)) {
+  const visibleCellKeys = createMinePixiVisibleCellKeySet(props.session.blocks, visibleRowRange);
+
+  for (const [key, renderedBlock] of renderedBlocks) {
+    if (!visibleCellKeys.has(key)) {
+      removeRenderedNode(renderedBlocks, key, renderedBlock);
+    }
+  }
+
+  for (let rowIndex = visibleRowRange.startRow; rowIndex <= visibleRowRange.endRow; rowIndex += 1) {
+    const row = props.session.blocks[rowIndex];
+
+    if (!row) {
+      continue;
+    }
+
     for (const block of row) {
       const blockKey = cellKey(block);
       const exposed = props.exposedCellKeys.has(blockKey);
@@ -539,6 +565,27 @@ function drawMineBlocks(
       const platformRow = block.row === props.currentPlatformRow;
       const x = layout.gridX + block.col * layout.rowStep;
       const y = layout.gridY + block.row * layout.rowStep;
+      const blockType = props.blockTypeById.get(block.blockTypeId);
+      const signature = createMinePixiBlockRenderSignature({
+        active,
+        block,
+        blockTypeToken: blockTypeVisualToken(blockType),
+        exposed,
+        platformRow,
+        size: layout.cellSize,
+        x,
+        y
+      });
+      const renderedBlock = renderedBlocks.get(blockKey);
+
+      if (renderedBlock?.signature === signature) {
+        continue;
+      }
+
+      if (renderedBlock) {
+        removeRenderedNode(renderedBlocks, blockKey, renderedBlock);
+      }
+
       const blockGraphics = drawBlock(block, props.blockTypeById.get(block.blockTypeId), {
         active,
         exposed,
@@ -555,16 +602,23 @@ function drawMineBlocks(
       }
 
       mineLayer.addChild(blockGraphics);
+      renderedBlocks.set(blockKey, {
+        node: blockGraphics,
+        signature
+      });
     }
   }
 }
 
-function drawDepthMarkers(
+function reconcileDepthMarkers(
   root: Container,
+  renderedMarkers: Map<string, RenderedPixiNode>,
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
   visibleRowRange: MinePixiVisibleRowRange
 ) {
+  const visibleMarkerKeys = new Set<string>();
+
   for (let row = visibleRowRange.startRow; row <= visibleRowRange.endRow; row += 1) {
     const label = props.depthMarkerLabel(row);
 
@@ -572,17 +626,61 @@ function drawDepthMarkers(
       continue;
     }
 
+    const key = String(row);
     const y = layout.gridY + row * layout.rowStep + layout.cellSize / 2;
-    const text = createText({
-      color: row === props.currentPlatformRow ? 0xf2b84b : 0xb7a58f,
-      fontSize: 10,
-      fontWeight: "800",
-      text: label
+    const signature = [
+      row,
+      label,
+      row === props.currentPlatformRow ? 1 : 0,
+      layout.gridX,
+      layout.gridY,
+      layout.rowStep,
+      layout.cellSize
+    ].join("|");
+    const renderedMarker = renderedMarkers.get(key);
+    visibleMarkerKeys.add(key);
+
+    if (renderedMarker?.signature === signature) {
+      continue;
+    }
+
+    if (renderedMarker) {
+      removeRenderedNode(renderedMarkers, key, renderedMarker);
+    }
+
+    const marker = drawDepthMarker(layout, row, label, row === props.currentPlatformRow, y);
+    root.addChild(marker);
+    renderedMarkers.set(key, {
+      node: marker,
+      signature
     });
-    text.anchor.set(1, 0.5);
-    text.position.set(layout.gridX - 6, y);
-    root.addChild(text);
   }
+
+  for (const [key, renderedMarker] of renderedMarkers) {
+    if (!visibleMarkerKeys.has(key)) {
+      removeRenderedNode(renderedMarkers, key, renderedMarker);
+    }
+  }
+}
+
+function drawDepthMarker(
+  layout: MinePixiLayout,
+  row: number,
+  label: string,
+  active: boolean,
+  y: number
+): Container {
+  const marker = new Container();
+  const text = createText({
+    color: active ? 0xf2b84b : 0xb7a58f,
+    fontSize: 10,
+    fontWeight: "800",
+    text: label
+  });
+  text.anchor.set(1, 0.5);
+  text.position.set(layout.gridX - 6, y);
+  marker.addChild(text);
+  return marker;
 }
 
 function drawLiftCables(root: Container, layout: MinePixiLayout) {
@@ -807,21 +905,54 @@ function drawCracks(size: number, alpha: number): Graphics {
     .stroke({ color: 0x0d0907, alpha, width: 2 });
 }
 
-function drawHitEffects(
+function reconcileHitEffects(
   root: Container,
+  renderedEffects: Map<string, RenderedPixiNode>,
   layout: MinePixiLayout,
-  hitEffectsByCell: ReadonlyMap<string, MinePixiHitEffect[]>,
+  hitEffects: readonly MinePixiHitEffect[],
   visibleRowRange: MinePixiVisibleRowRange
 ) {
-  for (const effects of hitEffectsByCell.values()) {
-    for (const effect of effects) {
-      if (!isRowInVisibleRange(effect.row, visibleRowRange)) {
-        continue;
-      }
+  const visibleEffectKeys = new Set<string>();
 
-      const x = layout.gridX + effect.col * layout.rowStep + layout.cellSize / 2;
-      const y = layout.gridY + effect.row * layout.rowStep + layout.cellSize / 2;
-      root.addChild(drawHitEffect(effect, x, y, layout.cellSize));
+  for (const effect of hitEffects) {
+    if (!isRowInVisibleRange(effect.row, visibleRowRange)) {
+      continue;
+    }
+
+    const key = String(effect.id);
+    const x = layout.gridX + effect.col * layout.rowStep + layout.cellSize / 2;
+    const y = layout.gridY + effect.row * layout.rowStep + layout.cellSize / 2;
+    const signature = [
+      effect.id,
+      effect.row,
+      effect.col,
+      effect.variant,
+      layout.cellSize,
+      x,
+      y
+    ].join("|");
+    const renderedEffect = renderedEffects.get(key);
+    visibleEffectKeys.add(key);
+
+    if (renderedEffect?.signature === signature) {
+      continue;
+    }
+
+    if (renderedEffect) {
+      removeRenderedNode(renderedEffects, key, renderedEffect);
+    }
+
+    const node = drawHitEffect(effect, x, y, layout.cellSize);
+    root.addChild(node);
+    renderedEffects.set(key, {
+      node,
+      signature
+    });
+  }
+
+  for (const [key, renderedEffect] of renderedEffects) {
+    if (!visibleEffectKeys.has(key)) {
+      removeRenderedNode(renderedEffects, key, renderedEffect);
     }
   }
 }
@@ -932,6 +1063,10 @@ function blockColor(blockTypeId: string, blockType: BlockTypeConfig | undefined)
   }
 
   return 0x6a4a2e;
+}
+
+function blockTypeVisualToken(blockType: BlockTypeConfig | undefined): string {
+  return blockType ? `${blockType.id}:${blockType.specialBehavior ?? ""}` : "missing";
 }
 
 function blockDamageAlpha(hpPercent: number): number {
