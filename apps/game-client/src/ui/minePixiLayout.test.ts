@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createMinePixiLayout, pointToMineCell, pointToPlatformCell } from "./minePixiLayout";
+import {
+  createMinePixiLayout,
+  createVisibleRowRange,
+  isRowInVisibleRange,
+  pointToMineCell,
+  pointToPlatformCell
+} from "./minePixiLayout";
 
 const mine = {
   depthMeters: 60,
@@ -55,5 +61,25 @@ describe("minePixiLayout", () => {
     expect(pointToPlatformCell(point, layout, platformRow)).toEqual({ row: platformRow, col: 6 });
     expect(pointToPlatformCell({ x: layout.gridX + layout.gridWidth + 1, y: point.y }, layout, platformRow)).toBeNull();
     expect(pointToPlatformCell({ x: point.x, y: layout.platformY - 1 }, layout, platformRow)).toBeNull();
+  });
+
+  it("creates an overscanned visible row range from scroll position", () => {
+    const layout = createMinePixiLayout(mine, 430, 0);
+    const range = createVisibleRowRange(layout, {
+      height: layout.rowStep * 3,
+      scrollTop: layout.gridY + layout.rowStep * 4
+    });
+
+    expect(range).toEqual({ startRow: 2, endRow: 9 });
+    expect(isRowInVisibleRange(2, range)).toBe(true);
+    expect(isRowInVisibleRange(9, range)).toBe(true);
+    expect(isRowInVisibleRange(10, range)).toBe(false);
+  });
+
+  it("clamps visible row range at mine boundaries", () => {
+    const layout = createMinePixiLayout(mine, 430, 0);
+
+    expect(createVisibleRowRange(layout, { height: 120, scrollTop: 0 }, 3).startRow).toBe(0);
+    expect(createVisibleRowRange(layout, { height: 120, scrollTop: layout.contentHeight + 500 }, 3).endRow).toBe(11);
   });
 });

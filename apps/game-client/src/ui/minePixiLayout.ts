@@ -33,6 +33,16 @@ export interface MinePixiCell {
   col: number;
 }
 
+export interface MinePixiViewport {
+  height: number;
+  scrollTop: number;
+}
+
+export interface MinePixiVisibleRowRange {
+  endRow: number;
+  startRow: number;
+}
+
 export const minePixiLayoutConfig = {
   depthWidth: 34,
   gap: 4,
@@ -123,6 +133,24 @@ export function pointToMineCell(point: MinePixiPoint, layout: MinePixiLayout): M
   }
 
   return { row, col };
+}
+
+export function createVisibleRowRange(
+  layout: MinePixiLayout,
+  viewport: MinePixiViewport,
+  overscanRows = 2
+): MinePixiVisibleRowRange {
+  const visibleTop = Math.max(0, viewport.scrollTop - layout.gridY);
+  const visibleBottom = Math.max(0, viewport.scrollTop + Math.max(0, viewport.height) - layout.gridY);
+  const overscan = Math.max(0, Math.trunc(overscanRows));
+  const startRow = clampInteger(Math.floor(visibleTop / layout.rowStep) - overscan, 0, layout.mineHeight - 1);
+  const endRow = clampInteger(Math.floor(visibleBottom / layout.rowStep) + overscan, startRow, layout.mineHeight - 1);
+
+  return { endRow, startRow };
+}
+
+export function isRowInVisibleRange(row: number, range: MinePixiVisibleRowRange): boolean {
+  return row >= range.startRow && row <= range.endRow;
 }
 
 export function cellKey(cell: MinePixiCell): string {
