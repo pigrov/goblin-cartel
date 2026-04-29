@@ -66,4 +66,28 @@ describe("content schemas", () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("mineTemplates.old_well_01.strata.top_soil references missing block missing_block");
   });
+
+  it("accepts legacy content without localization", () => {
+    const legacy = structuredClone(starterContentBundle);
+    Reflect.deleteProperty(legacy, "localization");
+
+    expect(validateContentBundle(legacy)).toEqual({
+      ok: true,
+      errors: []
+    });
+  });
+
+  it("rejects missing localization keys when locale exists", () => {
+    const broken = structuredClone(starterContentBundle);
+    const ru = broken.localization.ru;
+
+    if (ru) {
+      delete ru["block.dirt.name"];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("localization.ru is missing key block.dirt.name");
+  });
 });

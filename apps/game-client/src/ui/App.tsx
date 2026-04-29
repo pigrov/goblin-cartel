@@ -34,18 +34,6 @@ interface StoredMineSave {
   save: MiningSessionSave;
 }
 
-const nameKeyLabels: Record<string, string> = {
-  "resource.gold.name": "Золото",
-  "resource.stone.name": "Камень",
-  "resource.copper_ore.name": "Медь",
-  "resource.boss_energy.name": "Энергия",
-  "block.dirt.name": "Земля",
-  "block.stone.name": "Камень",
-  "block.copper_ore.name": "Медная руда",
-  "block.chest_wooden.name": "Деревянный сундук",
-  "mine.old_well.name": "Старый колодец"
-};
-
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: starterContentBundle,
@@ -137,6 +125,7 @@ export function App() {
     [contentState.content.blockTypes]
   );
   const mineTemplate = contentState.content.mineTemplates[0];
+  const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
   const visibleBlocks = session.blocks.flat().slice(0, Math.min(56, session.mine.width * session.mine.height));
   const activeBlock = session.blocks[activeCell.row]?.[activeCell.col] ?? findFirstPlayableBlock(session);
 
@@ -172,6 +161,7 @@ export function App() {
           {contentState.content.resources.slice(0, 4).map((resource) => (
             <ResourceChip
               key={resource.id}
+              labels={labels}
               resource={resource}
               value={session.resources[resource.id] ?? 0}
             />
@@ -181,7 +171,7 @@ export function App() {
         <section className="mine-header">
           <div>
             <p>{contentState.source === "published" ? `Content ${contentState.version}` : contentState.message}</p>
-            <strong>{mineTitle(mineTemplate)}</strong>
+            <strong>{mineTitle(mineTemplate, labels)}</strong>
           </div>
           <button className="icon-button" onClick={handleResetMine} title="Сбросить шахту" type="button" aria-label="Сбросить шахту">
             <RotateCcw size={19} />
@@ -231,7 +221,7 @@ export function App() {
             Удар босса
           </button>
           <div className="active-block">
-            <span>{activeBlock ? blockName(activeBlock, blockTypeById) : "Нет блока"}</span>
+            <span>{activeBlock ? blockName(activeBlock, blockTypeById, labels) : "Нет блока"}</span>
             <strong>
               {activeBlock && !activeBlock.destroyed ? `${activeBlock.hp}/${activeBlock.maxHp} HP` : "разбит"}
             </strong>
@@ -239,7 +229,7 @@ export function App() {
           <div className="reward-line">
             {Object.keys(session.lastRewards).length > 0
               ? Object.entries(session.lastRewards)
-                  .map(([resourceId, amount]) => `+${amount} ${resourceLabel(resourceById.get(resourceId), resourceId)}`)
+                  .map(([resourceId, amount]) => `+${amount} ${resourceLabel(resourceById.get(resourceId), resourceId, labels)}`)
                   .join(" · ")
               : loadingContent
                 ? "Загружаем контент"
@@ -302,10 +292,10 @@ function createRestoredSession(content: ContentBundle, contentVersion: string): 
   }
 }
 
-function ResourceChip(props: { resource: ResourceConfig; value: number }) {
+function ResourceChip(props: { labels: Record<string, string>; resource: ResourceConfig; value: number }) {
   return (
     <div className={`resource-chip ${resourceClassName(props.resource.id)}`}>
-      <span>{resourceLabel(props.resource, props.resource.id)}</span>
+      <span>{resourceLabel(props.resource, props.resource.id, props.labels)}</span>
       <strong>{props.value}</strong>
     </div>
   );
@@ -383,29 +373,44 @@ function shortBlockLabel(blockType?: BlockTypeConfig): string {
   return blockType.id.slice(0, 2).toUpperCase();
 }
 
-function blockName(block: MiningBlockState, blockTypeById: Map<string, BlockTypeConfig>): string {
+function blockName(
+  block: MiningBlockState,
+  blockTypeById: Map<string, BlockTypeConfig>,
+  labels: Record<string, string>
+): string {
   const blockType = blockTypeById.get(block.blockTypeId);
-  return blockType ? labelFromNameKey(blockType.nameKey, blockType.id) : block.blockTypeId;
+  return blockType ? labelFromNameKey(blockType.nameKey, blockType.id, labels) : block.blockTypeId;
 }
 
-function resourceLabel(resource: ResourceConfig | undefined, fallback: string): string {
+function resourceLabel(
+  resource: ResourceConfig | undefined,
+  fallback: string,
+  labels: Record<string, string>
+): string {
   if (!resource) {
     return fallback;
   }
 
-  return labelFromNameKey(resource.nameKey, resource.id);
+  return labelFromNameKey(resource.nameKey, resource.id, labels);
 }
 
-function mineTitle(mineTemplate: MineTemplateConfig | undefined): string {
+function mineTitle(mineTemplate: MineTemplateConfig | undefined, labels: Record<string, string>): string {
   if (!mineTemplate) {
     return "Рудник не найден";
   }
 
-  return `${labelFromNameKey(mineTemplate.displayNameKey, mineTemplate.id)} · ${mineTemplate.depthMeters} м`;
+  return `${labelFromNameKey(mineTemplate.displayNameKey, mineTemplate.id, labels)} · ${mineTemplate.depthMeters} м`;
 }
 
-function labelFromNameKey(nameKey: string, fallback: string): string {
-  return nameKeyLabels[nameKey] ?? fallback;
+function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
+  return labels[nameKey] ?? fallback;
+}
+
+function createLabels(content: ContentBundle): Record<string, string> {
+  return {
+    ...(starterContentBundle.localization.ru ?? {}),
+    ...(content.localization.ru ?? {})
+  };
 }
 
 function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {

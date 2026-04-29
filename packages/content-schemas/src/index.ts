@@ -48,17 +48,21 @@ export const mineTemplateSchema = z.object({
   )
 });
 
+export const localizationSchema = z.record(z.string().min(2), z.record(z.string().min(1), z.string().min(1))).default({});
+
 export const contentBundleSchema = z
   .object({
     resources: z.array(resourceSchema).min(1),
     blockTypes: z.array(blockTypeSchema).min(1),
-    mineTemplates: z.array(mineTemplateSchema).min(1)
+    mineTemplates: z.array(mineTemplateSchema).min(1),
+    localization: localizationSchema
   })
   .strict();
 
 export type ResourceConfig = z.infer<typeof resourceSchema>;
 export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
+export type LocalizationConfig = z.infer<typeof localizationSchema>;
 export type ContentBundle = z.infer<typeof contentBundleSchema>;
 
 export interface ContentValidationResult {
@@ -207,7 +211,20 @@ export const starterContentBundle: ContentBundle = {
         }
       ]
     }
-  ]
+  ],
+  localization: {
+    ru: {
+      "resource.gold.name": "Золото",
+      "resource.stone.name": "Камень",
+      "resource.copper_ore.name": "Медная руда",
+      "resource.boss_energy.name": "Энергия босса",
+      "block.dirt.name": "Земля",
+      "block.stone.name": "Камень",
+      "block.copper_ore.name": "Медная руда",
+      "block.chest_wooden.name": "Деревянный сундук",
+      "mine.old_well.name": "Старый колодец"
+    }
+  }
 };
 
 export function validateContentBundle(input: unknown): ContentValidationResult {
@@ -227,8 +244,11 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
   const blockTypeIds = new Set(parsed.data.blockTypes.map((blockType) => blockType.id));
+  const ruLocalization = parsed.data.localization.ru;
 
   for (const blockType of parsed.data.blockTypes) {
+    validateLocalizationKey(blockType.nameKey, "ru", ruLocalization, errors);
+
     for (const reward of blockType.rewardTable) {
       if (!resourceIds.has(reward.resourceId)) {
         errors.push(`blockTypes.${blockType.id}.rewardTable references missing resource ${reward.resourceId}`);
@@ -241,6 +261,8 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   }
 
   for (const mineTemplate of parsed.data.mineTemplates) {
+    validateLocalizationKey(mineTemplate.displayNameKey, "ru", ruLocalization, errors);
+
     for (const stratum of mineTemplate.strata) {
       if (stratum.fromRow > stratum.toRow) {
         errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} has fromRow greater than toRow`);
@@ -258,10 +280,29 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     }
   }
 
+  for (const resource of parsed.data.resources) {
+    validateLocalizationKey(resource.nameKey, "ru", ruLocalization, errors);
+  }
+
   return {
     ok: errors.length === 0,
     errors
   };
+}
+
+function validateLocalizationKey(
+  key: string,
+  locale: string,
+  localization: Record<string, string> | undefined,
+  errors: string[]
+): void {
+  if (!localization) {
+    return;
+  }
+
+  if (!localization[key]) {
+    errors.push(`localization.${locale} is missing key ${key}`);
+  }
 }
 
 function collectDuplicateIds(collectionName: string, items: Array<{ id: string }>, errors: string[]): void {

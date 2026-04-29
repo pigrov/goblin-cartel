@@ -54,6 +54,9 @@ class MemoryContentStore implements ContentStore {
       ...content.blockTypes.map((blockType) => this.createEntity(contentVersionId, "blockType", blockType.id, blockType)),
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
+      ),
+      ...Object.entries(content.localization).map(([locale, messages]) =>
+        this.createEntity(contentVersionId, "localization", locale, messages)
       )
     ];
     this.entities.set(contentVersionId, rows);
