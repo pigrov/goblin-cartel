@@ -74,6 +74,13 @@ export interface ApplyAutoMiningInput {
   random?: () => number;
 }
 
+export interface ApplyColumnAutoMiningInput {
+  column: number;
+  damage: number;
+  holdLastDestroy?: boolean;
+  random?: () => number;
+}
+
 export interface AutoMiningReport {
   damageApplied: number;
   destroyedBlocks: number;
@@ -222,6 +229,65 @@ export function applyAutoMining(
     damage: input.damage,
     random: input.random ?? Math.random,
     startCell: input.startCell
+  });
+
+  return {
+    session: result.session,
+    nextTargetCell: result.nextTargetCell,
+    report: result.report
+  };
+}
+
+export function applyColumnAutoMining(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyColumnAutoMiningInput
+): ApplyAutoMiningResult {
+  if (!Number.isFinite(input.damage) || input.damage <= 0) {
+    return {
+      session,
+      nextTargetCell: findColumnPlayableCell(session, input.column) ?? { row: 0, col: normalizeColumn(session, input.column) ?? 0 },
+      report: {
+        damageApplied: 0,
+        destroyedBlocks: 0,
+        rewards: {},
+        pendingFinalHit: null
+      }
+    };
+  }
+
+  if (input.holdLastDestroy) {
+    const simulation = applyColumnAutoMiningInternal(session, blockTypes, {
+      column: input.column,
+      damage: input.damage,
+      random: () => 0
+    });
+
+    const lastDestroyed = simulation.lastDestroyed;
+
+    if (lastDestroyed) {
+      const heldDamage = lastDestroyed.damageConsumedBefore + Math.max(0, lastDestroyed.hpBefore - 1);
+      const heldResult = applyColumnAutoMiningInternal(session, blockTypes, {
+        column: input.column,
+        damage: heldDamage,
+        random: input.random ?? Math.random
+      });
+
+      return {
+        session: heldResult.session,
+        nextTargetCell: lastDestroyed.cell,
+        report: {
+          ...heldResult.report,
+          pendingFinalHit: lastDestroyed.cell
+        }
+      };
+    }
+  }
+
+  const result = applyColumnAutoMiningInternal(session, blockTypes, {
+    column: input.column,
+    damage: input.damage,
+    random: input.random ?? Math.random
   });
 
   return {
@@ -398,6 +464,105 @@ function applyAutoMiningInternal(
   };
 }
 
+interface ApplyColumnAutoMiningInternalInput {
+  column: number;
+  damage: number;
+  random: () => number;
+}
+
+function applyColumnAutoMiningInternal(
+  session: MiningSession,
+  blockTypes: MiningBlockType[],
+  input: ApplyColumnAutoMiningInternalInput
+): ApplyAutoMiningInternalResult {
+  let nextSession = session;
+  let remainingDamage = input.damage;
+  let damageApplied = 0;
+  let destroyedBlocks = 0;
+  let targetCell = findColumnPlayableCell(nextSession, input.column);
+  let lastDestroyed: LastDestroyedBlock | null = null;
+  const rewards: Record<string, number> = {};
+
+  if (!targetCell) {
+    return {
+      session,
+      nextTargetCell: { row: 0, col: normalizeColumn(session, input.column) ?? 0 },
+      report: {
+        damageApplied: 0,
+        destroyedBlocks: 0,
+        rewards: {},
+        pendingFinalHit: null
+      },
+      lastDestroyed: null
+    };
+  }
+
+  while (remainingDamage > 0) {
+    const target = nextSession.blocks[targetCell.row]?.[targetCell.col];
+
+    if (!target || target.destroyed) {
+      const nextTargetCell = findColumnPlayableCell(nextSession, input.column);
+
+      if (!nextTargetCell) {
+        break;
+      }
+
+      targetCell = nextTargetCell;
+      continue;
+    }
+
+    const damageToApply = Math.min(remainingDamage, target.hp);
+    const willDestroy = damageToApply >= target.hp;
+    const damageConsumedBefore = damageApplied;
+    const hpBefore = target.hp;
+
+    nextSession = hitMineBlock(nextSession, blockTypes, {
+      row: target.row,
+      col: target.col,
+      damage: damageToApply,
+      random: input.random
+    });
+
+    damageApplied += damageToApply;
+    remainingDamage -= damageToApply;
+
+    if (!willDestroy) {
+      break;
+    }
+
+    destroyedBlocks += 1;
+    lastDestroyed = {
+      cell: {
+        row: target.row,
+        col: target.col
+      },
+      damageConsumedBefore,
+      hpBefore
+    };
+    mergeRewards(rewards, nextSession.lastRewards);
+
+    const nextTargetCell = findColumnPlayableCell(nextSession, input.column);
+
+    if (!nextTargetCell) {
+      break;
+    }
+
+    targetCell = nextTargetCell;
+  }
+
+  return {
+    session: nextSession,
+    nextTargetCell: findColumnPlayableCell(nextSession, input.column) ?? targetCell,
+    report: {
+      damageApplied,
+      destroyedBlocks,
+      rewards,
+      pendingFinalHit: null
+    },
+    lastDestroyed
+  };
+}
+
 function findPlayableCell(session: MiningSession, preferredCell: MiningCell): MiningCell {
   const preferred = session.blocks[preferredCell.row]?.[preferredCell.col];
 
@@ -414,6 +579,34 @@ function findPlayableCell(session: MiningSession, preferredCell: MiningCell): Mi
 function findFirstPlayableCell(session: MiningSession): MiningCell | null {
   const block = session.blocks.flat().find((item) => !item.destroyed);
   return block ? { row: block.row, col: block.col } : null;
+}
+
+function findColumnPlayableCell(session: MiningSession, column: number): MiningCell | null {
+  const normalizedColumn = normalizeColumn(session, column);
+
+  if (normalizedColumn === null) {
+    return null;
+  }
+
+  const block = session.blocks
+    .map((row) => row[normalizedColumn])
+    .find((item): item is MiningBlockState => Boolean(item && !item.destroyed));
+
+  return block ? { row: block.row, col: block.col } : null;
+}
+
+function normalizeColumn(session: MiningSession, column: number): number | null {
+  if (!Number.isFinite(column)) {
+    return null;
+  }
+
+  const normalizedColumn = Math.trunc(column);
+
+  if (normalizedColumn < 0 || normalizedColumn >= session.mine.width) {
+    return null;
+  }
+
+  return normalizedColumn;
 }
 
 function mergeRewards(target: Record<string, number>, source: Record<string, number>): void {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { generateMine, type MineTemplate } from "./mine-generator";
 import {
   applyAutoMining,
+  applyColumnAutoMining,
   createMiningSession,
   exportMiningSessionSave,
   hitMineBlock,
@@ -152,6 +153,54 @@ describe("mining session", () => {
     });
     expect(result.session.blocks[1]?.[0]?.hp).toBe(10);
     expect(result.nextTargetCell).toEqual({ row: 0, col: 1 });
+  });
+
+  it("applies auto mining only inside the selected column", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+
+    const result = applyColumnAutoMining(session, blockTypes, {
+      column: 0,
+      damage: 25,
+      random: () => 0
+    });
+
+    expect(result.report).toEqual({
+      damageApplied: 20,
+      destroyedBlocks: 2,
+      rewards: { stone: 4 },
+      pendingFinalHit: null
+    });
+    expect(result.session.blocks[0]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[0]?.[1]?.destroyed).toBe(false);
+    expect(result.nextTargetCell).toEqual({ row: 1, col: 0 });
+  });
+
+  it("can hold the last column destroy at one hp", () => {
+    const mine = generateMine(template, "player-1");
+    const session = createMiningSession({ mine, blockTypes });
+
+    const result = applyColumnAutoMining(session, blockTypes, {
+      column: 0,
+      damage: 25,
+      holdLastDestroy: true,
+      random: () => 0
+    });
+
+    expect(result.report).toEqual({
+      damageApplied: 19,
+      destroyedBlocks: 1,
+      rewards: { stone: 2 },
+      pendingFinalHit: { row: 1, col: 0 }
+    });
+    expect(result.session.blocks[0]?.[0]?.destroyed).toBe(true);
+    expect(result.session.blocks[1]?.[0]).toMatchObject({
+      hp: 1,
+      destroyed: false
+    });
+    expect(result.session.blocks[0]?.[1]?.hp).toBe(10);
+    expect(result.nextTargetCell).toEqual({ row: 1, col: 0 });
   });
 
   it("rejects save for another mine", () => {

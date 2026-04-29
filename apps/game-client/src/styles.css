@@ -126,19 +126,33 @@
   border-bottom: 2px solid rgb(109 77 45 / 62%);
 }
 
+.goblin-slot.dragging-source {
+  border-bottom-color: var(--gc-gold);
+}
+
 .worker-goblin {
   position: relative;
-  width: 30px;
-  height: 36px;
+  width: 34px;
+  height: 38px;
+  cursor: grab;
   transform-origin: 50% 100%;
+  touch-action: none;
+  user-select: none;
+}
+
+.worker-goblin.dragging {
+  cursor: grabbing;
+  opacity: 0.62;
 }
 
 .worker-goblin.drilling {
-  animation: worker-drill 340ms steps(2, end) infinite;
+  animation: worker-drill 300ms steps(2, end) infinite;
 }
 
 .worker-head,
 .worker-body,
+.worker-seat,
+.worker-legs,
 .worker-tool {
   position: absolute;
   display: block;
@@ -146,7 +160,7 @@
 
 .worker-head {
   top: 1px;
-  left: 7px;
+  left: 9px;
   width: 16px;
   height: 14px;
   border: 1px solid #18210f;
@@ -178,43 +192,67 @@
 
 .worker-body {
   top: 15px;
-  left: 8px;
+  left: 10px;
   width: 14px;
-  height: 16px;
+  height: 13px;
   border: 1px solid #1b1a12;
-  border-radius: 5px 5px 4px 4px;
+  border-radius: 6px 6px 7px 7px;
   background: linear-gradient(180deg, #6b4d2e, #3a2b1e);
 }
 
+.worker-seat {
+  left: 8px;
+  bottom: 10px;
+  width: 18px;
+  height: 7px;
+  border: 1px solid #20170f;
+  border-radius: 8px 8px 5px 5px;
+  background: #2d2118;
+}
+
+.worker-legs {
+  left: 5px;
+  bottom: 8px;
+  width: 24px;
+  height: 8px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, transparent 0 34%, #27351f 35% 46%, transparent 47% 54%, #27351f 55% 66%, transparent 67%),
+    linear-gradient(180deg, #75a94b, #4e7334);
+}
+
 .worker-tool {
-  right: 0;
-  bottom: 1px;
-  width: 5px;
-  height: 24px;
-  border-radius: 2px;
-  background: var(--gc-iron);
-  transform: rotate(-22deg);
-  transform-origin: 50% 90%;
+  left: 14px;
+  bottom: 0;
+  width: 7px;
+  height: 22px;
+  border-radius: 4px 4px 2px 2px;
+  background:
+    linear-gradient(90deg, rgb(255 255 255 / 28%), transparent 42%),
+    var(--gc-iron);
+  box-shadow:
+    -5px 5px 0 -3px var(--gc-copper),
+    5px 5px 0 -3px var(--gc-copper);
 }
 
 .worker-tool::after {
   position: absolute;
-  right: -3px;
-  bottom: -4px;
-  width: 10px;
-  height: 5px;
-  border-radius: 2px;
+  left: 2px;
+  bottom: -6px;
+  width: 3px;
+  height: 8px;
+  border-radius: 0 0 2px 2px;
   background: var(--gc-copper);
   content: "";
 }
 
 @keyframes worker-drill {
   0% {
-    transform: translateY(0) rotate(-2deg);
+    transform: translateY(0) rotate(-1deg);
   }
 
   100% {
-    transform: translateY(3px) rotate(3deg);
+    transform: translateY(3px) rotate(2deg);
   }
 }
 
@@ -500,6 +538,17 @@
     inset 0 -5px 0 rgb(0 0 0 / 18%);
 }
 
+.mine-block.drop-target {
+  border-color: rgb(111 191 87 / 90%);
+  box-shadow:
+    0 0 0 2px rgb(111 191 87 / 30%),
+    inset 0 -5px 0 rgb(0 0 0 / 18%);
+}
+
+.mine-block.impact {
+  animation: block-impact 180ms ease-out;
+}
+
 .mine-block.damage-chipped::after {
   opacity: 0.35;
   background:
@@ -527,6 +576,128 @@
 .mine-block.destroyed i,
 .mine-block.destroyed b {
   display: none;
+}
+
+.hit-effect {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: block;
+  overflow: hidden;
+  font-style: normal;
+  pointer-events: none;
+}
+
+.hit-effect.boss {
+  background:
+    radial-gradient(circle at 48% 46%, rgb(255 238 152 / 95%) 0 5%, transparent 6%),
+    radial-gradient(circle at 30% 22%, rgb(242 184 75 / 88%) 0 4%, transparent 5%),
+    radial-gradient(circle at 71% 30%, rgb(242 184 75 / 78%) 0 3%, transparent 4%),
+    radial-gradient(circle at 25% 72%, rgb(141 92 46 / 78%) 0 7%, transparent 8%),
+    radial-gradient(circle at 78% 68%, rgb(141 92 46 / 66%) 0 6%, transparent 7%);
+  animation: boss-hit-burst 420ms ease-out forwards;
+}
+
+.hit-effect.boss::before,
+.hit-effect.boss::after {
+  position: absolute;
+  left: 50%;
+  top: 48%;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gc-gold);
+  content: "";
+}
+
+.hit-effect.boss::before {
+  box-shadow:
+    -18px -10px 0 -1px var(--gc-gold),
+    18px -8px 0 -1px var(--gc-gold),
+    -12px 16px 0 -1px var(--gc-copper),
+    16px 14px 0 -1px var(--gc-copper);
+  animation: spark-fly 420ms ease-out forwards;
+}
+
+.hit-effect.boss::after {
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%) rotate(-18deg);
+  background: rgb(255 255 255 / 70%);
+  animation: spark-slash 260ms ease-out forwards;
+}
+
+.hit-effect.goblin {
+  background:
+    radial-gradient(circle at 44% 72%, rgb(94 61 36 / 78%) 0 9%, transparent 10%),
+    radial-gradient(circle at 58% 78%, rgb(54 38 27 / 62%) 0 7%, transparent 8%),
+    radial-gradient(circle at 50% 48%, rgb(255 238 152 / 70%) 0 4%, transparent 5%);
+  animation: dirt-puff 520ms ease-out forwards;
+}
+
+@keyframes block-impact {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+
+  45% {
+    transform: translateY(2px) scale(0.97);
+  }
+
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes boss-hit-burst {
+  0% {
+    opacity: 0;
+    transform: scale(0.45);
+  }
+
+  25% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.28);
+  }
+}
+
+@keyframes spark-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0.55);
+  }
+
+  100% {
+    transform: translate(-50%, -50%) scale(1.75) rotate(18deg);
+  }
+}
+
+@keyframes spark-slash {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scaleX(0.35) rotate(-18deg);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(1.4) rotate(-18deg);
+  }
+}
+
+@keyframes dirt-puff {
+  0% {
+    opacity: 0.92;
+    transform: translateY(0) scale(0.5);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(1.2);
+  }
 }
 
 .boss-panel {
