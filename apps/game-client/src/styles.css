@@ -141,6 +141,33 @@ body,
     #221811;
 }
 
+.pixi-playfield {
+  min-height: 0;
+  position: relative;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 30%)),
+    #221811;
+}
+
+.mine-pixi-canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: pan-y;
+}
+
+.pixi-loading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--gc-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .surface-scene {
   position: relative;
   height: clamp(112px, 22dvh, 170px);
