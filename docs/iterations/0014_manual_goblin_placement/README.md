@@ -1,7 +1,7 @@
 # 0014 manual goblin placement
 
 **Дата:** 2026-04-29
-**Статус:** готово локально
+**Статус:** задеплоено
 
 ## Цель
 
@@ -88,7 +88,27 @@ http://127.0.0.1:5173 -> 200
 
 Новая миграция БД не планируется.
 
-CI/CD будет проверен после push.
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+deployed commit: cb7e420
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.4
+current content goblins: 8
+server containers: goblin_cartel_backend/admin/game_client up
+server source contains docs/iterations/0014_manual_goblin_placement
+production bundle contains hit-effect/drop-target/goblinPlacements markers
+```
 
 ## Открытые вопросы
 
