@@ -1,7 +1,7 @@
 # 0016 mine layout energy goblins
 
 **Дата:** 2026-04-29
-**Статус:** в работе
+**Статус:** задеплоено
 
 ## Цель
 
@@ -96,7 +96,27 @@ http://127.0.0.1:5173 -> 200
 
 Новая миграция БД не планируется.
 
-CI/CD будет проверен после push.
+CI/CD:
+
+```text
+GitHub Actions CI: success
+GitHub Actions deploy: success
+deployed commit: a3c3b4c
+```
+
+Production smoke:
+
+```text
+https://goblin-cartel.murph.ru/ -> 200
+https://goblin-cartel.murph.ru/admin/ -> 200
+https://goblin-cartel.murph.ru/api/health -> 200
+https://goblin-cartel.murph.ru/api/content/current -> 200
+current content version: 0.0.4
+current content goblins: 8
+server containers: goblin_cartel_backend/admin/game_client up
+server source contains docs/iterations/0016_mine_layout_energy_goblins
+production bundle contains goblin-info-card/100dvh/boss_energy/600 markers
+```
 
 ## Открытые вопросы
 
