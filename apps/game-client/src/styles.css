@@ -146,6 +146,8 @@ body,
   position: relative;
   overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
   background:
     linear-gradient(180deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 30%)),
     #221811;
@@ -155,7 +157,8 @@ body,
   display: block;
   width: 100%;
   height: auto;
-  touch-action: pan-y;
+  touch-action: pan-y !important;
+  user-select: none;
 }
 
 .pixi-loading {

@@ -40,6 +40,7 @@ const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyTickMs = 500;
 const offlineFinalHitDelayMs = 900;
+const hitEffectLifetimeMs = 780;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
 let hitEffectSequence = 0;
@@ -495,7 +496,7 @@ export function App() {
     setHitEffects((current) => [...current.slice(-16), { id, row: cell.row, col: cell.col, variant }]);
     window.setTimeout(() => {
       setHitEffects((current) => current.filter((effect) => effect.id !== id));
-    }, 620);
+    }, hitEffectLifetimeMs);
   }
 
   function handleBlockHit(block: MiningBlockState) {

@@ -3,6 +3,7 @@ import {
   createMinePixiLayout,
   createVisibleRowRange,
   isRowInVisibleRange,
+  minePixiLayoutConfig,
   pointToMineCell,
   pointToPlatformCell
 } from "./minePixiLayout";
@@ -22,13 +23,19 @@ describe("minePixiLayout", () => {
     expect(layout.mineHeight).toBe(12);
     expect(layout.cellSize).toBeGreaterThanOrEqual(28);
     expect(layout.gridWidth).toBe(8 * layout.cellSize + 7 * layout.gap);
-    expect(layout.platformY).toBe(layout.gridY + 3 * layout.rowStep - layout.platformHeight + 14);
+    expect(layout.platformY).toBe(layout.gridY + 3 * layout.rowStep - layout.platformHeight - minePixiLayoutConfig.platformGap);
   });
 
   it("clamps platform row inside the mine", () => {
     const layout = createMinePixiLayout(mine, 430, 999);
 
-    expect(layout.platformY).toBe(layout.gridY + 11 * layout.rowStep - layout.platformHeight + 14);
+    expect(layout.platformY).toBe(layout.gridY + 11 * layout.rowStep - layout.platformHeight - minePixiLayoutConfig.platformGap);
+  });
+
+  it("keeps a visual gap between the platform and the top row block", () => {
+    const layout = createMinePixiLayout(mine, 430, 0);
+
+    expect(layout.gridY - (layout.platformY + layout.platformHeight)).toBe(minePixiLayoutConfig.platformGap);
   });
 
   it("maps points inside mine blocks to row and column", () => {

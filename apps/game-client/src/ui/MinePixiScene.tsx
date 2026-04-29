@@ -60,6 +60,35 @@ interface AnimatedItem {
   working: boolean;
 }
 
+interface AnimatedBlockImpact {
+  cellKey: string;
+  destroyed: boolean;
+  duration: number;
+  startedAt: number;
+  variant: MinePixiHitEffectVariant;
+}
+
+interface AnimatedHitEffect {
+  duration: number;
+  id: number;
+  node: Container;
+  particles: AnimatedHitParticle[];
+  rings: Container[];
+  slash: Container | null;
+  startedAt: number;
+}
+
+interface AnimatedHitParticle {
+  delay: number;
+  gravity: number;
+  node: Container;
+  spin: number;
+  startX: number;
+  startY: number;
+  vx: number;
+  vy: number;
+}
+
 interface SceneLayers {
   background: Container;
   drag: Container;
@@ -71,14 +100,32 @@ interface SceneLayers {
 }
 
 interface RenderedPixiNode {
+  baseX?: number;
+  baseY?: number;
   node: Container;
   signature: string;
+}
+
+interface DrawnHitEffect {
+  duration: number;
+  node: Container;
+  particles: AnimatedHitParticle[];
+  rings: Container[];
+  slash: Container | null;
 }
 
 interface DragState {
   goblinId: string;
   point: MinePixiPoint;
   targetCell: MinePixiCell | null;
+}
+
+interface TouchPanState {
+  active: boolean;
+  pointerId: number;
+  scrollTop: number;
+  startX: number;
+  startY: number;
 }
 
 const minSceneWidth = 320;
@@ -90,11 +137,15 @@ const defaultSceneViewport: MinePixiViewport = {
 export function MinePixiScene(props: MinePixiSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
+  const animatedBlockImpactsRef = useRef<Map<number, AnimatedBlockImpact>>(new Map());
+  const animatedHitEffectsRef = useRef<AnimatedHitEffect[]>([]);
   const blockNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const depthMarkerNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
+  const touchPanBlockTapUntilRef = useRef(0);
+  const touchPanStateRef = useRef<TouchPanState | null>(null);
   const layoutRef = useRef<MinePixiLayout | null>(null);
   const animatedGoblinsRef = useRef<AnimatedItem[]>([]);
   const currentPlatformRowRef = useRef(props.currentPlatformRow);
@@ -172,6 +223,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
         app.stage.addChild(root);
         app.stage.eventMode = "static";
         app.canvas.className = "mine-pixi-canvas";
+        configurePixiInputForTouchScroll(app);
         host.appendChild(app.canvas);
         appRef.current = app;
         layersRef.current = layers;
@@ -194,6 +246,9 @@ export function MinePixiScene(props: MinePixiSceneProps) {
             item.node.y = item.baseY + drillOffset;
             item.node.rotation = item.working ? Math.sin(now / 70 + item.phase) * 0.035 : 0;
           }
+
+          animateBlockImpacts(now, animatedBlockImpactsRef.current, blockNodesRef.current);
+          animateHitEffects(now, animatedHitEffectsRef.current);
         });
 
         setReadyTick((current) => current + 1);
@@ -204,7 +259,9 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       appRef.current = null;
       layersRef.current = null;
       rootRef.current = null;
+      animatedBlockImpactsRef.current.clear();
       animatedGoblinsRef.current = [];
+      animatedHitEffectsRef.current = [];
       blockNodesRef.current.clear();
       depthMarkerNodesRef.current.clear();
       hitEffectNodesRef.current.clear();
@@ -242,6 +299,97 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       host.removeEventListener("scroll", updateViewport);
     };
   }, []);
+
+  useEffect(() => {
+    const host = hostRef.current;
+
+    if (!host) {
+      return;
+    }
+
+    const playfield = host;
+
+    function handlePointerDown(event: PointerEvent) {
+      if (event.pointerType !== "touch") {
+        return;
+      }
+
+      const layout = layoutRef.current;
+      const canvas = appRef.current?.canvas;
+
+      if (layout && canvas) {
+        const point = pointFromCanvasEvent(event, canvas);
+        const platformCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
+
+        if (platformCell && platformCellKeysRef.current.has(cellKey(platformCell))) {
+          touchPanStateRef.current = null;
+          return;
+        }
+      }
+
+      touchPanStateRef.current = {
+        active: false,
+        pointerId: event.pointerId,
+        scrollTop: playfield.scrollTop,
+        startX: event.clientX,
+        startY: event.clientY
+      };
+    }
+
+    function handlePointerMove(event: PointerEvent) {
+      const state = touchPanStateRef.current;
+
+      if (!state || state.pointerId !== event.pointerId) {
+        return;
+      }
+
+      const deltaX = event.clientX - state.startX;
+      const deltaY = event.clientY - state.startY;
+      const absX = Math.abs(deltaX);
+      const absY = Math.abs(deltaY);
+
+      if (!state.active) {
+        if (absY < 8 || absY < absX * 1.1) {
+          return;
+        }
+
+        state.active = true;
+      }
+
+      playfield.scrollTop = Math.max(0, state.scrollTop - deltaY);
+      touchPanBlockTapUntilRef.current = performance.now() + 350;
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+    }
+
+    function finishPointer(event: PointerEvent) {
+      const state = touchPanStateRef.current;
+
+      if (state?.pointerId === event.pointerId && state.active) {
+        touchPanBlockTapUntilRef.current = performance.now() + 350;
+        if (event.cancelable) {
+          event.preventDefault();
+        }
+      }
+
+      if (state?.pointerId === event.pointerId) {
+        touchPanStateRef.current = null;
+      }
+    }
+
+    playfield.addEventListener("pointerdown", handlePointerDown);
+    playfield.addEventListener("pointermove", handlePointerMove, { passive: false });
+    playfield.addEventListener("pointerup", finishPointer, { passive: false });
+    playfield.addEventListener("pointercancel", finishPointer, { passive: false });
+
+    return () => {
+      playfield.removeEventListener("pointerdown", handlePointerDown);
+      playfield.removeEventListener("pointermove", handlePointerMove);
+      playfield.removeEventListener("pointerup", finishPointer);
+      playfield.removeEventListener("pointercancel", finishPointer);
+    };
+  }, [readyTick]);
 
   useEffect(() => {
     if (!dragState?.goblinId) {
@@ -354,7 +502,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange, onBlockHitRef);
+    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange, onBlockHitRef, touchPanBlockTapUntilRef);
     reconcileDepthMarkers(layers.markers, depthMarkerNodesRef.current, layout, props, visibleRowRange);
   }, [
     layout,
@@ -375,7 +523,15 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileHitEffects(layers.effects, hitEffectNodesRef.current, layout, props.hitEffects, visibleRowRange);
+    reconcileHitEffects(
+      layers.effects,
+      hitEffectNodesRef.current,
+      animatedHitEffectsRef,
+      animatedBlockImpactsRef,
+      layout,
+      props,
+      visibleRowRange
+    );
   }, [layout, props.hitEffects, readyTick, visibleRowRange]);
 
   useEffect(() => {
@@ -467,6 +623,16 @@ function clearLayer(layer: Container) {
   }
 }
 
+function configurePixiInputForTouchScroll(app: Application) {
+  const renderer = app.renderer as { events?: { autoPreventDefault: boolean } };
+
+  if (renderer.events) {
+    renderer.events.autoPreventDefault = false;
+  }
+
+  app.canvas.style.touchAction = "pan-y";
+}
+
 function removeRenderedNode(
   renderedNodes: Map<string, RenderedPixiNode>,
   key: string,
@@ -541,7 +707,8 @@ function reconcileMineBlocks(
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
   visibleRowRange: MinePixiVisibleRowRange,
-  onBlockHitRef: MutableRefObject<(block: MiningBlockState) => void>
+  onBlockHitRef: MutableRefObject<(block: MiningBlockState) => void>,
+  touchPanBlockTapUntilRef: MutableRefObject<number>
 ) {
   const visibleCellKeys = createMinePixiVisibleCellKeySet(props.session.blocks, visibleRowRange);
 
@@ -598,11 +765,19 @@ function reconcileMineBlocks(
       if (!block.destroyed && exposed) {
         blockGraphics.eventMode = "static";
         blockGraphics.cursor = "pointer";
-        blockGraphics.on("pointertap", () => onBlockHitRef.current(block));
+        blockGraphics.on("pointertap", () => {
+          if (performance.now() < touchPanBlockTapUntilRef.current) {
+            return;
+          }
+
+          onBlockHitRef.current(block);
+        });
       }
 
       mineLayer.addChild(blockGraphics);
       renderedBlocks.set(blockKey, {
+        baseX: x,
+        baseY: y,
         node: blockGraphics,
         signature
       });
@@ -742,7 +917,7 @@ function drawPlatform(
     }
 
     const x = layout.gridX + goblin.col * layout.rowStep + layout.cellSize / 2;
-    const y = layout.platformHeight - 45;
+    const y = layout.platformHeight - 40;
     const goblinNode = drawGoblin(layout.cellSize, goblin.working, false);
     goblinNode.position.set(x, y);
     goblinNode.eventMode = "static";
@@ -796,7 +971,7 @@ function drawDragPreview(
     return;
   }
 
-  const preview = drawGoblin(layout.cellSize, sourceGoblin.working, false);
+  const preview = drawGoblin(layout.cellSize, sourceGoblin.working, true);
   preview.alpha = 0.82;
   preview.position.set(dragState.point.x, dragState.point.y - layout.platformHeight * 0.55);
   preview.scale.set(preview.scale.x * 1.08);
@@ -908,18 +1083,22 @@ function drawCracks(size: number, alpha: number): Graphics {
 function reconcileHitEffects(
   root: Container,
   renderedEffects: Map<string, RenderedPixiNode>,
+  animatedHitEffectsRef: MutableRefObject<AnimatedHitEffect[]>,
+  animatedBlockImpactsRef: MutableRefObject<Map<number, AnimatedBlockImpact>>,
   layout: MinePixiLayout,
-  hitEffects: readonly MinePixiHitEffect[],
+  props: MinePixiSceneProps,
   visibleRowRange: MinePixiVisibleRowRange
 ) {
   const visibleEffectKeys = new Set<string>();
 
-  for (const effect of hitEffects) {
+  for (const effect of props.hitEffects) {
     if (!isRowInVisibleRange(effect.row, visibleRowRange)) {
       continue;
     }
 
     const key = String(effect.id);
+    const targetBlock = props.session.blocks[effect.row]?.[effect.col];
+    const destroyed = Boolean(targetBlock?.destroyed);
     const x = layout.gridX + effect.col * layout.rowStep + layout.cellSize / 2;
     const y = layout.gridY + effect.row * layout.rowStep + layout.cellSize / 2;
     const signature = [
@@ -927,6 +1106,7 @@ function reconcileHitEffects(
       effect.row,
       effect.col,
       effect.variant,
+      destroyed ? 1 : 0,
       layout.cellSize,
       x,
       y
@@ -940,12 +1120,29 @@ function reconcileHitEffects(
 
     if (renderedEffect) {
       removeRenderedNode(renderedEffects, key, renderedEffect);
+      animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => item.id !== effect.id);
     }
 
-    const node = drawHitEffect(effect, x, y, layout.cellSize);
-    root.addChild(node);
+    const drawnEffect = drawHitEffect(effect, x, y, layout.cellSize, destroyed);
+    root.addChild(drawnEffect.node);
+    animatedHitEffectsRef.current.push({
+      duration: drawnEffect.duration,
+      id: effect.id,
+      node: drawnEffect.node,
+      particles: drawnEffect.particles,
+      rings: drawnEffect.rings,
+      slash: drawnEffect.slash,
+      startedAt: performance.now()
+    });
+    animatedBlockImpactsRef.current.set(effect.id, {
+      cellKey: cellKey(effect),
+      destroyed,
+      duration: destroyed ? 620 : 360,
+      startedAt: performance.now(),
+      variant: effect.variant
+    });
     renderedEffects.set(key, {
-      node,
+      node: drawnEffect.node,
       signature
     });
   }
@@ -953,30 +1150,211 @@ function reconcileHitEffects(
   for (const [key, renderedEffect] of renderedEffects) {
     if (!visibleEffectKeys.has(key)) {
       removeRenderedNode(renderedEffects, key, renderedEffect);
+      animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => String(item.id) !== key);
     }
   }
 }
 
-function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: number): Container {
+function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: number, destroyed: boolean): DrawnHitEffect {
   const burst = new Container();
-  const scale = effect.variant === "critical" ? 1.2 : 1;
-  const color = effect.variant === "goblin" ? 0x5e3d24 : effect.variant === "critical" ? 0xffffff : 0xf2b84b;
-  const accent = effect.variant === "goblin" ? 0x34251b : 0xc4442d;
+  const rings: Container[] = [];
+  const particles: AnimatedHitParticle[] = [];
+  const palette = hitEffectPalette(effect.variant, destroyed);
+  const particleCount = destroyed ? 16 : effect.variant === "critical" ? 14 : effect.variant === "boss" ? 11 : 8;
+  const duration = destroyed ? 720 : effect.variant === "critical" ? 620 : 540;
+  const flashScale = effect.variant === "critical" ? 1.18 : effect.variant === "goblin" ? 0.82 : 1;
 
   burst.position.set(x, y);
-  burst.addChild(
-    new Graphics()
-      .circle(0, 0, size * 0.18 * scale)
-      .fill({ color, alpha: 0.74 })
-      .circle(-size * 0.22, -size * 0.16, size * 0.07)
-      .fill({ color: accent, alpha: 0.82 })
-      .circle(size * 0.24, -size * 0.08, size * 0.06)
-      .fill({ color: 0xf2b84b, alpha: 0.82 })
-      .circle(-size * 0.16, size * 0.24, size * 0.08)
-      .fill({ color: 0x8d5c2e, alpha: 0.74 })
-  );
+  burst.alpha = 0.98;
 
-  return burst;
+  const shockRing = new Graphics()
+    .circle(0, 0, size * 0.18 * flashScale)
+    .stroke({ color: palette.ring, alpha: destroyed ? 0.88 : 0.68, width: destroyed ? 3 : 2 });
+  const dustRing = new Graphics()
+    .circle(0, size * 0.06, size * 0.22)
+    .stroke({ color: palette.dust, alpha: 0.46, width: 3 });
+  rings.push(shockRing, dustRing);
+  burst.addChild(shockRing, dustRing);
+
+  const glow = new Graphics()
+    .circle(0, 0, size * 0.16 * flashScale)
+    .fill({ color: palette.flash, alpha: effect.variant === "goblin" ? 0.46 : 0.78 })
+    .circle(-size * 0.12, size * 0.12, size * 0.1)
+    .fill({ color: palette.dust, alpha: 0.42 });
+  burst.addChild(glow);
+
+  const slash = effect.variant === "goblin"
+    ? null
+    : new Graphics()
+        .roundRect(-size * 0.38, -size * 0.035, size * 0.76, Math.max(3, size * 0.07), 3)
+        .fill({ color: palette.slash, alpha: effect.variant === "critical" ? 0.9 : 0.72 });
+
+  if (slash) {
+    slash.rotation = effect.variant === "critical" ? -0.65 : -0.38;
+    burst.addChild(slash);
+  }
+
+  for (let index = 0; index < particleCount; index += 1) {
+    const particleSize = Math.max(2, size * (destroyed && index % 3 === 0 ? 0.11 : 0.07));
+    const particle = new Graphics();
+    const particleColor = index % 4 === 0 ? palette.flash : index % 3 === 0 ? palette.accent : palette.dust;
+
+    if (destroyed && index % 3 === 0) {
+      particle.roundRect(-particleSize / 2, -particleSize / 2, particleSize, particleSize * 0.72, 2).fill({ color: particleColor, alpha: 0.92 });
+    } else {
+      particle.circle(0, 0, particleSize / 2).fill({ color: particleColor, alpha: 0.9 });
+    }
+
+    const spread = destroyed ? Math.PI * 1.7 : effect.variant === "goblin" ? Math.PI * 0.9 : Math.PI * 1.18;
+    const startAngle = -Math.PI / 2 - spread / 2;
+    const angle = startAngle + spread * (index / (particleCount - 1));
+    const speedFactor = 0.48 + (index % 5) * 0.09 + (destroyed ? 0.22 : 0);
+    const speed = size * speedFactor;
+
+    burst.addChild(particle);
+    particles.push({
+      delay: (index % 4) * 0.025,
+      gravity: size * (destroyed ? 0.28 : 0.18),
+      node: particle,
+      spin: (index % 2 === 0 ? 1 : -1) * (0.6 + index * 0.08),
+      startX: 0,
+      startY: 0,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed
+    });
+  }
+
+  return {
+    duration,
+    node: burst,
+    particles,
+    rings,
+    slash
+  };
+}
+
+function animateBlockImpacts(
+  now: number,
+  impacts: Map<number, AnimatedBlockImpact>,
+  renderedBlocks: ReadonlyMap<string, RenderedPixiNode>
+) {
+  for (const renderedBlock of renderedBlocks.values()) {
+    if (typeof renderedBlock.baseX === "number" && typeof renderedBlock.baseY === "number") {
+      renderedBlock.node.position.set(renderedBlock.baseX, renderedBlock.baseY);
+    }
+  }
+
+  for (const [id, impact] of impacts) {
+    const elapsed = now - impact.startedAt;
+
+    if (elapsed >= impact.duration) {
+      impacts.delete(id);
+      continue;
+    }
+
+    const renderedBlock = renderedBlocks.get(impact.cellKey);
+
+    if (!renderedBlock || typeof renderedBlock.baseX !== "number" || typeof renderedBlock.baseY !== "number") {
+      continue;
+    }
+
+    const progress = clamp01(elapsed / impact.duration);
+    const strength = (impact.variant === "critical" ? 1.55 : impact.variant === "goblin" ? 0.72 : 1) * (impact.destroyed ? 1.18 : 1);
+    const fade = 1 - progress;
+    const x = Math.sin(progress * Math.PI * 9) * fade * 3.4 * strength;
+    const y = Math.abs(Math.sin(progress * Math.PI * 4.5)) * fade * 2.2 * strength;
+    renderedBlock.node.position.set(renderedBlock.baseX + x, renderedBlock.baseY + y);
+  }
+}
+
+function animateHitEffects(now: number, animatedEffects: AnimatedHitEffect[]) {
+  for (let index = animatedEffects.length - 1; index >= 0; index -= 1) {
+    const item = animatedEffects[index];
+
+    if (!item) {
+      continue;
+    }
+
+    const elapsed = now - item.startedAt;
+
+    if (elapsed >= item.duration) {
+      item.node.alpha = 0;
+      animatedEffects.splice(index, 1);
+      continue;
+    }
+
+    const progress = clamp01(elapsed / item.duration);
+    const eased = 1 - Math.pow(1 - progress, 3);
+    item.node.alpha = Math.max(0, 1 - progress * 1.18);
+    item.node.scale.set(0.72 + eased * 0.62);
+    item.node.rotation = Math.sin(progress * Math.PI * 2.6) * (1 - progress) * 0.08;
+
+    for (let ringIndex = 0; ringIndex < item.rings.length; ringIndex += 1) {
+      const ring = item.rings[ringIndex];
+
+      if (!ring) {
+        continue;
+      }
+
+      ring.alpha = Math.max(0, (1 - progress) * (ringIndex === 0 ? 0.9 : 0.54));
+      ring.scale.set(0.42 + eased * (ringIndex === 0 ? 1.25 : 0.84));
+    }
+
+    if (item.slash) {
+      item.slash.alpha = Math.max(0, 1 - progress * 2.3);
+      item.slash.scale.set(0.55 + eased * 0.92, 1);
+    }
+
+    for (const particle of item.particles) {
+      const particleProgress = clamp01((progress - particle.delay) / Math.max(0.01, 1 - particle.delay));
+      const particleEase = 1 - Math.pow(1 - particleProgress, 2);
+      particle.node.alpha = particleProgress <= 0 ? 0 : Math.max(0, 1 - particleProgress);
+      particle.node.position.set(
+        particle.startX + particle.vx * particleEase,
+        particle.startY + particle.vy * particleEase + particle.gravity * particleProgress * particleProgress
+      );
+      particle.node.rotation = particle.spin * particleProgress;
+      particle.node.scale.set(0.78 + particleProgress * 0.5);
+    }
+  }
+}
+
+function hitEffectPalette(variant: MinePixiHitEffectVariant, destroyed: boolean) {
+  if (variant === "critical") {
+    return {
+      accent: 0xc4442d,
+      dust: destroyed ? 0x8d5c2e : 0xf2b84b,
+      flash: 0xffffff,
+      ring: 0xf7ead8,
+      slash: 0xffffff
+    };
+  }
+
+  if (variant === "goblin") {
+    return {
+      accent: 0x8d5c2e,
+      dust: destroyed ? 0x6a4a2e : 0x5e3d24,
+      flash: 0xf2b84b,
+      ring: 0x8d5c2e,
+      slash: 0xf2b84b
+    };
+  }
+
+  return {
+    accent: 0xc07a3d,
+    dust: destroyed ? 0x8d5c2e : 0x6a4a2e,
+    flash: 0xf2b84b,
+    ring: 0xf2b84b,
+    slash: 0xf7ead8
+  };
+}
+
+function clamp01(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value));
 }
 
 function drawGoblin(cellSize: number, working: boolean, dragging: boolean): Container {

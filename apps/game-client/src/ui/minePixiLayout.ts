@@ -49,6 +49,7 @@ export const minePixiLayoutConfig = {
   minePaddingBottom: 16,
   minePaddingTop: 12,
   minSceneWidth: 320,
+  platformGap: 6,
   platformHeight: 58,
   surfaceHeight: 132
 } as const;
@@ -69,9 +70,10 @@ export function createMinePixiLayout(
   const gridWidth = mineWidth * cellSize + Math.max(0, mineWidth - 1) * minePixiLayoutConfig.gap;
   const gridHeight = mineHeight * rowStep - minePixiLayoutConfig.gap;
   const normalizedPlatformRow = clampInteger(platformRow, 0, mineHeight - 1);
+  const platformTop = gridY + normalizedPlatformRow * rowStep - minePixiLayoutConfig.platformHeight - minePixiLayoutConfig.platformGap;
   const platformY = Math.max(
-    minePixiLayoutConfig.surfaceHeight - minePixiLayoutConfig.platformHeight + 10,
-    gridY + normalizedPlatformRow * rowStep - minePixiLayoutConfig.platformHeight + 14
+    minePixiLayoutConfig.surfaceHeight - minePixiLayoutConfig.platformHeight + 4,
+    platformTop
   );
 
   return {
