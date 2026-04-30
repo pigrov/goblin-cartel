@@ -16,6 +16,7 @@ import {
   hitMineBlock,
   hireGoblin,
   isGoblinHired,
+  openRewardChest,
   regenerateBossEnergy,
   restoreBossEnergyState,
   restoreMiningSession,
@@ -26,7 +27,8 @@ import {
   type MiningBlockState,
   type MiningFoundVein,
   type MiningSession,
-  type MiningSessionSave
+  type MiningSessionSave,
+  type OpenedRewardChest
 } from "@goblin-cartel/game-core";
 import {
   starterContentBundle,
@@ -34,10 +36,11 @@ import {
   type ContentBundle,
   type GoblinConfig,
   type MineTemplateConfig,
+  type RewardChestTypeConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
 import { Bot, Coins, Gem, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import {
@@ -66,13 +69,16 @@ const hitEffectLifetimeMs = 2400;
 const resourceRewardSettleDelayMs = destroyedHitEffectDurationMs;
 const resourceFlashMs = 620;
 const resourceTooltipLifetimeMs = 3000;
+const rewardChestOpeningMs = 2300;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
 let hitEffectSequence = 0;
+let chestRewardSequence = 0;
 
 type GameSection = "mine" | "goblins" | "builtMines";
 type GoblinPlacementMap = Record<string, number>;
 type HitEffectVariant = "boss" | "goblin" | "critical";
+type RewardChestStage = "closed" | "opening" | "summary";
 type SpawnHitEffect = (
   cell: { row: number; col: number },
   variant: HitEffectVariant,
@@ -174,6 +180,20 @@ interface ResourceTooltip {
   value: number;
 }
 
+interface PendingRewardChest {
+  chestTypeId: string;
+  id: string;
+  mineTemplateId: string;
+  rewards: Record<string, number> | null;
+}
+
+interface ChestRewardFlyout extends RewardDrop {
+  delayMs: number;
+  distance: number;
+  id: number;
+  x: number;
+}
+
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: initialContentBundle,
@@ -197,6 +217,9 @@ export function App() {
   const [foundVeinNotice, setFoundVeinNotice] = useState<MiningFoundVein | null>(null);
   const [mineCompletionNoticeOpen, setMineCompletionNoticeOpen] = useState(false);
   const [mineCompletionNoticeSeenIds, setMineCompletionNoticeSeenIds] = useState<string[]>([]);
+  const [pendingRewardChest, setPendingRewardChest] = useState<PendingRewardChest | null>(null);
+  const [rewardChestStage, setRewardChestStage] = useState<RewardChestStage>("closed");
+  const [chestRewardFlyouts, setChestRewardFlyouts] = useState<ChestRewardFlyout[]>([]);
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
   const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(bossEnergyConfig, Date.now()));
   const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
@@ -224,6 +247,7 @@ export function App() {
   const pendingOfflineFinalHitRef = useRef(pendingOfflineFinalHit);
   const platformRowRef = useRef(platformRow);
   const previousPlatformRowRef = useRef(0);
+  const rewardChestSummaryTimeoutRef = useRef<number | null>(null);
   const spawnHitEffectRef = useRef<SpawnHitEffect>(() => undefined);
   const tooltipSequenceRef = useRef(0);
 
@@ -273,6 +297,9 @@ export function App() {
           setBuiltMines(restoredMining.builtMines);
           setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
           setMineCompletionNoticeOpen(false);
+          setPendingRewardChest(null);
+          setRewardChestStage("closed");
+          setChestRewardFlyouts([]);
           setBuiltMineMessage(null);
           setFoundVeinNotice(null);
           setClockNow(Date.now());
@@ -301,6 +328,9 @@ export function App() {
           setBuiltMines(restoredMining.builtMines);
           setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
           setMineCompletionNoticeOpen(false);
+          setPendingRewardChest(null);
+          setRewardChestStage("closed");
+          setChestRewardFlyouts([]);
           setBuiltMineMessage(null);
           setFoundVeinNotice(null);
           setClockNow(Date.now());
@@ -396,6 +426,10 @@ export function App() {
     return () => window.clearTimeout(timeoutId);
   }, [resourceTooltip]);
 
+  useEffect(() => {
+    return () => clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+  }, []);
+
   const blockTypeById = useMemo(
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
@@ -435,12 +469,17 @@ export function App() {
       }),
     [contentState.content.mineTemplates, session, visibleBuiltMines]
   );
+  const pendingRewardChestType = useMemo(
+    () => (pendingRewardChest ? findRewardChestType(contentState.content, pendingRewardChest.chestTypeId) : null),
+    [contentState.content, pendingRewardChest]
+  );
 
   useEffect(() => {
     if (
       !sessionReady ||
       foundVeinNotice ||
       mineCompletionNoticeOpen ||
+      pendingRewardChest ||
       !shouldShowMineCompletionNotice({
         canStartNextMine,
         mineTemplateId: session.mine.templateId,
@@ -450,12 +489,23 @@ export function App() {
       return;
     }
 
+    const rewardChest = createMineCompletionRewardChest(contentState.content, session.mine.templateId);
+
+    if (rewardChest) {
+      setPendingRewardChest(rewardChest);
+      setRewardChestStage("closed");
+      setChestRewardFlyouts([]);
+      return;
+    }
+
     setMineCompletionNoticeOpen(true);
   }, [
     canStartNextMine,
+    contentState.content,
     foundVeinNotice,
     mineCompletionNoticeOpen,
     mineCompletionNoticeSeenIds,
+    pendingRewardChest,
     session.mine.templateId,
     sessionReady
   ]);
@@ -752,6 +802,10 @@ export function App() {
     setFoundVeinNotice(null);
     setMineCompletionNoticeOpen(false);
     setMineCompletionNoticeSeenIds([]);
+    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+    setPendingRewardChest(null);
+    setRewardChestStage("closed");
+    setChestRewardFlyouts([]);
     syncVisibleResourceAmounts(nextSession.resources);
     setClockNow(resetAt);
     setOfflineSummary(null);
@@ -769,6 +823,10 @@ export function App() {
   }
 
   function handleStartNextMine() {
+    if (openMineCompletionRewardChestIfNeeded()) {
+      return;
+    }
+
     const nextMine = findNextMineTemplate(contentState.content.mineTemplates, session.mine.templateId);
 
     if (!nextMine) {
@@ -808,6 +866,75 @@ export function App() {
       builtMines,
       nextSeenNoticeIds
     );
+  }
+
+  function openMineCompletionRewardChestIfNeeded(): boolean {
+    if (mineCompletionNoticeSeenIds.includes(session.mine.templateId)) {
+      return false;
+    }
+
+    const rewardChest = createMineCompletionRewardChest(contentState.content, session.mine.templateId);
+
+    if (!rewardChest) {
+      return false;
+    }
+
+    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+    setPendingRewardChest(rewardChest);
+    setRewardChestStage("closed");
+    setChestRewardFlyouts([]);
+    setMineCompletionNoticeOpen(false);
+    setActiveSection("mine");
+    return true;
+  }
+
+  function handleOpenRewardChest() {
+    if (!pendingRewardChest || rewardChestStage !== "closed") {
+      return;
+    }
+
+    const chestType = findRewardChestType(contentState.content, pendingRewardChest.chestTypeId);
+
+    if (!chestType) {
+      setPendingRewardChest(null);
+      setRewardChestStage("closed");
+      return;
+    }
+
+    const openedChest: OpenedRewardChest = openRewardChest({
+      chestType,
+      random: Math.random
+    });
+    const rewards = openedChest.rewards;
+    const nextSeenNoticeIds = markMineCompletionNoticeSeen(mineCompletionNoticeSeenIds, pendingRewardChest.mineTemplateId);
+
+    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+    setPendingRewardChest({ ...pendingRewardChest, rewards });
+    setRewardChestStage("opening");
+    setChestRewardFlyouts(createChestRewardFlyouts(rewards, contentState.content, labels));
+    setMineCompletionNoticeSeenIds(nextSeenNoticeIds);
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: mergeResourceMaps(current.resources, rewards)
+    }));
+    scheduleResourceRewardDisplay(rewards);
+    rewardChestSummaryTimeoutRef.current = window.setTimeout(() => {
+      rewardChestSummaryTimeoutRef.current = null;
+      setRewardChestStage("summary");
+    }, rewardChestOpeningMs);
+  }
+
+  function handleContinueRewardChest() {
+    if (rewardChestStage !== "summary") {
+      return;
+    }
+
+    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+    setPendingRewardChest(null);
+    setRewardChestStage("closed");
+    setChestRewardFlyouts([]);
+    handleStartNextMine();
   }
 
   function handleDismissMineCompletionNotice() {
@@ -1104,6 +1231,21 @@ export function App() {
               </div>
             </section>
           </div>
+        ) : null}
+
+        {pendingRewardChest && pendingRewardChestType ? (
+          <RewardChestScreen
+            chestType={pendingRewardChestType}
+            content={contentState.content}
+            currentMineTitle={mineTitle(mineTemplate, labels)}
+            flyouts={chestRewardFlyouts}
+            labels={labels}
+            nextMineTitle={nextMineTemplate ? mineTitle(nextMineTemplate, labels) : null}
+            onContinue={handleContinueRewardChest}
+            onOpen={handleOpenRewardChest}
+            rewards={pendingRewardChest.rewards ?? {}}
+            stage={rewardChestStage}
+          />
         ) : null}
 
         {settingsOpen ? (
@@ -1489,6 +1631,95 @@ function ResourceIcon(props: { resourceId: string; size: number }) {
   return <Mountain size={props.size} />;
 }
 
+function RewardChestScreen(props: {
+  chestType: RewardChestTypeConfig;
+  content: ContentBundle;
+  currentMineTitle: string;
+  flyouts: ChestRewardFlyout[];
+  labels: Record<string, string>;
+  nextMineTitle: string | null;
+  onContinue: () => void;
+  onOpen: () => void;
+  rewards: Record<string, number>;
+  stage: RewardChestStage;
+}) {
+  const chestName = labelFromNameKey(props.chestType.nameKey, props.chestType.id, props.labels);
+  const rewardDrops = rewardDropsFromMap(props.rewards, props.content, props.labels);
+  const isSummary = props.stage === "summary";
+
+  return (
+    <section className={`reward-chest-screen ${props.chestType.tier}`} aria-label="Открытие сундука">
+      <div className="reward-chest-sky" aria-hidden="true">
+        <span />
+        <span />
+        <span />
+      </div>
+      <header className="reward-chest-header">
+        <p>Рудник освоен</p>
+        <strong>{props.currentMineTitle}</strong>
+        <span>{props.nextMineTitle ? `Дальше: ${props.nextMineTitle}` : "Следующий рудник скоро"}</span>
+      </header>
+
+      <div className="reward-chest-stage" aria-live="polite">
+        <div className="reward-chest-glow" aria-hidden="true" />
+        {props.flyouts.map((reward) => (
+          <span
+            className={`chest-reward-flyout ${resourceClassName(reward.resourceId)}`}
+            key={reward.id}
+            style={
+              {
+                "--delay": `${reward.delayMs}ms`,
+                "--distance": `${reward.distance}px`,
+                "--x": `${reward.x}px`
+              } as CSSProperties
+            }
+          >
+            <ResourceIcon resourceId={reward.resourceId} size={17} />
+            +{formatInteger(reward.amount)}
+          </span>
+        ))}
+
+        <button
+          className={`reward-chest-box ${props.chestType.tier} ${props.stage}`}
+          disabled={props.stage !== "closed"}
+          onClick={props.onOpen}
+          type="button"
+          aria-label={`Открыть ${chestName}`}
+        >
+          <span className="reward-chest-lid" />
+          <span className="reward-chest-lock" />
+          <span className="reward-chest-body" />
+        </button>
+
+        <div className={isSummary ? "reward-chest-summary show" : "reward-chest-summary"} aria-hidden={!isSummary}>
+          <p>Получено</p>
+          <strong>{chestName}</strong>
+          <div className="reward-chest-rewards">
+            {rewardDrops.length > 0 ? (
+              rewardDrops.map((reward) => (
+                <span className={`reward-chest-reward ${resourceClassName(reward.resourceId)}`} key={reward.resourceId}>
+                  <ResourceIcon resourceId={reward.resourceId} size={18} />
+                  <b>+{formatInteger(reward.amount)}</b>
+                  <small>{reward.label}</small>
+                </span>
+              ))
+            ) : (
+              <span className="reward-chest-reward empty">Пусто</span>
+            )}
+          </div>
+          <button onClick={props.onContinue} type="button">
+            Продолжить
+          </button>
+        </div>
+      </div>
+
+      <p className="reward-chest-hint">
+        {props.stage === "closed" ? "Тапни по сундуку" : props.stage === "opening" ? "Награды вылетают" : "Забираем добычу"}
+      </p>
+    </section>
+  );
+}
+
 function BossStat(props: { label: string; value: string }) {
   return (
     <div className="boss-stat">
@@ -1662,6 +1893,58 @@ function BuiltMinesSection(props: {
       </div>
     </section>
   );
+}
+
+function createMineCompletionRewardChest(content: ContentBundle, mineTemplateId: string): PendingRewardChest | null {
+  const mineTemplate = content.mineTemplates.find((template) => template.id === mineTemplateId);
+  const chestTypeId = mineTemplate?.completionRewardChestTypeId;
+
+  if (!chestTypeId || !findRewardChestType(content, chestTypeId)) {
+    return null;
+  }
+
+  return {
+    chestTypeId,
+    id: `${mineTemplateId}:${chestTypeId}`,
+    mineTemplateId,
+    rewards: null
+  };
+}
+
+function findRewardChestType(content: ContentBundle, chestTypeId: string): RewardChestTypeConfig | null {
+  return (
+    (content.rewardChestTypes ?? []).find((chestType) => chestType.id === chestTypeId) ??
+    starterContentBundle.rewardChestTypes.find((chestType) => chestType.id === chestTypeId) ??
+    null
+  );
+}
+
+function createChestRewardFlyouts(
+  rewards: Record<string, number>,
+  content: ContentBundle,
+  labels: Record<string, string>
+): ChestRewardFlyout[] {
+  return rewardDropsFromMap(rewards, content, labels).map((reward, index) => {
+    const direction = index % 2 === 0 ? -1 : 1;
+    const distance = 122 + index * 18;
+
+    return {
+      ...reward,
+      delayMs: index * 170,
+      distance,
+      id: ++chestRewardSequence,
+      x: direction * (28 + index * 20)
+    };
+  });
+}
+
+function clearRewardChestSummaryTimer(timeoutRef: { current: number | null }): void {
+  if (timeoutRef.current === null) {
+    return;
+  }
+
+  window.clearTimeout(timeoutRef.current);
+  timeoutRef.current = null;
 }
 
 function resourceClassName(resourceId: string): string {

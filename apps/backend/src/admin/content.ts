@@ -337,6 +337,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     blockTypes: entities.filter((entity) => entity.entityType === "blockType").map((entity) => entity.data),
     veinTypes: entities.filter((entity) => entity.entityType === "veinType").map((entity) => entity.data),
     builtMineTypes: entities.filter((entity) => entity.entityType === "builtMineType").map((entity) => entity.data),
+    rewardChestTypes: entities.filter((entity) => entity.entityType === "rewardChestType").map((entity) => entity.data),
     mineTemplates: entities.filter((entity) => entity.entityType === "mineTemplate").map((entity) => entity.data),
     goblins: entities.filter((entity) => entity.entityType === "goblin").map((entity) => entity.data),
     localization

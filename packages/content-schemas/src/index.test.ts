@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTypeSchema, goblinSchema, starterContentBundle, validateContentBundle } from "./index";
+import { blockTypeSchema, goblinSchema, rewardChestTypeSchema, starterContentBundle, validateContentBundle } from "./index";
 
 describe("content schemas", () => {
   it("accepts a valid block type", () => {
@@ -49,6 +49,12 @@ describe("content schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a valid reward chest config", () => {
+    const result = rewardChestTypeSchema.safeParse(starterContentBundle.rewardChestTypes[0]);
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects missing resource references", () => {
     const broken = structuredClone(starterContentBundle);
     broken.blockTypes[0]?.rewardTable.push({ resourceId: "missing_resource", min: 1, max: 1, chance: 1 });
@@ -71,6 +77,30 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("mineTemplates.old_well_01.strata.top_soil references missing block missing_block");
+  });
+
+  it("rejects missing resource references in reward chests", () => {
+    const broken = structuredClone(starterContentBundle);
+    broken.rewardChestTypes[0]?.rewardTable.push({ resourceId: "missing_resource", min: 1, max: 1, chance: 1 });
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("rewardChestTypes.wooden_completion_chest.rewardTable references missing resource missing_resource");
+  });
+
+  it("rejects missing mine completion reward chests", () => {
+    const broken = structuredClone(starterContentBundle);
+    const mineTemplate = broken.mineTemplates[0];
+
+    if (mineTemplate) {
+      mineTemplate.completionRewardChestTypeId = "missing_chest";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion reward chest missing_chest");
   });
 
   it("rejects missing vein references in guaranteed mine objects", () => {

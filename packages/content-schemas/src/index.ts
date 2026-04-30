@@ -103,6 +103,14 @@ export const builtMineTypeSchema = z.object({
   assetId: z.string().min(1)
 });
 
+export const rewardChestTypeSchema = z.object({
+  id: z.string().min(1),
+  nameKey: z.string().min(1),
+  tier: z.enum(["wooden", "iron", "steel", "golden"]).default("wooden"),
+  rewardTable: z.array(rewardEntrySchema).min(1),
+  assetId: z.string().min(1)
+});
+
 export const blockTypeSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -141,6 +149,7 @@ export const mineTemplateSchema = z.object({
   depthMeters: z.number().int().positive(),
   difficulty: z.number().positive(),
   seedMode: z.enum(["fixed", "random", "playerBased"]),
+  completionRewardChestTypeId: z.string().min(1).optional(),
   strata: z.array(
     z.object({
       id: z.string().min(1),
@@ -175,6 +184,7 @@ export const contentBundleSchema = z
     blockTypes: z.array(blockTypeSchema).min(1),
     veinTypes: z.array(veinTypeSchema).default([]),
     builtMineTypes: z.array(builtMineTypeSchema).default([]),
+    rewardChestTypes: z.array(rewardChestTypeSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
     localization: localizationSchema
@@ -184,6 +194,7 @@ export const contentBundleSchema = z
 export type ResourceConfig = z.infer<typeof resourceSchema>;
 export type VeinTypeConfig = z.infer<typeof veinTypeSchema>;
 export type BuiltMineTypeConfig = z.infer<typeof builtMineTypeSchema>;
+export type RewardChestTypeConfig = z.infer<typeof rewardChestTypeSchema>;
 export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type GuaranteedObjectConfig = z.infer<typeof guaranteedObjectSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
@@ -319,6 +330,41 @@ export const starterContentBundle: ContentBundle = {
       assetId: "built_mine_copper_small_v1"
     }
   ],
+  rewardChestTypes: [
+    {
+      id: "wooden_completion_chest",
+      nameKey: "reward_chest.wooden.name",
+      tier: "wooden",
+      rewardTable: [
+        { resourceId: "gold", min: 90, max: 150, chance: 1 },
+        { resourceId: "stone", min: 45, max: 90, chance: 1 },
+        { resourceId: "copper_ore", min: 15, max: 35, chance: 0.8 }
+      ],
+      assetId: "reward_chest_wooden_v1"
+    },
+    {
+      id: "iron_completion_chest",
+      nameKey: "reward_chest.iron.name",
+      tier: "iron",
+      rewardTable: [
+        { resourceId: "gold", min: 160, max: 260, chance: 1 },
+        { resourceId: "stone", min: 90, max: 160, chance: 1 },
+        { resourceId: "copper_ore", min: 35, max: 80, chance: 1 }
+      ],
+      assetId: "reward_chest_iron_v1"
+    },
+    {
+      id: "steel_completion_chest",
+      nameKey: "reward_chest.steel.name",
+      tier: "steel",
+      rewardTable: [
+        { resourceId: "gold", min: 280, max: 440, chance: 1 },
+        { resourceId: "stone", min: 160, max: 260, chance: 1 },
+        { resourceId: "copper_ore", min: 90, max: 150, chance: 1 }
+      ],
+      assetId: "reward_chest_steel_v1"
+    }
+  ],
   mineTemplates: [
     {
       id: "old_well_01",
@@ -328,6 +374,7 @@ export const starterContentBundle: ContentBundle = {
       depthMeters: 60,
       difficulty: 1,
       seedMode: "playerBased",
+      completionRewardChestTypeId: "wooden_completion_chest",
       strata: [
         {
           id: "top_soil",
@@ -379,6 +426,7 @@ export const starterContentBundle: ContentBundle = {
       depthMeters: 60,
       difficulty: 1.18,
       seedMode: "playerBased",
+      completionRewardChestTypeId: "iron_completion_chest",
       strata: [
         {
           id: "top_rubble",
@@ -649,6 +697,9 @@ export const starterContentBundle: ContentBundle = {
       "mine.abandoned_crosscut.name": "Заброшенный штрек",
       "vein.copper_small.name": "Медная жила",
       "built_mine.small_copper.name": "Малая медная шахта",
+      "reward_chest.wooden.name": "Деревянный сундук",
+      "reward_chest.iron.name": "Железный сундук",
+      "reward_chest.steel.name": "Стальной сундук",
       "goblin.gryzz.name": "Грызз Кривозуб",
       "goblin.gryzz.description": "Долбит камни так уверенно, будто камни ему должны.",
       "goblin.myk.name": "Мык Тупая Кирка",
@@ -700,31 +751,35 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   collectDuplicateIds("blockTypes", parsed.data.blockTypes, errors);
   collectDuplicateIds("veinTypes", parsed.data.veinTypes, errors);
   collectDuplicateIds("builtMineTypes", parsed.data.builtMineTypes, errors);
+  collectDuplicateIds("rewardChestTypes", parsed.data.rewardChestTypes, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
   collectDuplicateIds("goblins", parsed.data.goblins, errors);
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
   const blockTypeIds = new Set(parsed.data.blockTypes.map((blockType) => blockType.id));
   const veinTypeIds = new Set(parsed.data.veinTypes.map((veinType) => veinType.id));
+  const rewardChestTypeIds = new Set(parsed.data.rewardChestTypes.map((rewardChestType) => rewardChestType.id));
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
   const ruLocalization = parsed.data.localization.ru;
 
   for (const blockType of parsed.data.blockTypes) {
     validateLocalizationKey(blockType.nameKey, "ru", ruLocalization, errors);
+    validateRewardTable(`blockTypes.${blockType.id}.rewardTable`, blockType.rewardTable, resourceIds, errors);
+  }
 
-    for (const reward of blockType.rewardTable) {
-      if (!resourceIds.has(reward.resourceId)) {
-        errors.push(`blockTypes.${blockType.id}.rewardTable references missing resource ${reward.resourceId}`);
-      }
-
-      if (reward.min > reward.max) {
-        errors.push(`blockTypes.${blockType.id}.rewardTable has min greater than max for ${reward.resourceId}`);
-      }
-    }
+  for (const rewardChestType of parsed.data.rewardChestTypes) {
+    validateLocalizationKey(rewardChestType.nameKey, "ru", ruLocalization, errors);
+    validateRewardTable(`rewardChestTypes.${rewardChestType.id}.rewardTable`, rewardChestType.rewardTable, resourceIds, errors);
   }
 
   for (const mineTemplate of parsed.data.mineTemplates) {
     validateLocalizationKey(mineTemplate.displayNameKey, "ru", ruLocalization, errors);
+
+    if (mineTemplate.completionRewardChestTypeId && !rewardChestTypeIds.has(mineTemplate.completionRewardChestTypeId)) {
+      errors.push(
+        `mineTemplates.${mineTemplate.id} references missing completion reward chest ${mineTemplate.completionRewardChestTypeId}`
+      );
+    }
 
     for (const stratum of mineTemplate.strata) {
       if (stratum.fromRow > stratum.toRow) {
@@ -831,6 +886,23 @@ function validateResourceAmounts(
   for (const amount of amounts) {
     if (!resourceIds.has(amount.resourceId)) {
       errors.push(`${owner} references missing resource ${amount.resourceId}`);
+    }
+  }
+}
+
+function validateRewardTable(
+  owner: string,
+  rewardTable: Array<{ resourceId: string; min: number; max: number }>,
+  resourceIds: Set<string>,
+  errors: string[]
+): void {
+  for (const reward of rewardTable) {
+    if (!resourceIds.has(reward.resourceId)) {
+      errors.push(`${owner} references missing resource ${reward.resourceId}`);
+    }
+
+    if (reward.min > reward.max) {
+      errors.push(`${owner} has min greater than max for ${reward.resourceId}`);
     }
   }
 }

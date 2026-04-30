@@ -56,6 +56,9 @@ class MemoryContentStore implements ContentStore {
       ...content.builtMineTypes.map((builtMineType) =>
         this.createEntity(contentVersionId, "builtMineType", builtMineType.id, builtMineType)
       ),
+      ...content.rewardChestTypes.map((rewardChestType) =>
+        this.createEntity(contentVersionId, "rewardChestType", rewardChestType.id, rewardChestType)
+      ),
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),

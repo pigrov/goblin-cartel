@@ -48,3 +48,4 @@
 - `0043_vein_mines_ui` - connected veins to the client UI with Pixi vein visuals, found-vein modal, mines tab, build action, mine storage, and manual collection.
 - `0044_next_mine_progression` - added a second mine template and client progression that unlocks the next mine after building a permanent mine from the current vein.
 - `0045_mine_completion_event` - added a one-time mine completion modal with summary, next-mine action, and persisted dismissal state.
+- `0046_reward_chest_opening` - added reward chest content, core reward rolling, and a full-screen chest opening flow before next-mine continuation.

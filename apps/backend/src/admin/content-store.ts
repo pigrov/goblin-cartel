@@ -84,6 +84,12 @@ export class DrizzleContentStore implements ContentStore {
           entityId: builtMineType.id,
           data: builtMineType
         })),
+        ...content.rewardChestTypes.map((rewardChestType) => ({
+          contentVersionId,
+          entityType: "rewardChestType",
+          entityId: rewardChestType.id,
+          data: rewardChestType
+        })),
         ...content.mineTemplates.map((mineTemplate) => ({
           contentVersionId,
           entityType: "mineTemplate",
