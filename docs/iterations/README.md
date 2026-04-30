@@ -31,3 +31,4 @@
 - `0018_playfield_platform_lift` - общий скролл поверхности и шахты, платформа внутри шахты и левый механизм спуска.
 - `0019_platform_overlay_pixi_plan` - платформа как overlay поверх цельной шахты, более плавный спуск и план перехода визуального слоя на PixiJS.
 - `0020_platform_overlay_anchor_fix` - исправление привязки overlay-платформы к `.mine-grid`, а не к верхней части игровой области.
+- `0029_pixi_dev_overlay_resource_tooltips` - Pixi dev overlay, resource counter tooltips, removal of DOM pickup trails, and immediate boss hit input.

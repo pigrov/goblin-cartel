@@ -7,6 +7,7 @@ import {
   createMinePixiLayout,
   createVisibleRowRange,
   isRowInVisibleRange,
+  pointToMineCell,
   pointToPlatformColumnCell,
   pointToPlatformCell,
   type MinePixiCell,
@@ -44,12 +45,6 @@ export interface MinePixiHitEffect {
   variant: MinePixiHitEffectVariant;
 }
 
-export interface MinePixiRewardPickup {
-  id: number;
-  origin: MinePixiPoint;
-  rewards: MinePixiRewardDrop[];
-}
-
 interface MinePixiSceneProps {
   activeCell: {
     row: number;
@@ -57,13 +52,13 @@ interface MinePixiSceneProps {
   };
   blockTypeById: ReadonlyMap<string, BlockTypeConfig>;
   currentPlatformRow: number;
+  devOverlayEnabled: boolean;
   depthMarkerLabel: (row: number) => string;
   exposedCellKeys: ReadonlySet<string>;
   goblins: MinePixiGoblin[];
   hitEffects: MinePixiHitEffect[];
   onBlockHit: (block: MiningBlockState) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
-  onRewardPickup?: (pickup: MinePixiRewardPickup) => void;
   platformCellKeys: ReadonlySet<string>;
   platformDropAnimating: boolean;
   session: MiningSession;
@@ -156,6 +151,14 @@ interface TouchPanState {
   startY: number;
 }
 
+interface PixiDevStats {
+  fps: number;
+  renderedCells: number;
+  scrollRow: number;
+  totalCells: number;
+  visibleRows: string;
+}
+
 const minSceneWidth = 320;
 const platformDropDurationMs = 1450;
 const defaultSceneViewport: MinePixiViewport = {
@@ -173,22 +176,28 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
-  const emittedRewardEffectsRef = useRef<Set<number>>(new Set());
+  const devOverlayEnabledRef = useRef(props.devOverlayEnabled);
+  const devStatsLastUpdatedAtRef = useRef(0);
   const touchPanBlockTapUntilRef = useRef(0);
   const touchPanStateRef = useRef<TouchPanState | null>(null);
   const layoutRef = useRef<MinePixiLayout | null>(null);
   const animatedGoblinsRef = useRef<AnimatedItem[]>([]);
   const currentPlatformRowRef = useRef(props.currentPlatformRow);
+  const exposedCellKeysRef = useRef(props.exposedCellKeys);
   const onBlockHitRef = useRef(props.onBlockHit);
   const onPlaceGoblinRef = useRef(props.onPlaceGoblin);
   const platformCellKeysRef = useRef(props.platformCellKeys);
+  const sessionBlocksRef = useRef(props.session.blocks);
   const platformRef = useRef<AnimatedItem | null>(null);
   const platformDropAnimatingRef = useRef(false);
   const platformAnimationStartedAtRef = useRef(0);
+  const totalCellCountRef = useRef(props.session.mine.width * props.session.mine.height);
+  const visibleRowRangeRef = useRef<MinePixiVisibleRowRange>({ endRow: 0, startRow: 0 });
   const previousPlatformDropSignalRef = useRef({
     animating: false,
     row: props.currentPlatformRow
   });
+  const [devStats, setDevStats] = useState<PixiDevStats | null>(null);
   const [readyTick, setReadyTick] = useState(0);
   const [sceneViewport, setSceneViewport] = useState<MinePixiViewport>(defaultSceneViewport);
   const [viewportWidth, setViewportWidth] = useState(minSceneWidth);
@@ -202,6 +211,22 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     () => createVisibleRowRange(layout, sceneViewport),
     [layout, sceneViewport]
   );
+
+  useEffect(() => {
+    devOverlayEnabledRef.current = props.devOverlayEnabled;
+
+    if (!props.devOverlayEnabled) {
+      setDevStats(null);
+    }
+  }, [props.devOverlayEnabled]);
+
+  useEffect(() => {
+    visibleRowRangeRef.current = visibleRowRange;
+  }, [visibleRowRange]);
+
+  useEffect(() => {
+    totalCellCountRef.current = props.session.mine.width * props.session.mine.height;
+  }, [props.session.mine.height, props.session.mine.width]);
 
   useEffect(() => {
     platformDropAnimatingRef.current = props.platformDropAnimating;
@@ -229,12 +254,20 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, [props.onBlockHit]);
 
   useEffect(() => {
+    exposedCellKeysRef.current = props.exposedCellKeys;
+  }, [props.exposedCellKeys]);
+
+  useEffect(() => {
     onPlaceGoblinRef.current = props.onPlaceGoblin;
   }, [props.onPlaceGoblin]);
 
   useEffect(() => {
     platformCellKeysRef.current = props.platformCellKeys;
   }, [props.platformCellKeys]);
+
+  useEffect(() => {
+    sessionBlocksRef.current = props.session.blocks;
+  }, [props.session.blocks]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -292,6 +325,18 @@ export function MinePixiScene(props: MinePixiSceneProps) {
 
           animateBlockImpacts(now, animatedBlockImpactsRef.current, blockNodesRef.current);
           animateHitEffects(now, animatedHitEffectsRef.current);
+          updatePixiDevStats(
+            now,
+            app,
+            hostRef.current,
+            layoutRef.current,
+            visibleRowRangeRef.current,
+            blockNodesRef.current.size,
+            totalCellCountRef.current,
+            devOverlayEnabledRef,
+            devStatsLastUpdatedAtRef,
+            setDevStats
+          );
         });
 
         setReadyTick((current) => current + 1);
@@ -307,7 +352,6 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       animatedHitEffectsRef.current = [];
       blockNodesRef.current.clear();
       depthMarkerNodesRef.current.clear();
-      emittedRewardEffectsRef.current.clear();
       hitEffectNodesRef.current.clear();
       platformRef.current = null;
       if (initialized) {
@@ -354,10 +398,6 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     const playfield = host;
 
     function handlePointerDown(event: PointerEvent) {
-      if (event.pointerType !== "touch") {
-        return;
-      }
-
       const layout = layoutRef.current;
       const canvas = appRef.current?.canvas;
 
@@ -369,6 +409,22 @@ export function MinePixiScene(props: MinePixiSceneProps) {
           touchPanStateRef.current = null;
           return;
         }
+
+        const mineCell = pointToMineCell(point, layout);
+        const block = mineCell ? sessionBlocksRef.current[mineCell.row]?.[mineCell.col] : null;
+
+        if (
+          block &&
+          !block.destroyed &&
+          exposedCellKeysRef.current.has(cellKey(block)) &&
+          performance.now() >= touchPanBlockTapUntilRef.current
+        ) {
+          onBlockHitRef.current(block);
+        }
+      }
+
+      if (event.pointerType !== "touch") {
+        return;
       }
 
       touchPanStateRef.current = {
@@ -546,7 +602,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange, onBlockHitRef, touchPanBlockTapUntilRef);
+    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange);
     reconcileDepthMarkers(layers.markers, depthMarkerNodesRef.current, layout, props, visibleRowRange);
   }, [
     layout,
@@ -572,11 +628,9 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       hitEffectNodesRef.current,
       animatedHitEffectsRef,
       animatedBlockImpactsRef,
-      emittedRewardEffectsRef,
       layout,
       props,
-      visibleRowRange,
-      appRef.current?.canvas ?? null
+      visibleRowRange
     );
   }, [layout, props.hitEffects, readyTick, visibleRowRange]);
 
@@ -632,6 +686,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   return (
     <section className="pixi-playfield" ref={hostRef} aria-label="Игровая область">
       {readyTick === 0 ? <span className="pixi-loading">Loading...</span> : null}
+      {props.devOverlayEnabled && devStats ? (
+        <div className="pixi-dev-overlay" aria-hidden="true">
+          <span>FPS {devStats.fps}</span>
+          <span>Rows {devStats.visibleRows}</span>
+          <span>Scroll {devStats.scrollRow}</span>
+          <span>Cells {devStats.renderedCells}/{devStats.totalCells}</span>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -665,6 +727,36 @@ function configurePixiInputForTouchScroll(app: Application) {
   }
 
   app.canvas.style.touchAction = "pan-y";
+}
+
+function updatePixiDevStats(
+  now: number,
+  app: Application,
+  host: HTMLDivElement | null,
+  layout: MinePixiLayout | null,
+  visibleRowRange: MinePixiVisibleRowRange,
+  renderedCells: number,
+  totalCells: number,
+  devOverlayEnabledRef: MutableRefObject<boolean>,
+  devStatsLastUpdatedAtRef: MutableRefObject<number>,
+  setDevStats: (stats: PixiDevStats) => void
+) {
+  if (!devOverlayEnabledRef.current || !layout || now - devStatsLastUpdatedAtRef.current < 350) {
+    return;
+  }
+
+  devStatsLastUpdatedAtRef.current = now;
+  const scrollTop = Math.max(0, host?.scrollTop ?? 0);
+  const scrollRow = Math.max(0, Math.floor(Math.max(0, scrollTop - layout.gridY) / layout.rowStep));
+  const ticker = app.ticker as { FPS?: number };
+
+  setDevStats({
+    fps: Math.round(ticker.FPS ?? 0),
+    renderedCells,
+    scrollRow,
+    totalCells,
+    visibleRows: `${visibleRowRange.startRow}-${visibleRowRange.endRow}`
+  });
 }
 
 function removeRenderedNode(
@@ -740,9 +832,7 @@ function reconcileMineBlocks(
   renderedBlocks: Map<string, RenderedPixiNode>,
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange,
-  onBlockHitRef: MutableRefObject<(block: MiningBlockState) => void>,
-  touchPanBlockTapUntilRef: MutableRefObject<number>
+  visibleRowRange: MinePixiVisibleRowRange
 ) {
   const visibleCellKeys = createMinePixiVisibleCellKeySet(props.session.blocks, visibleRowRange);
 
@@ -797,15 +887,7 @@ function reconcileMineBlocks(
       blockGraphics.position.set(x, y);
 
       if (!block.destroyed && exposed) {
-        blockGraphics.eventMode = "static";
         blockGraphics.cursor = "pointer";
-        blockGraphics.on("pointertap", () => {
-          if (performance.now() < touchPanBlockTapUntilRef.current) {
-            return;
-          }
-
-          onBlockHitRef.current(block);
-        });
       }
 
       mineLayer.addChild(blockGraphics);
@@ -1119,11 +1201,9 @@ function reconcileHitEffects(
   renderedEffects: Map<string, RenderedPixiNode>,
   animatedHitEffectsRef: MutableRefObject<AnimatedHitEffect[]>,
   animatedBlockImpactsRef: MutableRefObject<Map<number, AnimatedBlockImpact>>,
-  emittedRewardEffectsRef: MutableRefObject<Set<number>>,
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange,
-  canvas: HTMLCanvasElement | null
+  visibleRowRange: MinePixiVisibleRowRange
 ) {
   const visibleEffectKeys = new Set<string>();
 
@@ -1163,7 +1243,6 @@ function reconcileHitEffects(
 
     const drawnEffect = drawHitEffect(effect, x, y, layout.cellSize, destroyed);
     root.addChild(drawnEffect.node);
-    emitRewardPickup(effect, x, y, destroyed, emittedRewardEffectsRef, props.onRewardPickup, canvas);
     animatedHitEffectsRef.current.push({
       damageLabel: drawnEffect.damageLabel,
       damageLabelBaseY: drawnEffect.damageLabelBaseY,
@@ -1193,36 +1272,8 @@ function reconcileHitEffects(
     if (!visibleEffectKeys.has(key)) {
       removeRenderedNode(renderedEffects, key, renderedEffect);
       animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => String(item.id) !== key);
-      emittedRewardEffectsRef.current.delete(Number(key));
     }
   }
-}
-
-function emitRewardPickup(
-  effect: MinePixiHitEffect,
-  x: number,
-  y: number,
-  destroyed: boolean,
-  emittedRewardEffectsRef: MutableRefObject<Set<number>>,
-  onRewardPickup: MinePixiSceneProps["onRewardPickup"],
-  canvas: HTMLCanvasElement | null
-) {
-  if (!destroyed || effect.rewardDrops.length === 0 || emittedRewardEffectsRef.current.has(effect.id) || !canvas || !onRewardPickup) {
-    return;
-  }
-
-  const rect = canvas.getBoundingClientRect();
-  emittedRewardEffectsRef.current.add(effect.id);
-  window.setTimeout(() => {
-    onRewardPickup({
-      id: effect.id,
-      origin: {
-        x: rect.left + x,
-        y: rect.top + y
-      },
-      rewards: effect.rewardDrops
-    });
-  }, 180);
 }
 
 function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: number, destroyed: boolean): DrawnHitEffect {
@@ -1231,7 +1282,7 @@ function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: nu
   const particles: AnimatedHitParticle[] = [];
   const palette = hitEffectPalette(effect.variant, destroyed);
   const particleCount = destroyed ? 16 : effect.variant === "critical" ? 14 : effect.variant === "boss" ? 11 : 8;
-  const duration = destroyed ? 980 : effect.variant === "critical" ? 720 : 620;
+  const duration = destroyed ? 1960 : effect.variant === "critical" ? 720 : 620;
   const flashScale = effect.variant === "critical" ? 1.18 : effect.variant === "goblin" ? 0.82 : 1;
   const damageLabel = drawDamageLabel(effect, size);
   const damageLabelBaseY = -size * (effect.variant === "critical" ? 0.72 : 0.54);
@@ -1398,7 +1449,7 @@ function animateHitEffects(now: number, animatedEffects: AnimatedHitEffect[]) {
     for (const rewardLabel of item.rewardLabels) {
       const rewardProgress = clamp01((progress - rewardLabel.delay) / Math.max(0.01, 1 - rewardLabel.delay));
       const rewardEase = 1 - Math.pow(1 - rewardProgress, 3);
-      rewardLabel.node.y = rewardLabel.baseY - rewardEase * 22;
+      rewardLabel.node.y = rewardLabel.baseY - rewardEase * 34;
       rewardLabel.node.alpha = rewardProgress <= 0
         ? 0
         : Math.max(0, rewardProgress < 0.18 ? rewardProgress / 0.18 : 1 - Math.max(0, rewardProgress - 0.62) / 0.38);
@@ -1488,31 +1539,35 @@ function drawDamageLabel(effect: MinePixiHitEffect, size: number): Container {
 function drawRewardLabels(rewardDrops: MinePixiRewardDrop[], size: number): AnimatedRewardLabel[] {
   return rewardDrops.slice(0, 3).map((drop, index) => {
     const fontSize = Math.max(10, Math.floor(size * 0.22));
-    const text = createText({
-      color: 0xf7ead8,
+    const color = resourceColor(drop.resourceId);
+    const textValue = `+${formatDamageAmount(drop.amount)} ${drop.label}`;
+    const shadow = createText({
+      color: 0x120c08,
       fontSize,
       fontWeight: "800",
-      text: `+${formatDamageAmount(drop.amount)} ${drop.label}`
+      text: textValue
+    });
+    const text = createText({
+      color,
+      fontSize,
+      fontWeight: "800",
+      text: textValue
     });
     const label = new Container();
-    const width = Math.max(size * 0.82, text.width + size * 0.42);
     const height = Math.max(16, fontSize * 1.45);
+    const iconSize = Math.max(7, height * 0.35);
+    const width = Math.max(size * 0.82, text.width + iconSize + 8);
     const baseY = size * 0.13 + index * (height + 3);
-    const color = resourceColor(drop.resourceId);
+    const icon = drawRewardIcon(drop.resourceId, iconSize);
 
+    shadow.anchor.set(0, 0.5);
+    shadow.position.set(-width / 2 + iconSize + 8 + 1.2, 1.2);
     text.anchor.set(0, 0.5);
-    text.position.set(-width / 2 + height + 3, 0);
+    text.position.set(-width / 2 + iconSize + 8, 0);
+    icon.position.set(-width / 2 + iconSize / 2, 0);
     label.position.set((index % 2 === 0 ? -1 : 1) * size * 0.06, baseY);
     label.alpha = 0;
-    label.addChild(
-      new Graphics()
-        .roundRect(-width / 2, -height / 2, width, height, 7)
-        .fill({ color: 0x15100c, alpha: 0.72 })
-        .stroke({ color, alpha: 0.7, width: 1 })
-        .circle(-width / 2 + height / 2, 0, Math.max(4, height * 0.26))
-        .fill({ color, alpha: 0.95 })
-    );
-    label.addChild(text);
+    label.addChild(icon, shadow, text);
 
     return {
       baseY,
@@ -1520,6 +1575,39 @@ function drawRewardLabels(rewardDrops: MinePixiRewardDrop[], size: number): Anim
       node: label
     };
   });
+}
+
+function drawRewardIcon(resourceId: string, size: number): Graphics {
+  const color = resourceColor(resourceId);
+  const icon = new Graphics();
+
+  if (resourceId.includes("gold")) {
+    return icon
+      .circle(0, 0, size * 0.5)
+      .fill({ color, alpha: 0.96 })
+      .circle(size * 0.14, -size * 0.1, size * 0.42)
+      .stroke({ color: 0xfff0a6, alpha: 0.76, width: 1 });
+  }
+
+  if (resourceId.includes("copper")) {
+    return icon
+      .roundRect(-size * 0.45, -size * 0.45, size * 0.9, size * 0.9, 2)
+      .fill({ color, alpha: 0.95 })
+      .stroke({ color: 0xf0b179, alpha: 0.72, width: 1 });
+  }
+
+  if (resourceId.includes("stone")) {
+    return icon
+      .roundRect(-size * 0.5, -size * 0.36, size, size * 0.72, 2)
+      .fill({ color, alpha: 0.92 })
+      .rect(-size * 0.18, -size * 0.48, size * 0.54, size * 0.42)
+      .fill({ color: 0x747b86, alpha: 0.86 });
+  }
+
+  return icon
+    .circle(0, 0, size * 0.5)
+    .fill({ color, alpha: 0.94 })
+    .stroke({ color: 0xd8ffd0, alpha: 0.56, width: 1 });
 }
 
 function formatDamageAmount(damage: number): string {
