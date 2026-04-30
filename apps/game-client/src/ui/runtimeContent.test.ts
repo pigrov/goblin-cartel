@@ -8,6 +8,22 @@ describe("runtime content", () => {
     expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback:mine-12");
   });
 
+  it("adds reward chest defaults to older published content", () => {
+    const legacyContent = structuredClone(starterContentBundle);
+    const mine = legacyContent.mineTemplates[0];
+
+    legacyContent.rewardChestTypes = [];
+
+    if (mine) {
+      Reflect.deleteProperty(mine, "completionRewardChestTypeId");
+    }
+
+    const runtimeContent = createRuntimeContentBundle(legacyContent);
+
+    expect(runtimeContent.rewardChestTypes.map((chestType) => chestType.id)).toContain("wooden_completion_chest");
+    expect(runtimeContent.mineTemplates[0]?.completionRewardChestTypeId).toBe("wooden_completion_chest");
+  });
+
   it("normalizes older published mine content to the 60m runtime depth", () => {
     const content = structuredClone(starterContentBundle);
     const mine = content.mineTemplates[0];

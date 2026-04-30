@@ -1,16 +1,17 @@
-import type { ContentBundle } from "@goblin-cartel/content-schemas";
+import { starterContentBundle, type ContentBundle } from "@goblin-cartel/content-schemas";
 
 const runtimeTestMineRows = 12;
 const runtimeMineMetersPerRow = 5;
 
 export function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
+  const contentWithDefaults = withRewardChestDefaults(content);
   const debugRows = readDebugMineRows();
   const targetRows = debugRows ?? runtimeTestMineRows;
   const targetDepthMeters = targetRows * runtimeMineMetersPerRow;
-  const mineTemplate = content.mineTemplates[0];
+  const mineTemplate = contentWithDefaults.mineTemplates[0];
 
   if (!mineTemplate) {
-    return content;
+    return contentWithDefaults;
   }
 
   const currentDepthMeters = mineTemplate.depthMeters ?? mineTemplate.height;
@@ -18,17 +19,17 @@ export function createRuntimeContentBundle(content: ContentBundle): ContentBundl
     Boolean(debugRows) || mineTemplate.height !== targetRows || currentDepthMeters !== targetDepthMeters;
 
   if (!shouldUseRuntimeMine) {
-    return content;
+    return contentWithDefaults;
   }
 
   const strata = resizeStrata(mineTemplate.strata, targetRows);
 
   if (strata.length === 0) {
-    return content;
+    return contentWithDefaults;
   }
 
   return {
-    ...content,
+    ...contentWithDefaults,
     mineTemplates: [
       {
         ...mineTemplate,
@@ -37,7 +38,7 @@ export function createRuntimeContentBundle(content: ContentBundle): ContentBundl
         id: `${mineTemplate.id}_${debugRows ? "debug" : "test"}_${targetRows}`,
         strata
       },
-      ...content.mineTemplates.slice(1)
+      ...contentWithDefaults.mineTemplates.slice(1)
     ]
   };
 }
@@ -73,6 +74,50 @@ function readDebugMineRows(): number | null {
   }
 
   return rows;
+}
+
+function withRewardChestDefaults(content: ContentBundle): ContentBundle {
+  const rewardChestTypes = [...(content.rewardChestTypes ?? [])];
+  const rewardChestTypeIds = new Set(rewardChestTypes.map((chestType) => chestType.id));
+  let changed = false;
+
+  for (const starterRewardChestType of starterContentBundle.rewardChestTypes) {
+    if (!rewardChestTypeIds.has(starterRewardChestType.id)) {
+      rewardChestTypes.push(starterRewardChestType);
+      changed = true;
+    }
+  }
+
+  const mineTemplates = content.mineTemplates.map((mineTemplate) => {
+    if (mineTemplate.completionRewardChestTypeId) {
+      return mineTemplate;
+    }
+
+    const starterMineTemplate = findStarterMineTemplate(mineTemplate.id);
+
+    if (!starterMineTemplate?.completionRewardChestTypeId) {
+      return mineTemplate;
+    }
+
+    changed = true;
+    return {
+      ...mineTemplate,
+      completionRewardChestTypeId: starterMineTemplate.completionRewardChestTypeId
+    };
+  });
+
+  return changed
+    ? {
+        ...content,
+        mineTemplates,
+        rewardChestTypes
+      }
+    : content;
+}
+
+function findStarterMineTemplate(mineTemplateId: string): ContentBundle["mineTemplates"][number] | undefined {
+  const baseMineTemplateId = mineTemplateId.replace(/_(?:debug|test)_\d+$/, "");
+  return starterContentBundle.mineTemplates.find((mineTemplate) => mineTemplate.id === mineTemplateId || mineTemplate.id === baseMineTemplateId);
 }
 
 function resizeStrata(strata: ContentBundle["mineTemplates"][number]["strata"], targetRows: number) {
