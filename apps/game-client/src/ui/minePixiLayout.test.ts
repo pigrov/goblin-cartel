@@ -107,4 +107,21 @@ describe("minePixiLayout", () => {
     expect(createVisibleRowRange(layout, { height: 120, scrollTop: 0 }, 3).startRow).toBe(0);
     expect(createVisibleRowRange(layout, { height: 120, scrollTop: layout.contentHeight + 500 }, 3).endRow).toBe(11);
   });
+
+  it("keeps a bounded render window for a long debug mine", () => {
+    const longMine = {
+      ...mine,
+      depthMeters: 250,
+      height: 60
+    };
+    const layout = createMinePixiLayout(longMine, 430, 0);
+    const range = createVisibleRowRange(layout, {
+      height: 640,
+      scrollTop: layout.gridY + layout.rowStep * 38
+    });
+
+    expect(layout.contentHeight).toBeGreaterThan(2400);
+    expect(range.startRow).toBe(36);
+    expect(range.endRow - range.startRow).toBeLessThanOrEqual(18);
+  });
 });

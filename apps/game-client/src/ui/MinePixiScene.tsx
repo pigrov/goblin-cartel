@@ -44,6 +44,12 @@ export interface MinePixiHitEffect {
   variant: MinePixiHitEffectVariant;
 }
 
+export interface MinePixiRewardPickup {
+  id: number;
+  origin: MinePixiPoint;
+  rewards: MinePixiRewardDrop[];
+}
+
 interface MinePixiSceneProps {
   activeCell: {
     row: number;
@@ -57,6 +63,7 @@ interface MinePixiSceneProps {
   hitEffects: MinePixiHitEffect[];
   onBlockHit: (block: MiningBlockState) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
+  onRewardPickup?: (pickup: MinePixiRewardPickup) => void;
   platformCellKeys: ReadonlySet<string>;
   platformDropAnimating: boolean;
   session: MiningSession;
@@ -150,6 +157,7 @@ interface TouchPanState {
 }
 
 const minSceneWidth = 320;
+const platformDropDurationMs = 1450;
 const defaultSceneViewport: MinePixiViewport = {
   height: 0,
   scrollTop: 0
@@ -165,6 +173,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
+  const emittedRewardEffectsRef = useRef<Set<number>>(new Set());
   const touchPanBlockTapUntilRef = useRef(0);
   const touchPanStateRef = useRef<TouchPanState | null>(null);
   const layoutRef = useRef<MinePixiLayout | null>(null);
@@ -176,6 +185,10 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const platformRef = useRef<AnimatedItem | null>(null);
   const platformDropAnimatingRef = useRef(false);
   const platformAnimationStartedAtRef = useRef(0);
+  const previousPlatformDropSignalRef = useRef({
+    animating: false,
+    row: props.currentPlatformRow
+  });
   const [readyTick, setReadyTick] = useState(0);
   const [sceneViewport, setSceneViewport] = useState<MinePixiViewport>(defaultSceneViewport);
   const [viewportWidth, setViewportWidth] = useState(minSceneWidth);
@@ -193,6 +206,19 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   useEffect(() => {
     platformDropAnimatingRef.current = props.platformDropAnimating;
   }, [props.platformDropAnimating]);
+
+  useEffect(() => {
+    const previous = previousPlatformDropSignalRef.current;
+
+    if (props.platformDropAnimating && (!previous.animating || previous.row !== props.currentPlatformRow)) {
+      platformAnimationStartedAtRef.current = performance.now();
+    }
+
+    previousPlatformDropSignalRef.current = {
+      animating: props.platformDropAnimating,
+      row: props.currentPlatformRow
+    };
+  }, [props.currentPlatformRow, props.platformDropAnimating]);
 
   useEffect(() => {
     currentPlatformRowRef.current = props.currentPlatformRow;
@@ -255,11 +281,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
           const platform = platformRef.current;
 
           if (platform) {
-            const elapsed = now - platformAnimationStartedAtRef.current;
-            const dropOffset = platformDropAnimatingRef.current && elapsed < 1450
-              ? platformDropOffset(elapsed / 1450)
-              : 0;
-            platform.node.y = platform.baseY + dropOffset;
+            platform.node.y = platform.baseY + currentPlatformDropOffset(now, platformDropAnimatingRef.current, platformAnimationStartedAtRef.current);
           }
 
           for (const item of animatedGoblinsRef.current) {
@@ -285,6 +307,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       animatedHitEffectsRef.current = [];
       blockNodesRef.current.clear();
       depthMarkerNodesRef.current.clear();
+      emittedRewardEffectsRef.current.clear();
       hitEffectNodesRef.current.clear();
       platformRef.current = null;
       if (initialized) {
@@ -549,9 +572,11 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       hitEffectNodesRef.current,
       animatedHitEffectsRef,
       animatedBlockImpactsRef,
+      emittedRewardEffectsRef,
       layout,
       props,
-      visibleRowRange
+      visibleRowRange,
+      appRef.current?.canvas ?? null
     );
   }, [layout, props.hitEffects, readyTick, visibleRowRange]);
 
@@ -574,8 +599,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       setDragState
     );
 
-    if (props.platformDropAnimating) {
-      platformAnimationStartedAtRef.current = performance.now();
+    const platform = platformRef.current as AnimatedItem | null;
+
+    if (platform) {
+      platform.node.y = platform.baseY + currentPlatformDropOffset(
+        performance.now(),
+        platformDropAnimatingRef.current,
+        platformAnimationStartedAtRef.current
+      );
     }
   }, [
     layout,
@@ -1088,9 +1119,11 @@ function reconcileHitEffects(
   renderedEffects: Map<string, RenderedPixiNode>,
   animatedHitEffectsRef: MutableRefObject<AnimatedHitEffect[]>,
   animatedBlockImpactsRef: MutableRefObject<Map<number, AnimatedBlockImpact>>,
+  emittedRewardEffectsRef: MutableRefObject<Set<number>>,
   layout: MinePixiLayout,
   props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange
+  visibleRowRange: MinePixiVisibleRowRange,
+  canvas: HTMLCanvasElement | null
 ) {
   const visibleEffectKeys = new Set<string>();
 
@@ -1130,6 +1163,7 @@ function reconcileHitEffects(
 
     const drawnEffect = drawHitEffect(effect, x, y, layout.cellSize, destroyed);
     root.addChild(drawnEffect.node);
+    emitRewardPickup(effect, x, y, destroyed, emittedRewardEffectsRef, props.onRewardPickup, canvas);
     animatedHitEffectsRef.current.push({
       damageLabel: drawnEffect.damageLabel,
       damageLabelBaseY: drawnEffect.damageLabelBaseY,
@@ -1159,8 +1193,36 @@ function reconcileHitEffects(
     if (!visibleEffectKeys.has(key)) {
       removeRenderedNode(renderedEffects, key, renderedEffect);
       animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => String(item.id) !== key);
+      emittedRewardEffectsRef.current.delete(Number(key));
     }
   }
+}
+
+function emitRewardPickup(
+  effect: MinePixiHitEffect,
+  x: number,
+  y: number,
+  destroyed: boolean,
+  emittedRewardEffectsRef: MutableRefObject<Set<number>>,
+  onRewardPickup: MinePixiSceneProps["onRewardPickup"],
+  canvas: HTMLCanvasElement | null
+) {
+  if (!destroyed || effect.rewardDrops.length === 0 || emittedRewardEffectsRef.current.has(effect.id) || !canvas || !onRewardPickup) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  emittedRewardEffectsRef.current.add(effect.id);
+  window.setTimeout(() => {
+    onRewardPickup({
+      id: effect.id,
+      origin: {
+        x: rect.left + x,
+        y: rect.top + y
+      },
+      rewards: effect.rewardDrops
+    });
+  }, 180);
 }
 
 function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: number, destroyed: boolean): DrawnHitEffect {
@@ -1561,6 +1623,16 @@ function platformDropOffset(progress: number): number {
     ? 4 * progress * progress * progress
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
   return -30 * (1 - eased);
+}
+
+function currentPlatformDropOffset(now: number, animating: boolean, startedAt: number): number {
+  const elapsed = now - startedAt;
+
+  if (!animating || elapsed < 0 || elapsed >= platformDropDurationMs) {
+    return 0;
+  }
+
+  return platformDropOffset(elapsed / platformDropDurationMs);
 }
 
 function blockColor(blockTypeId: string, blockType: BlockTypeConfig | undefined): number {

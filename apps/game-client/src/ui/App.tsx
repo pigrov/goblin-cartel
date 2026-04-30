@@ -30,9 +30,9 @@ import {
   type MineTemplateConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
-import { Bot, Pickaxe, RotateCcw, Settings, Users, Warehouse, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
+import { Bot, Coins, Gem, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { MinePixiScene, type MinePixiGoblin, type MinePixiRewardPickup } from "./MinePixiScene";
 
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
@@ -57,6 +57,7 @@ const bossEnergyConfig: BossEnergyConfig = {
   critChance: 0.12,
   critMultiplier: 2
 };
+const initialContentBundle = createRuntimeContentBundle(starterContentBundle);
 
 interface ContentState {
   content: ContentBundle;
@@ -130,20 +131,34 @@ interface RewardDrop {
   resourceId: string;
 }
 
+interface PickupTrail {
+  amount: number;
+  from: ViewportPoint;
+  id: number;
+  label: string;
+  resourceId: string;
+  to: ViewportPoint;
+}
+
+interface ViewportPoint {
+  x: number;
+  y: number;
+}
+
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
-    content: starterContentBundle,
+    content: initialContentBundle,
     version: "fallback",
     source: "fallback",
     message: "Стартовый локальный контент"
   }));
   const [, setLoadingContent] = useState(true);
-  const [session, setSession] = useState<MiningSession>(() => createSession(starterContentBundle));
+  const [session, setSession] = useState<MiningSession>(() => createSession(initialContentBundle));
   const [sessionReady, setSessionReady] = useState(false);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [platformRow, setPlatformRow] = useState(0);
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
-  const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(starterContentBundle.goblins));
+  const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(initialContentBundle.goblins));
   const [rosterMessage, setRosterMessage] = useState<string | null>(null);
   const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
@@ -153,8 +168,12 @@ export function App() {
   const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
   const [bossEnergyFeedback, setBossEnergyFeedback] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [pickupTrails, setPickupTrails] = useState<PickupTrail[]>([]);
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const previousPlatformRowRef = useRef(0);
+  const pickupTrailSequenceRef = useRef(0);
+  const resourceChipRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   useEffect(() => {
     let active = true;
@@ -177,14 +196,16 @@ export function App() {
         };
 
         if (active) {
+          const runtimeContent = createRuntimeContentBundle(payload.content);
+          const runtimeVersion = contentVersionWithDebugSuffix(payload.version.version);
           const nextContentState = {
-            content: payload.content,
-            version: payload.version.version,
+            content: runtimeContent,
+            version: runtimeVersion,
             source: "published" as const,
             message: "Опубликованный контент"
           };
-          const nextRoster = createRestoredGoblinRoster(payload.content, payload.version.version);
-          const restoredMining = createRestoredMiningState(payload.content, payload.version.version, nextRoster);
+          const nextRoster = createRestoredGoblinRoster(runtimeContent, runtimeVersion);
+          const restoredMining = createRestoredMiningState(runtimeContent, runtimeVersion, nextRoster);
           setContentState({
             ...nextContentState
           });
@@ -201,11 +222,12 @@ export function App() {
         }
       } catch (error) {
         if (active) {
-          const nextRoster = createRestoredGoblinRoster(starterContentBundle, "fallback");
-          const restoredMining = createRestoredMiningState(starterContentBundle, "fallback", nextRoster);
+          const fallbackVersion = contentVersionWithDebugSuffix("fallback");
+          const nextRoster = createRestoredGoblinRoster(initialContentBundle, fallbackVersion);
+          const restoredMining = createRestoredMiningState(initialContentBundle, fallbackVersion, nextRoster);
           setContentState({
-            content: starterContentBundle,
-            version: "fallback",
+            content: initialContentBundle,
+            version: fallbackVersion,
             source: "fallback",
             message: error instanceof Error ? error.message : "Стартовый локальный контент"
           });
@@ -567,6 +589,52 @@ export function App() {
     saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy);
   }
 
+  function handleConfirmResetMine() {
+    if (!window.confirm("Сбросить текущую шахту и локальный прогресс?")) {
+      return;
+    }
+
+    handleResetMine();
+    setSettingsOpen(false);
+  }
+
+  const handleRewardPickup = useCallback((pickup: MinePixiRewardPickup) => {
+    const nextTrails = pickup.rewards.flatMap((reward, index): PickupTrail[] => {
+      const target = resourceChipRefs.current[reward.resourceId];
+
+      if (!target) {
+        return [];
+      }
+
+      const targetRect = target.getBoundingClientRect();
+      const id = ++pickupTrailSequenceRef.current;
+      const trail = {
+        amount: reward.amount,
+        from: {
+          x: pickup.origin.x + index * 8,
+          y: pickup.origin.y + index * 5
+        },
+        id,
+        label: reward.label,
+        resourceId: reward.resourceId,
+        to: {
+          x: targetRect.left + targetRect.width / 2,
+          y: targetRect.top + targetRect.height / 2
+        }
+      };
+
+      window.setTimeout(() => {
+        setPickupTrails((current) => current.filter((item) => item.id !== id));
+      }, 980);
+
+      return [trail];
+    });
+
+    if (nextTrails.length > 0) {
+      setPickupTrails((current) => [...current.slice(-10), ...nextTrails]);
+    }
+  }, []);
+
   function handleHireGoblin(goblin: GoblinConfig) {
     const result = hireGoblin({
       goblinId: goblin.id,
@@ -593,29 +661,24 @@ export function App() {
   return (
     <main className="game-shell">
       <section className="phone-frame" aria-label="Игровой экран">
-        <header className="resource-bar" style={{ gridTemplateColumns: `repeat(${Math.max(1, displayedResources.length)}, minmax(0, 1fr))` }}>
-          {displayedResources.map((resource) => (
-            <ResourceChip
-              key={resource.id}
-              labels={labels}
-              resource={resource}
-              value={session.resources[resource.id] ?? 0}
-            />
-          ))}
-        </header>
-
-        <section className="mine-header">
-          <div>
-            <p>{contentState.source === "published" ? `Content ${contentState.version}` : contentState.message}</p>
-            <strong>{mineTitle(mineTemplate, labels)}</strong>
+        <header className="resource-bar">
+          <div className="resource-list" style={{ gridTemplateColumns: `repeat(${Math.max(1, displayedResources.length)}, minmax(0, 1fr))` }}>
+            {displayedResources.map((resource) => (
+              <ResourceChip
+                key={resource.id}
+                anchorRef={(node) => {
+                  resourceChipRefs.current[resource.id] = node;
+                }}
+                labels={labels}
+                resource={resource}
+                value={session.resources[resource.id] ?? 0}
+              />
+            ))}
           </div>
-          <button className="icon-button" onClick={handleResetMine} title="Сбросить шахту" type="button" aria-label="Сбросить шахту">
-            <RotateCcw size={19} />
+          <button className="icon-button menu-button" onClick={() => setSettingsOpen(true)} title="Меню" type="button" aria-label="Меню">
+            <Menu size={20} />
           </button>
-          <button className="icon-button" type="button" aria-label="Настройки">
-            <Settings size={19} />
-          </button>
-        </section>
+        </header>
 
         {activeSection === "goblins" ? (
           <GoblinSection
@@ -637,6 +700,7 @@ export function App() {
             hitEffects={hitEffects}
             onBlockHit={handleBlockHit}
             onPlaceGoblin={handlePlaceGoblin}
+            onRewardPickup={handleRewardPickup}
             platformCellKeys={platformCellKeys}
             platformDropAnimating={platformDropAnimating}
             session={session}
@@ -680,8 +744,38 @@ export function App() {
           </button>
         </section>
 
+        {settingsOpen ? (
+          <div className="modal-backdrop" onClick={() => setSettingsOpen(false)} role="presentation">
+            <section className="settings-modal" aria-label="Настройки" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <p>Меню</p>
+                  <strong>Настройки</strong>
+                </div>
+                <button className="icon-button" onClick={() => setSettingsOpen(false)} type="button" aria-label="Закрыть">
+                  <X size={18} />
+                </button>
+              </header>
+              <div className="settings-list">
+                <div className="settings-row">
+                  <span>Рудник</span>
+                  <strong>{mineTitle(mineTemplate, labels)}</strong>
+                </div>
+                <div className="settings-row">
+                  <span>Контент</span>
+                  <strong>{contentState.source === "published" ? contentState.version : contentState.message}</strong>
+                </div>
+              </div>
+              <button className="settings-action" onClick={handleConfirmResetMine} type="button">
+                <RotateCcw size={18} />
+                Сбросить шахту
+              </button>
+            </section>
+          </div>
+        ) : null}
+
         {bossDetailsOpen ? (
-          <div className="boss-modal-backdrop" onClick={() => setBossDetailsOpen(false)} role="presentation">
+          <div className="modal-backdrop" onClick={() => setBossDetailsOpen(false)} role="presentation">
             <section className="boss-modal" aria-label="Параметры босса" onClick={(event) => event.stopPropagation()}>
               <header>
                 <div>
@@ -726,8 +820,82 @@ export function App() {
           </button>
         </nav>
       </section>
+      {pickupTrails.length > 0 ? (
+        <div className="pickup-trail-layer" aria-hidden="true">
+          {pickupTrails.map((trail) => (
+            <span
+              className={`pickup-trail ${resourceClassName(trail.resourceId)}`}
+              key={trail.id}
+              style={{
+                "--pickup-dx": `${trail.to.x - trail.from.x}px`,
+                "--pickup-dy": `${trail.to.y - trail.from.y}px`,
+                left: `${trail.from.x}px`,
+                top: `${trail.from.y}px`
+              } as CSSProperties}
+            >
+              <ResourceIcon resourceId={trail.resourceId} size={13} />
+              +{formatNumber(trail.amount)}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </main>
   );
+}
+
+function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
+  const debugRows = readDebugMineRows();
+  const mineTemplate = content.mineTemplates[0];
+
+  if (!debugRows || !mineTemplate) {
+    return content;
+  }
+
+  const lastStratum = mineTemplate.strata.at(-1);
+
+  if (!lastStratum) {
+    return content;
+  }
+
+  return {
+    ...content,
+    mineTemplates: [
+      {
+        ...mineTemplate,
+        depthMeters: Math.max(mineTemplate.depthMeters ?? mineTemplate.height, debugRows * 5),
+        height: debugRows,
+        id: `${mineTemplate.id}_debug_${debugRows}`,
+        strata: [
+          ...mineTemplate.strata.slice(0, -1),
+          {
+            ...lastStratum,
+            toRow: debugRows - 1
+          }
+        ]
+      },
+      ...content.mineTemplates.slice(1)
+    ]
+  };
+}
+
+function contentVersionWithDebugSuffix(version: string): string {
+  const debugRows = readDebugMineRows();
+  return debugRows ? `${version}:debug-${debugRows}` : version;
+}
+
+function readDebugMineRows(): number | null {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = new URLSearchParams(window.location.search).get("debugMineRows");
+  const rows = raw ? Number(raw) : 0;
+
+  if (!Number.isInteger(rows) || rows < 50 || rows > 200) {
+    return null;
+  }
+
+  return rows;
 }
 
 function createSession(content: ContentBundle): MiningSession {
@@ -948,13 +1116,41 @@ function createRestoredGoblinRoster(content: ContentBundle, contentVersion: stri
   };
 }
 
-function ResourceChip(props: { labels: Record<string, string>; resource: ResourceConfig; value: number }) {
+function ResourceChip(props: {
+  anchorRef?: (node: HTMLDivElement | null) => void;
+  labels: Record<string, string>;
+  resource: ResourceConfig;
+  value: number;
+}) {
+  const label = resourceLabel(props.resource, props.resource.id, props.labels);
+
   return (
-    <div className={`resource-chip ${resourceClassName(props.resource.id)}`}>
-      <span>{resourceLabel(props.resource, props.resource.id, props.labels)}</span>
-      <strong>{props.value}</strong>
+    <div
+      aria-label={`${label}: ${formatNumber(props.value)}`}
+      className={`resource-chip ${resourceClassName(props.resource.id)}`}
+      ref={props.anchorRef}
+      title={label}
+    >
+      <ResourceIcon resourceId={props.resource.id} size={17} />
+      <strong>{formatNumber(props.value)}</strong>
     </div>
   );
+}
+
+function ResourceIcon(props: { resourceId: string; size: number }) {
+  if (props.resourceId.includes("gold")) {
+    return <Coins size={props.size} />;
+  }
+
+  if (props.resourceId.includes("copper")) {
+    return <Gem size={props.size} />;
+  }
+
+  if (props.resourceId.includes("energy")) {
+    return <Zap size={props.size} />;
+  }
+
+  return <Mountain size={props.size} />;
 }
 
 function BossStat(props: { label: string; value: string }) {

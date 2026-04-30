@@ -23,7 +23,7 @@ body,
   height: 100dvh;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
   overflow: hidden;
   border: 2px solid var(--gc-border-strong);
   border-radius: var(--gc-radius-md);
@@ -33,43 +33,64 @@ body,
 
 .resource-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) 38px;
+  align-items: center;
   gap: 6px;
-  padding: 10px;
+  padding: 7px 8px;
   background: #20160f;
+}
+
+.resource-list {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
 }
 
 .resource-chip {
   min-width: 0;
-  padding: 7px 6px;
+  min-height: 36px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius-sm);
   background: var(--gc-panel);
-}
-
-.resource-chip span,
-.mine-header p {
-  display: block;
-  margin: 0 0 2px;
-  color: var(--gc-muted);
-  font-size: 11px;
 }
 
 .resource-chip strong {
   display: block;
   overflow: hidden;
   color: var(--gc-text);
-  font-size: 14px;
+  font-size: 15px;
+  line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.resource-chip svg {
+  color: var(--gc-muted);
+}
+
+.resource-chip.gold svg {
+  color: var(--gc-gold);
 }
 
 .resource-chip.gold strong {
   color: var(--gc-gold);
 }
 
+.resource-chip.copper svg {
+  color: var(--gc-copper);
+}
+
 .resource-chip.copper strong {
   color: var(--gc-copper);
+}
+
+.resource-chip.energy svg {
+  color: var(--gc-energy);
 }
 
 .resource-chip.energy strong {
@@ -129,6 +150,11 @@ body,
   display: grid;
   place-items: center;
   border-radius: var(--gc-radius-sm);
+}
+
+.icon-button.menu-button {
+  width: 38px;
+  height: 38px;
 }
 
 .playfield-scroll {
@@ -1339,7 +1365,7 @@ body,
   background: var(--gc-energy);
 }
 
-.boss-modal-backdrop {
+.modal-backdrop {
   position: absolute;
   inset: 0;
   z-index: 10;
@@ -1349,7 +1375,8 @@ body,
   background: rgb(0 0 0 / 48%);
 }
 
-.boss-modal {
+.boss-modal,
+.settings-modal {
   display: grid;
   gap: 12px;
   padding: 12px;
@@ -1359,7 +1386,8 @@ body,
   box-shadow: 0 -12px 34px rgb(0 0 0 / 34%);
 }
 
-.boss-modal header {
+.boss-modal header,
+.settings-modal header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1367,11 +1395,14 @@ body,
 }
 
 .boss-modal p,
-.boss-modal strong {
+.boss-modal strong,
+.settings-modal p,
+.settings-modal strong {
   margin: 0;
 }
 
-.boss-modal p {
+.boss-modal p,
+.settings-modal p {
   color: var(--gc-muted);
   font-size: 11px;
 }
@@ -1409,6 +1440,102 @@ body,
   font-size: 12px;
   font-weight: 800;
   text-align: center;
+}
+
+.settings-list {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-row {
+  display: grid;
+  gap: 4px;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--gc-radius-sm);
+  background: var(--gc-panel);
+}
+
+.settings-row span {
+  color: var(--gc-muted);
+  font-size: 11px;
+}
+
+.settings-row strong {
+  overflow: hidden;
+  color: var(--gc-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-action {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgb(196 68 45 / 58%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(196 68 45 / 14%);
+  color: #ffd7ce;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.pickup-trail-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.pickup-trail {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 6px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: 999px;
+  background: rgb(21 16 12 / 82%);
+  color: var(--gc-text);
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  transform: translate3d(-50%, -50%, 0);
+  animation: pickup-trail-flight 920ms cubic-bezier(0.18, 0.82, 0.22, 1) forwards;
+  will-change: opacity, transform;
+}
+
+.pickup-trail.gold {
+  color: var(--gc-gold);
+}
+
+.pickup-trail.copper {
+  color: var(--gc-copper);
+}
+
+.pickup-trail.energy {
+  color: var(--gc-energy);
+}
+
+@keyframes pickup-trail-flight {
+  0% {
+    opacity: 0;
+    transform: translate3d(-50%, -50%, 0) scale(0.82);
+  }
+
+  14% {
+    opacity: 1;
+    transform: translate3d(-50%, calc(-50% - 16px), 0) scale(1.08);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(var(--pickup-dx) - 50%), calc(var(--pickup-dy) - 50%), 0) scale(0.58);
+  }
 }
 
 @keyframes boss-energy-warn {
