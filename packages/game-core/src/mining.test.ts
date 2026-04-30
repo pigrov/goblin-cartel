@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { calculateBlockHp, calculateGoblinDps, calculateStoredProduction } from "./mining";
 
 describe("mining formulas", () => {
-  it("scales block hp by depth every five rows", () => {
+  it("scales block hp only by the configured mine multiplier", () => {
     expect(calculateBlockHp({ baseHp: 100, rowIndex: 0, mineDifficultyMultiplier: 1 })).toBe(100);
-    expect(calculateBlockHp({ baseHp: 100, rowIndex: 5, mineDifficultyMultiplier: 1 })).toBe(125);
-    expect(calculateBlockHp({ baseHp: 100, rowIndex: 10, mineDifficultyMultiplier: 1.2 })).toBe(180);
+    expect(calculateBlockHp({ baseHp: 100, rowIndex: 5, mineDifficultyMultiplier: 1 })).toBe(100);
+    expect(calculateBlockHp({ baseHp: 100, rowIndex: 10, mineDifficultyMultiplier: 1.2 })).toBe(120);
   });
 
   it("calculates goblin dps with class, tool and tag bonuses", () => {

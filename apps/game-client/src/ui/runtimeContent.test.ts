@@ -40,6 +40,32 @@ describe("runtime content", () => {
     expect(runtimeContent.mineTemplates[0]?.guaranteedObjects).toEqual([]);
   });
 
+  it("upgrades legacy starter mine content to authored cell maps", () => {
+    const legacyContent = structuredClone(starterContentBundle);
+    const mine = legacyContent.mineTemplates[0];
+
+    if (!mine) {
+      throw new Error("Missing starter mine");
+    }
+
+    Reflect.deleteProperty(mine, "cellMap");
+    mine.strata = [
+      {
+        id: "legacy_top",
+        fromRow: 0,
+        toRow: 9,
+        blockWeights: {
+          dirt: 1
+        }
+      }
+    ];
+
+    const runtimeContent = createRuntimeContentBundle(legacyContent);
+    const runtimeMine = runtimeContent.mineTemplates[0];
+
+    expect(runtimeMine?.cellMap).toEqual(starterContentBundle.mineTemplates[0]?.cellMap);
+  });
+
   it("restores starter mine ordering for older published content", () => {
     const legacyContent = structuredClone(starterContentBundle);
     const reversed = [...legacyContent.mineTemplates].reverse();

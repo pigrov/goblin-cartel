@@ -70,7 +70,7 @@ import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./r
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
 const mineSeed = "local-player-001";
-const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
+const mineSaveStorageKey = "goblin-cartel.player.mine-save.v2";
 const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyMinTickMs = 50;
@@ -211,7 +211,7 @@ export function App() {
     source: "fallback",
     message: "Стартовый локальный контент"
   }));
-  const [, setLoadingContent] = useState(true);
+  const [loadingContent, setLoadingContent] = useState(true);
   const [session, setSession] = useState<MiningSession>(() => createSession(initialContentBundle));
   const [sessionReady, setSessionReady] = useState(false);
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
@@ -1229,6 +1229,10 @@ export function App() {
             now={clockNow}
             resources={session.resources}
           />
+        ) : loadingContent || !sessionReady ? (
+          <section className="mine-content-loading">
+            <span>Загрузка рудника...</span>
+          </section>
         ) : (
           <MinePixiScene
             activeCell={selectedCell}
@@ -1512,7 +1516,7 @@ function createSession(
   const session = createMiningSession({
     mine: generateMine(mineTemplate, mineSeed),
     blockTypes: content.blockTypes,
-    mineDifficultyMultiplier: mineTemplate.cellMap.length > 0 ? 1 : mineTemplate.difficulty ?? mineTemplate.difficultyStart
+    mineDifficultyMultiplier: (mineTemplate.cellMap?.length ?? 0) > 0 ? 1 : mineTemplate.difficulty ?? mineTemplate.difficultyStart
   });
 
   return {

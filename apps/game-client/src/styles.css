@@ -303,6 +303,18 @@ body,
   font-weight: 800;
 }
 
+.mine-content-loading {
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  background:
+    linear-gradient(180deg, rgb(0 0 0 / 5%), rgb(0 0 0 / 30%)),
+    #221811;
+  color: var(--gc-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .pixi-dev-overlay {
   position: absolute;
   top: 8px;

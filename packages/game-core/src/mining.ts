@@ -26,8 +26,7 @@ export function calculateBlockHp(input: BlockHpInput): number {
   assertNonNegative(input.rowIndex, "rowIndex");
   assertPositive(input.mineDifficultyMultiplier, "mineDifficultyMultiplier");
 
-  const depthMultiplier = 1 + Math.floor(input.rowIndex / 5) * 0.25;
-  return Math.ceil(input.baseHp * depthMultiplier * input.mineDifficultyMultiplier);
+  return Math.ceil(input.baseHp * input.mineDifficultyMultiplier);
 }
 
 export function calculateGoblinDps(input: GoblinDpsInput): number {

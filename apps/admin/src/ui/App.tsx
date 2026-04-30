@@ -1690,6 +1690,7 @@ function ContentMineVisualEditor(props: {
   const visualRows = createMineVisualRows(props.content, props.formState);
   const mineWidth = Math.max(1, toInteger(props.formState.width));
   const mineHeight = visualRows.length;
+  const mineCellSize = adminMineCellSize(mineWidth);
   const selectedCell = detailCell ? getMineVisualCell(props.formState, detailCell.row, detailCell.col, props.content) : null;
   const ru = props.content.localization?.ru ?? {};
 
@@ -1720,27 +1721,15 @@ function ContentMineVisualEditor(props: {
         </div>
       </header>
 
-      <div className="content-mine-visual-controls">
-        <label>
-          Кисть
-          <select onChange={(event) => setBrushBlockTypeId(event.target.value)} value={brushBlockTypeId}>
-            {props.content.blockTypes.map((blockType) => (
-              <option key={stringField(blockType, "id")} value={stringField(blockType, "id")}>
-                {contentEntityTitle(blockType, ru)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <span>Зажми левую кнопку и веди по клеткам. Двойной клик открывает параметры клетки.</span>
-      </div>
-
-      <div className="content-mine-visual-grid" style={{ "--mine-columns": mineWidth } as CSSProperties}>
+      <div
+        className="content-mine-visual-grid"
+        style={{ "--mine-cell-size": `${mineCellSize}px`, "--mine-columns": mineWidth } as CSSProperties}
+      >
         {visualRows.map((row) => {
           const rowDifficulty = mineRowDifficulty(props.formState, row.row);
 
           return (
-            <div className="content-mine-visual-row" key={row.row}>
-              <span className="content-mine-row-label">{row.row + 1}</span>
+            <div className="content-mine-visual-row" key={row.row} title={`Ряд ${row.row + 1} · сложность x${rowDifficulty}`}>
               {row.cells.map((cell) => {
                 const blockTitle = blockTitleById(props.content, cell.blockTypeId);
                 const marker = cell.special === "vein" ? "Ж" : cell.special === "chest" ? "С" : "";
@@ -1772,7 +1761,6 @@ function ContentMineVisualEditor(props: {
                   </button>
                 );
               })}
-              <span className="content-mine-row-meta">x{rowDifficulty}</span>
             </div>
           );
         })}
@@ -1782,12 +1770,19 @@ function ContentMineVisualEditor(props: {
         {props.content.blockTypes.map((blockType, index) => {
           const blockId = stringField(blockType, "id");
           const style = { "--mine-cell-color": mineVisualBlockColor(blockId, index) } as CSSProperties;
+          const selected = brushBlockTypeId === blockId;
 
           return (
-            <span key={blockId} style={style}>
+            <button
+              className={selected ? "active" : ""}
+              key={blockId}
+              onClick={() => setBrushBlockTypeId(blockId)}
+              style={style}
+              type="button"
+            >
               <i />
               {contentEntityTitle(blockType, ru)}
-            </span>
+            </button>
           );
         })}
       </div>
@@ -1958,6 +1953,16 @@ function mineRowDifficulty(formState: EntityFormState, row: number): number {
 
   const progress = Math.min(1, Math.max(0, row / (height - 1)));
   return Math.round((start + (end - start) * progress) * 1000) / 1000;
+}
+
+function adminMineCellSize(mineWidth: number): number {
+  const phoneWidth = 430;
+  const depthWidth = 34;
+  const gap = 4;
+  const gridX = 4 + depthWidth + gap;
+  const usableGridWidth = phoneWidth - gridX - 10;
+
+  return Math.max(28, Math.floor((usableGridWidth - gap * (Math.max(1, mineWidth) - 1)) / Math.max(1, mineWidth)));
 }
 
 function blockTitleById(content: ContentBundle, blockId: string): string {

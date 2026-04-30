@@ -22,7 +22,7 @@ export function createRuntimeContentBundle(content: ContentBundle): ContentBundl
     return contentWithDefaults;
   }
 
-  const cellMap = resizeCellMap(mineTemplate.cellMap, mineTemplate.width, targetRows);
+  const cellMap = resizeCellMap(mineTemplate.cellMap ?? [], mineTemplate.width, targetRows);
 
   if (cellMap.length === 0) {
     return contentWithDefaults;
@@ -95,6 +95,16 @@ function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
   const mineTemplates = sortMineTemplates(content.mineTemplates).map((mineTemplate) => {
     const starterMineTemplate = findStarterMineTemplate(mineTemplate.id);
     let nextMineTemplate = mineTemplate;
+
+    if ((nextMineTemplate.cellMap ?? []).length === 0 && starterMineTemplate?.cellMap.length) {
+      nextMineTemplate = {
+        ...nextMineTemplate,
+        cellMap: resizeCellMap(starterMineTemplate.cellMap, nextMineTemplate.width, nextMineTemplate.height),
+        difficultyEnd: nextMineTemplate.difficultyEnd ?? starterMineTemplate.difficultyEnd,
+        difficultyStart: nextMineTemplate.difficultyStart ?? starterMineTemplate.difficultyStart
+      };
+      changed = true;
+    }
 
     if (!nextMineTemplate.completionVeinTypeId && starterMineTemplate?.completionVeinTypeId) {
       nextMineTemplate = {
