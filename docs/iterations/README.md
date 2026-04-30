@@ -32,3 +32,4 @@
 - `0019_platform_overlay_pixi_plan` - платформа как overlay поверх цельной шахты, более плавный спуск и план перехода визуального слоя на PixiJS.
 - `0020_platform_overlay_anchor_fix` - исправление привязки overlay-платформы к `.mine-grid`, а не к верхней части игровой области.
 - `0029_pixi_dev_overlay_resource_tooltips` - Pixi dev overlay, resource counter tooltips, removal of DOM pickup trails, and immediate boss hit input.
+- `0030_pixi_hit_test_destroy_fx` - Pixi hit-test details in the dev overlay and richer procedural block destruction shards.

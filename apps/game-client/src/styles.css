@@ -257,9 +257,9 @@ body,
   left: 44px;
   z-index: 8;
   width: max-content;
-  max-width: calc(100% - 16px);
+  max-width: calc(100% - 52px);
   display: grid;
-  grid-template-columns: repeat(2, max-content);
+  grid-template-columns: repeat(2, minmax(0, max-content));
   gap: 4px 8px;
   margin: 0;
   padding: 7px 8px;
@@ -272,6 +272,13 @@ body,
   line-height: 1.1;
   pointer-events: none;
   text-transform: uppercase;
+}
+
+.pixi-dev-overlay span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .surface-scene {
