@@ -1303,14 +1303,14 @@ body,
   align-items: center;
   gap: 6px;
   padding: 5px 7px;
-  border-color: rgb(71 138 191 / 56%);
+  border-color: rgb(71 138 191 / 70%);
   border-radius: var(--gc-radius-sm);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 20%), rgb(69 141 199 / 16%)),
-    rgb(21 29 37 / 72%);
+    linear-gradient(180deg, rgb(255 255 255 / 24%), rgb(69 141 199 / 22%)),
+    rgb(21 29 37 / 88%);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 18%),
-    0 10px 26px rgb(0 0 0 / 28%);
+    0 10px 26px rgb(0 0 0 / 34%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   text-align: left;
@@ -1511,7 +1511,7 @@ body,
 .modal-backdrop {
   position: absolute;
   inset: 0;
-  z-index: 10;
+  z-index: 60;
   display: grid;
   align-items: end;
   padding: 12px;

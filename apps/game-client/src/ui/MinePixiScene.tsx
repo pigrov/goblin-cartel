@@ -1,4 +1,4 @@
-import { Application, Container, Rectangle } from "pixi.js";
+import { Rectangle, type Application } from "pixi.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
@@ -18,6 +18,12 @@ import { drawSceneBackground, type MinePixiLiftRail } from "./minePixiBackground
 import { reconcileDepthMarkers } from "./minePixiDepthMarkers";
 import { reconcileHitEffects, type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import {
+  clearMinePixiLayer,
+  createMinePixiApp,
+  type MinePixiAppHandle,
+  type MinePixiSceneLayers
+} from "./minePixiApp";
+import {
   drawDragPreview,
   drawPlatform,
   type MinePixiAnimatedItem,
@@ -29,7 +35,6 @@ import { currentPlatformDropOffset, runMinePixiTickerFrame, type PixiDevStats } 
 import {
   bindMinePixiDragPlacement,
   bindMinePixiPointerInput,
-  configurePixiInputForTouchScroll,
   type MinePixiTouchPanState,
   type PixiDevHitTest
 } from "./minePixiInput";
@@ -64,16 +69,6 @@ interface MinePixiSceneProps {
 
 type AnimatedItem = MinePixiAnimatedItem;
 
-interface SceneLayers {
-  background: Container;
-  drag: Container;
-  effects: Container;
-  markers: Container;
-  mine: Container;
-  platform: Container;
-  surface: Container;
-}
-
 type DragState = MinePixiDragState;
 
 const minSceneWidth = 320;
@@ -91,8 +86,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const depthMarkerNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const hitEffectNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const liftRailRef = useRef<MinePixiLiftRail | null>(null);
-  const layersRef = useRef<SceneLayers | null>(null);
-  const rootRef = useRef<Container | null>(null);
+  const layersRef = useRef<MinePixiSceneLayers | null>(null);
   const devOverlayEnabledRef = useRef(props.devOverlayEnabled);
   const devHitTestLastUpdatedAtRef = useRef(0);
   const devStatsLastUpdatedAtRef = useRef(0);
@@ -201,69 +195,48 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    const app = new Application();
-    const root = new Container();
     let cancelled = false;
-    let initialized = false;
+    let handle: MinePixiAppHandle | null = null;
 
-    void app
-      .init({
-        antialias: true,
-        autoDensity: true,
-        backgroundAlpha: 0,
-        height: 1,
-        preference: "webgl",
-        resolution: Math.min(window.devicePixelRatio || 1, 2),
-        width: 1
-      })
-      .then(() => {
-        initialized = true;
-
-        if (cancelled) {
-          app.destroy({ removeView: true }, { children: true });
-          return;
-        }
-
-        const layers = createSceneLayers(root);
-        app.stage.addChild(root);
-        app.stage.eventMode = "static";
-        app.canvas.className = "mine-pixi-canvas";
-        configurePixiInputForTouchScroll(app);
-        host.appendChild(app.canvas);
-        appRef.current = app;
-        layersRef.current = layers;
-        rootRef.current = root;
-
-        app.ticker.add(() => {
-          runMinePixiTickerFrame({
-            animatedBlockImpacts: animatedBlockImpactsRef.current,
-            animatedGoblins: animatedGoblinsRef.current,
-            animatedHitEffects: animatedHitEffectsRef.current,
-            app,
-            blockNodes: blockNodesRef.current,
-            devOverlayEnabledRef,
-            devStatsLastUpdatedAtRef,
-            host: hostRef.current,
-            layout: layoutRef.current,
-            liftRail: liftRailRef.current,
-            now: performance.now(),
-            platform: platformRef.current,
-            platformAnimationStartedAt: platformAnimationStartedAtRef.current,
-            platformDropAnimating: platformDropAnimatingRef.current,
-            setDevStats,
-            totalCells: totalCellCountRef.current,
-            visibleRowRange: visibleRowRangeRef.current
-          });
+    void createMinePixiApp({
+      host,
+      onFrame: (app) => {
+        runMinePixiTickerFrame({
+          animatedBlockImpacts: animatedBlockImpactsRef.current,
+          animatedGoblins: animatedGoblinsRef.current,
+          animatedHitEffects: animatedHitEffectsRef.current,
+          app,
+          blockNodes: blockNodesRef.current,
+          devOverlayEnabledRef,
+          devStatsLastUpdatedAtRef,
+          host: hostRef.current,
+          layout: layoutRef.current,
+          liftRail: liftRailRef.current,
+          now: performance.now(),
+          platform: platformRef.current,
+          platformAnimationStartedAt: platformAnimationStartedAtRef.current,
+          platformDropAnimating: platformDropAnimatingRef.current,
+          setDevStats,
+          totalCells: totalCellCountRef.current,
+          visibleRowRange: visibleRowRangeRef.current
         });
+      }
+    }).then((pixi) => {
+      if (cancelled) {
+        pixi.destroy();
+        return;
+      }
 
-        setReadyTick((current) => current + 1);
-      });
+      handle = pixi;
+      appRef.current = pixi.app;
+      layersRef.current = pixi.layers;
+      setReadyTick((current) => current + 1);
+    });
 
     return () => {
       cancelled = true;
       appRef.current = null;
       layersRef.current = null;
-      rootRef.current = null;
       animatedBlockImpactsRef.current.clear();
       animatedGoblinsRef.current = [];
       animatedHitEffectsRef.current = [];
@@ -272,9 +245,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       hitEffectNodesRef.current.clear();
       liftRailRef.current = null;
       platformRef.current = null;
-      if (initialized) {
-        app.destroy({ removeView: true }, { children: true });
-      }
+      handle?.destroy();
     };
   }, []);
 
@@ -364,7 +335,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.background);
+    clearMinePixiLayer(layers.background);
     liftRailRef.current = drawSceneBackground(layers.background, layout);
     liftRailRef.current.node.scale.y = Math.max(
       0,
@@ -383,7 +354,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.surface);
+    clearMinePixiLayer(layers.surface);
     drawSurface(layers.surface, layout, props.currentPlatformRow);
     drawLiftCables(layers.surface, layout);
   }, [layout, props.currentPlatformRow, readyTick]);
@@ -453,7 +424,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.platform);
+    clearMinePixiLayer(layers.platform);
     animatedGoblinsRef.current = [];
     platformRef.current = drawPlatform({
       animatedGoblins: animatedGoblinsRef.current,
@@ -493,7 +464,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearLayer(layers.drag);
+    clearMinePixiLayer(layers.drag);
     drawDragPreview({
       dragState,
       goblins: props.goblins,
@@ -519,25 +490,4 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       ) : null}
     </section>
   );
-}
-
-function createSceneLayers(root: Container): SceneLayers {
-  const layers: SceneLayers = {
-    background: new Container(),
-    drag: new Container(),
-    effects: new Container(),
-    markers: new Container(),
-    mine: new Container(),
-    platform: new Container(),
-    surface: new Container()
-  };
-
-  root.addChild(layers.background, layers.surface, layers.mine, layers.markers, layers.platform, layers.effects, layers.drag);
-  return layers;
-}
-
-function clearLayer(layer: Container) {
-  for (const child of layer.removeChildren()) {
-    child.destroy({ children: true });
-  }
 }
