@@ -1,4 +1,4 @@
-import { starterContentBundle, type ContentBundle } from "@goblin-cartel/content-schemas";
+import { starterContentBundle, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
 
 const runtimeTestMineRows = 10;
 const runtimeMineMetersPerRow = 1;
@@ -80,9 +80,15 @@ function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
   const veinTypes = mergeStarterItems(content.veinTypes ?? [], starterContentBundle.veinTypes);
   const builtMineTypes = mergeStarterItems(content.builtMineTypes ?? [], starterContentBundle.builtMineTypes);
   const rewardChestTypes = mergeStarterItems(content.rewardChestTypes ?? [], starterContentBundle.rewardChestTypes);
+  const goblins = mergeStarterGoblins(content.goblins ?? [], starterContentBundle.goblins);
   let changed = false;
 
-  if (veinTypes !== content.veinTypes || builtMineTypes !== content.builtMineTypes || rewardChestTypes !== content.rewardChestTypes) {
+  if (
+    veinTypes !== content.veinTypes ||
+    builtMineTypes !== content.builtMineTypes ||
+    rewardChestTypes !== content.rewardChestTypes ||
+    goblins !== content.goblins
+  ) {
     changed = true;
   }
 
@@ -129,6 +135,7 @@ function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
     ? {
         ...content,
         builtMineTypes,
+        goblins,
         mineTemplates,
         rewardChestTypes,
         veinTypes
@@ -140,6 +147,69 @@ function mergeStarterItems<T extends { id: string }>(items: T[], starterItems: r
   const itemIds = new Set(items.map((item) => item.id));
   const missingStarterItems = starterItems.filter((starterItem) => !itemIds.has(starterItem.id));
   return missingStarterItems.length > 0 ? [...items, ...missingStarterItems] : items;
+}
+
+function mergeStarterGoblins(goblins: GoblinConfig[], starterGoblins: readonly GoblinConfig[]): GoblinConfig[] {
+  const starterById = new Map(starterGoblins.map((goblin) => [goblin.id, goblin]));
+  const goblinIds = new Set(goblins.map((goblin) => goblin.id));
+  let changed = false;
+
+  const mergedGoblins = goblins.map((goblin) => {
+    const starterGoblin = starterById.get(goblin.id);
+
+    if (!starterGoblin) {
+      return goblin;
+    }
+
+    let nextGoblin = goblin;
+
+    if (!nextGoblin.specialization && starterGoblin.specialization) {
+      nextGoblin = {
+        ...nextGoblin,
+        specialization: starterGoblin.specialization
+      };
+      changed = true;
+    }
+
+    const mergedEffects = mergeStarterGoblinEffects(nextGoblin.ability.effects, starterGoblin.ability.effects);
+
+    if (mergedEffects !== nextGoblin.ability.effects) {
+      nextGoblin = {
+        ...nextGoblin,
+        ability: {
+          ...nextGoblin.ability,
+          effects: mergedEffects
+        }
+      };
+      changed = true;
+    }
+
+    return nextGoblin;
+  });
+  const missingStarterGoblins = starterGoblins.filter((starterGoblin) => !goblinIds.has(starterGoblin.id));
+
+  return changed || missingStarterGoblins.length > 0 ? [...mergedGoblins, ...missingStarterGoblins] : goblins;
+}
+
+function mergeStarterGoblinEffects(
+  effects: GoblinConfig["ability"]["effects"],
+  starterEffects: GoblinConfig["ability"]["effects"]
+): GoblinConfig["ability"]["effects"] {
+  const effectKeys = new Set(effects.map(goblinEffectKey));
+  const missingEffects = starterEffects.filter((effect) => !effectKeys.has(goblinEffectKey(effect)));
+
+  return missingEffects.length > 0 ? [...effects, ...missingEffects] : effects;
+}
+
+function goblinEffectKey(effect: GoblinConfig["ability"]["effects"][number]): string {
+  switch (effect.type) {
+    case "damage_bonus_by_tag":
+      return `${effect.type}:${effect.tag}`;
+    case "mine_production_multiplier":
+      return `${effect.type}:${effect.resourceId ?? "*"}`;
+    default:
+      return effect.type;
+  }
 }
 
 function findStarterMineTemplate(mineTemplateId: string): ContentBundle["mineTemplates"][number] | undefined {

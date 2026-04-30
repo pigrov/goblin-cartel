@@ -55,6 +55,25 @@ describe("runtime content", () => {
     expect(runtimeContent.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
   });
 
+  it("fills starter goblin defaults for older published content", () => {
+    const legacyContent = structuredClone(starterContentBundle);
+    const pip = legacyContent.goblins.find((goblin) => goblin.id === "pip_dry_book");
+
+    legacyContent.goblins = legacyContent.goblins.filter((goblin) => goblin.id !== "nokk_copper_quill");
+
+    if (pip) {
+      Reflect.deleteProperty(pip, "specialization");
+      pip.ability.effects = pip.ability.effects.filter((effect) => effect.type !== "mine_capacity_multiplier");
+    }
+
+    const runtimeContent = createRuntimeContentBundle(legacyContent);
+    const runtimePip = runtimeContent.goblins.find((goblin) => goblin.id === "pip_dry_book");
+
+    expect(runtimePip?.specialization).toBe("warehouse_keeper");
+    expect(runtimePip?.ability.effects).toContainEqual({ type: "mine_capacity_multiplier", value: 1.15 });
+    expect(runtimeContent.goblins.some((goblin) => goblin.id === "nokk_copper_quill")).toBe(true);
+  });
+
   it("normalizes older published mine content to the 60m runtime depth", () => {
     const content = structuredClone(starterContentBundle);
     const mine = content.mineTemplates[0];
