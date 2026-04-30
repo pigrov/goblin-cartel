@@ -844,6 +844,8 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
   const ruLocalization = parsed.data.localization.ru;
 
+  validateLocalizationText(parsed.data.localization, errors);
+
   for (const blockType of parsed.data.blockTypes) {
     validateLocalizationKey(blockType.nameKey, "ru", ruLocalization, errors);
     validateRewardTable(`blockTypes.${blockType.id}.rewardTable`, blockType.rewardTable, resourceIds, errors);
@@ -945,6 +947,44 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     ok: errors.length === 0,
     errors
   };
+}
+
+const suspiciousTextMarkers = [
+  "\uFFFD",
+  "\u00D0",
+  "\u00D1",
+  "\u0420\u00B0",
+  "\u0420\u00B5",
+  "\u0420\u00BB",
+  "\u0420\u0455",
+  "\u0420\u045C",
+  "\u0420\u2014",
+  "\u0421\u0403",
+  "\u0421\u040A",
+  "\u0421\u0152",
+  "\u0421\u201A",
+  "\u0421\u2039",
+  "\u0421\u20AC"
+];
+
+function validateLocalizationText(localization: Record<string, Record<string, string>>, errors: string[]): void {
+  for (const [locale, entries] of Object.entries(localization)) {
+    for (const [key, value] of Object.entries(entries)) {
+      if (hasSuspiciousBrokenText(value)) {
+        errors.push(`localization.${locale}.${key} contains suspicious broken text`);
+      }
+    }
+  }
+}
+
+function hasSuspiciousBrokenText(value: string): boolean {
+  const trimmed = value.trim();
+
+  if (/\?{3,}/u.test(trimmed)) {
+    return true;
+  }
+
+  return suspiciousTextMarkers.some((marker) => trimmed.includes(marker));
 }
 
 function validateLocalizationKey(

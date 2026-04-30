@@ -10,7 +10,6 @@ import {
   LogOut,
   PlusCircle,
   Rocket,
-  Save,
   Send,
   ShieldCheck,
   UserPlus
@@ -88,8 +87,11 @@ interface EntityDraftUpdate {
 
 interface DraftContentToolResult {
   content: ContentBundle;
+  entity: ContentRecord;
   entityId?: string;
   entityKind?: ContentEntityKind;
+  entityType: ContentEntityApiKind;
+  localization: Record<string, string>;
   message: string;
 }
 
@@ -476,43 +478,6 @@ export function App() {
     }
   }
 
-  async function handleSaveContent() {
-    if (!sessionToken || !selectedContentVersion) {
-      return;
-    }
-
-    const parsed = parseContentJson();
-
-    if (!parsed.ok) {
-      return;
-    }
-
-    setBusy(true);
-    setContentMessage(null);
-    setContentErrors([]);
-
-    try {
-      const response = await apiRequest<{ version: ContentVersion; content: ContentBundle }>(
-        `/admin/content/versions/${selectedContentVersion.id}/content`,
-        {
-          method: "PUT",
-          token: sessionToken,
-          body: {
-            content: parsed.content
-          }
-        }
-      );
-      setSelectedContentVersion(response.version);
-      setContentVersions((current) => replaceContentVersion(current, response.version));
-      setContentJson(JSON.stringify(response.content, null, 2));
-      setContentMessage("Контент сохранен как draft.");
-    } catch (error) {
-      setContentMessage(error instanceof Error ? error.message : "Не удалось сохранить контент.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function handleSaveContentEntity(update: EntityDraftUpdate) {
     if (!sessionToken || !selectedContentVersion) {
       return;
@@ -611,18 +576,6 @@ export function App() {
       setContentMessage(error instanceof Error ? error.message : "Не удалось опубликовать контент.");
     } finally {
       setBusy(false);
-    }
-  }
-
-  function parseContentJson(): { ok: true; content: ContentBundle } | { ok: false } {
-    try {
-      return {
-        ok: true,
-        content: JSON.parse(contentJson) as ContentBundle
-      };
-    } catch {
-      setContentMessage("JSON не читается. Проверь синтаксис.");
-      return { ok: false };
     }
   }
 
@@ -883,13 +836,11 @@ export function App() {
             contentNotes={contentNotes}
             contentVersionName={contentVersionName}
             contentVersions={contentVersions}
-            onContentJsonChange={setContentJson}
             onContentNotesChange={setContentNotes}
             onContentVersionNameChange={setContentVersionName}
             onCreateContentVersion={handleCreateContentVersion}
             onOpenContentList={navigateToContentList}
             onPublishContent={handlePublishContent}
-            onSaveContent={handleSaveContent}
             onSaveContentEntity={handleSaveContentEntity}
             onSelectContentVersion={handleSelectContentVersion}
             onValidateContent={handleValidateContent}
@@ -939,13 +890,11 @@ function ContentSection(props: {
   contentNotes: string;
   contentVersionName: string;
   contentVersions: ContentVersion[];
-  onContentJsonChange: (value: string) => void;
   onContentNotesChange: (value: string) => void;
   onContentVersionNameChange: (value: string) => void;
   onCreateContentVersion: (event: FormEvent<HTMLFormElement>) => void;
   onOpenContentList: () => void;
   onPublishContent: () => void;
-  onSaveContent: () => void;
   onSaveContentEntity: (update: EntityDraftUpdate) => Promise<void>;
   onSelectContentVersion: (id: string) => void;
   onValidateContent: () => void;
@@ -979,7 +928,7 @@ function ContentSection(props: {
     setShowRawJson(false);
   }, [props.selectedContentVersion?.id]);
 
-  function applyDraftTool(builder: (content: ContentBundle) => DraftContentToolResult) {
+  async function applyDraftTool(builder: (content: ContentBundle) => DraftContentToolResult) {
     if (!canEdit || !props.selectedContentVersion) {
       return;
     }
@@ -991,7 +940,16 @@ function ContentSection(props: {
 
     try {
       const result = builder(contentPreview);
-      props.onContentJsonChange(JSON.stringify(result.content, null, 2));
+      if (!result.entityId) {
+        throw new Error("Шаблон не вернул id сущности.");
+      }
+      await props.onSaveContentEntity({
+        entity: result.entity,
+        entityId: result.entityId,
+        entityType: result.entityType,
+        localization: result.localization,
+        message: result.message
+      });
       if (result.entityKind) {
         setEntityEditorKind(result.entityKind);
       }
@@ -1105,10 +1063,6 @@ function ContentSection(props: {
           </div>
         </div>
           <div className="content-actions">
-            <button disabled={!canEdit || props.busy || props.contentLoading} onClick={props.onSaveContent} type="button">
-              <Save size={17} />
-              Save
-            </button>
             <button disabled={!canEdit || props.busy} onClick={props.onValidateContent} type="button">
               <CheckCircle2 size={17} />
               Validate
@@ -1133,7 +1087,7 @@ function ContentSection(props: {
             <div className="content-template-actions">
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
-                onClick={() => applyDraftTool(addDraftBlockTypeTemplate)}
+                onClick={() => void applyDraftTool(addDraftBlockTypeTemplate)}
                 type="button"
               >
                 <PlusCircle size={16} />
@@ -1141,7 +1095,7 @@ function ContentSection(props: {
               </button>
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
-                onClick={() => applyDraftTool(addDraftGoblinTemplate)}
+                onClick={() => void applyDraftTool(addDraftGoblinTemplate)}
                 type="button"
               >
                 <PlusCircle size={16} />
@@ -1149,7 +1103,7 @@ function ContentSection(props: {
               </button>
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
-                onClick={() => applyDraftTool(addDraftMineTemplate)}
+                onClick={() => void applyDraftTool(addDraftMineTemplate)}
                 type="button"
               >
                 <PlusCircle size={16} />
@@ -1157,7 +1111,7 @@ function ContentSection(props: {
               </button>
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
-                onClick={() => applyDraftTool(addDraftBuiltMineTypeTemplate)}
+                onClick={() => void applyDraftTool(addDraftBuiltMineTypeTemplate)}
                 type="button"
               >
                 <PlusCircle size={16} />
@@ -1165,7 +1119,7 @@ function ContentSection(props: {
               </button>
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
-                onClick={() => applyDraftTool(addDraftRewardChestTypeTemplate)}
+                onClick={() => void applyDraftTool(addDraftRewardChestTypeTemplate)}
                 type="button"
               >
                 <PlusCircle size={16} />
@@ -1211,8 +1165,7 @@ function ContentSection(props: {
         {showRawJson ? (
           <textarea
             className="content-json"
-            disabled={!props.selectedContentVersion || !canEdit}
-            onChange={(event) => props.onContentJsonChange(event.target.value)}
+            readOnly
             spellCheck={false}
             value={props.contentJson}
           />
@@ -2066,32 +2019,34 @@ export function addDraftBlockTypeTemplate(content: ContentBundle): DraftContentT
   const id = uniqueContentId("draft_block", content.blockTypes);
   const nameKey = `block.${id}.name`;
   const resourceId = findResourceId(content, "stone");
+  const entity: ContentRecord = {
+    id,
+    nameKey,
+    baseHp: 80,
+    tags: ["draft"],
+    visualStateAssets: {
+      intact: `block_${id}_intact_v1`,
+      cracked: `block_${id}_cracked_v1`,
+      breaking: `block_${id}_breaking_v1`
+    },
+    rewardTable: [{ resourceId, min: 1, max: 3, chance: 1 }],
+    specialBehavior: "none"
+  };
+  const localization = {
+    [nameKey]: "Новый блок"
+  };
 
   return {
     content: {
       ...content,
-      blockTypes: [
-        ...content.blockTypes,
-        {
-          id,
-          nameKey,
-          baseHp: 80,
-          tags: ["draft"],
-          visualStateAssets: {
-            intact: `block_${id}_intact_v1`,
-            cracked: `block_${id}_cracked_v1`,
-            breaking: `block_${id}_breaking_v1`
-          },
-          rewardTable: [{ resourceId, min: 1, max: 3, chance: 1 }],
-          specialBehavior: "none"
-        }
-      ],
-      localization: addRuLocalization(content.localization, {
-        [nameKey]: "Новый блок"
-      })
+      blockTypes: [...content.blockTypes, entity],
+      localization: addRuLocalization(content.localization, localization)
     },
+    entity,
     entityId: id,
     entityKind: "blockTypes",
+    entityType: "blockType",
+    localization,
     message: `Добавлен шаблон блока ${id}. Проверь HP, ассеты и награды, затем сохрани draft.`
   };
 }
@@ -2104,50 +2059,52 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
   const abilityDescriptionKey = `ability.${id}.description`;
   const goldResourceId = findResourceId(content, "gold");
   const copperResourceId = findResourceId(content, "copper_ore");
+  const entity: ContentRecord = {
+    id,
+    nameKey,
+    descriptionKey,
+    class: "collector",
+    specialization: "warehouse_keeper",
+    clan: "neutral",
+    rarity: "common",
+    assetId: `goblin_${id}_v1`,
+    baseStats: {
+      strength: 2,
+      speed: 4,
+      luck: 5,
+      loyalty: 6
+    },
+    ability: {
+      id: `${id}_auto_collect`,
+      nameKey: abilityNameKey,
+      descriptionKey: abilityDescriptionKey,
+      effects: [
+        { type: "auto_collect_slots", value: 1 },
+        { type: "mine_capacity_multiplier", value: 1.1 }
+      ]
+    },
+    hireCost: [{ resourceId: goldResourceId, amount: 1000 }],
+    unlockRequirements: copperResourceId ? [{ type: "resource_collected", resourceId: copperResourceId, amount: 1 }] : [],
+    sortOrder: nextSortOrder(content.goblins)
+  };
+  const localization = {
+    [nameKey]: "Новый сборщик",
+    [descriptionKey]: "Черновой гоблин для настройки в админке.",
+    [abilityNameKey]: "Черновой автосбор",
+    [abilityDescriptionKey]: "Открывает один слот автосбора и немного увеличивает вместимость шахты."
+  };
 
   return {
     content: {
       ...content,
-      goblins: [
-        ...content.goblins,
-        {
-          id,
-          nameKey,
-          descriptionKey,
-          class: "collector",
-          specialization: "warehouse_keeper",
-          clan: "neutral",
-          rarity: "common",
-          assetId: `goblin_${id}_v1`,
-          baseStats: {
-            strength: 2,
-            speed: 4,
-            luck: 5,
-            loyalty: 6
-          },
-          ability: {
-            id: `${id}_auto_collect`,
-            nameKey: abilityNameKey,
-            descriptionKey: abilityDescriptionKey,
-            effects: [
-              { type: "auto_collect_slots", value: 1 },
-              { type: "mine_capacity_multiplier", value: 1.1 }
-            ]
-          },
-          hireCost: [{ resourceId: goldResourceId, amount: 1000 }],
-          unlockRequirements: copperResourceId ? [{ type: "resource_collected", resourceId: copperResourceId, amount: 1 }] : [],
-          sortOrder: nextSortOrder(content.goblins)
-        }
-      ],
-      localization: addRuLocalization(content.localization, {
-        [nameKey]: "Новый сборщик",
-        [descriptionKey]: "Черновой гоблин для настройки в админке.",
-        [abilityNameKey]: "Черновой автосбор",
-        [abilityDescriptionKey]: "Открывает один слот автосбора и немного увеличивает вместимость шахты."
-      })
+      goblins: [...content.goblins, entity],
+      localization: addRuLocalization(content.localization, localization)
     },
+    entity,
     entityId: id,
     entityKind: "goblins",
+    entityType: "goblin",
+    localization,
     message: `Добавлен шаблон гоблина ${id}. Сохрани и провалидируй draft перед публикацией.`
   };
 }
@@ -2163,32 +2120,34 @@ export function addDraftMineTemplate(content: ContentBundle): DraftContentToolRe
   const displayNameKey = `mine.${id}.name`;
   const width = 8;
   const height = 10;
+  const entity: ContentRecord = {
+    completionRewardChestTypeId: stringField(source, "completionRewardChestTypeId") || undefined,
+    completionVeinTypeId: stringField(source, "completionVeinTypeId") || undefined,
+    depthMeters: 10,
+    difficultyEnd: 1.8,
+    difficultyStart: 1,
+    id,
+    cellMap: createDefaultMineCellMap(content, width, height),
+    displayNameKey,
+    height,
+    sortOrder: nextSortOrder(content.mineTemplates),
+    width
+  };
+  const localization = {
+    [displayNameKey]: "Новый рудник"
+  };
 
   return {
     content: {
       ...content,
-      mineTemplates: [
-        ...content.mineTemplates,
-        {
-          completionRewardChestTypeId: stringField(source, "completionRewardChestTypeId") || undefined,
-          completionVeinTypeId: stringField(source, "completionVeinTypeId") || undefined,
-          depthMeters: 10,
-          difficultyEnd: 1.8,
-          difficultyStart: 1,
-          id,
-          cellMap: createDefaultMineCellMap(content, width, height),
-          displayNameKey,
-          height,
-          sortOrder: nextSortOrder(content.mineTemplates),
-          width
-        }
-      ],
-      localization: addRuLocalization(content.localization, {
-        [displayNameKey]: "Новый рудник"
-      })
+      mineTemplates: [...content.mineTemplates, entity],
+      localization: addRuLocalization(content.localization, localization)
     },
+    entity,
     entityId: id,
     entityKind: "mineTemplates",
+    entityType: "mineTemplate",
+    localization,
     message: `Добавлен шаблон рудника ${id}. Проверь размер, жилу, сундук и карту клеток перед публикацией.`
   };
 }
@@ -2215,25 +2174,27 @@ function addDraftBuiltMineTypeTemplate(content: ContentBundle): DraftContentTool
 
   const id = uniqueContentId("draft_built_mine", builtMineTypes);
   const nameKey = `built_mine.${id}.name`;
+  const entity: ContentRecord = {
+    ...cloneRecord(source),
+    id,
+    nameKey,
+    assetId: `built_mine_${id}_v1`
+  };
+  const localization = {
+    [nameKey]: "Новая постоянная шахта"
+  };
 
   return {
     content: {
       ...content,
-      builtMineTypes: [
-        ...builtMineTypes,
-        {
-          ...cloneRecord(source),
-          id,
-          nameKey,
-          assetId: `built_mine_${id}_v1`
-        }
-      ],
-      localization: addRuLocalization(content.localization, {
-        [nameKey]: "Новая постоянная шахта"
-      })
+      builtMineTypes: [...builtMineTypes, entity],
+      localization: addRuLocalization(content.localization, localization)
     },
+    entity,
     entityId: id,
     entityKind: "builtMineTypes",
+    entityType: "builtMineType",
+    localization,
     message: `Добавлен шаблон типа шахты ${id}. Проверь ресурс добычи, жилу и стоимость.`
   };
 }
@@ -2244,29 +2205,31 @@ export function addDraftRewardChestTypeTemplate(content: ContentBundle): DraftCo
   const nameKey = `reward_chest.${id}.name`;
   const goldResourceId = findResourceId(content, "gold");
   const stoneResourceId = findResourceId(content, "stone");
+  const entity: ContentRecord = {
+    id,
+    nameKey,
+    tier: "wooden",
+    rewardTable: [
+      { resourceId: goldResourceId, min: 25, max: 60, chance: 1 },
+      { resourceId: stoneResourceId, min: 10, max: 25, chance: 0.75 }
+    ],
+    assetId: `reward_chest_${id}_v1`
+  };
+  const localization = {
+    [nameKey]: "Новый сундук"
+  };
 
   return {
     content: {
       ...content,
-      rewardChestTypes: [
-        ...rewardChestTypes,
-        {
-          id,
-          nameKey,
-          tier: "wooden",
-          rewardTable: [
-            { resourceId: goldResourceId, min: 25, max: 60, chance: 1 },
-            { resourceId: stoneResourceId, min: 10, max: 25, chance: 0.75 }
-          ],
-          assetId: `reward_chest_${id}_v1`
-        }
-      ],
-      localization: addRuLocalization(content.localization, {
-        [nameKey]: "Новый сундук"
-      })
+      rewardChestTypes: [...rewardChestTypes, entity],
+      localization: addRuLocalization(content.localization, localization)
     },
+    entity,
     entityId: id,
     entityKind: "rewardChestTypes",
+    entityType: "rewardChestType",
+    localization,
     message: `Добавлен шаблон сундука ${id}. Проверь tier, ассет и таблицу наград, затем сохрани draft.`
   };
 }

@@ -64,3 +64,4 @@
 - `0059_content_versions_read_only` - made published and archived content versions read-only in UI and backend, blocking save, validate, and republish actions.
 - `0060_mine_editor_cell_chests_iron` - cleaned old production content versions, added mine row depth/difficulty labels, cell edit modal with exact HP, reward-chest cells, and iron content.
 - `0061_cell_map_legacy_cleanup` - removed legacy mine strata/seed/guaranteed-object support, made cell maps the only mine model, renamed the old wooden chest block to gold cache, and hid raw JSON behind an advanced toggle.
+- `0062_content_publish_guardrails` - removed game-client content fallback/runtime test depth, made admin JSON read-only, and added broken-text validation for content release checks.

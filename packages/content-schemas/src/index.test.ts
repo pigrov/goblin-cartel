@@ -47,6 +47,26 @@ describe("content schemas", () => {
     expect(starterContentBundle.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
   });
 
+  it("keeps starter content free from legacy editor fields and broken text", () => {
+    const blockIds = new Set(starterContentBundle.blockTypes.map((blockType) => blockType.id));
+    const authoredBlockRefs = starterContentBundle.mineTemplates.flatMap((mineTemplate) =>
+      mineTemplate.cellMap.map((cell) => cell.blockTypeId)
+    );
+
+    expect(blockIds.has("chest_wooden")).toBe(false);
+    expect(authoredBlockRefs).not.toContain("chest_wooden");
+
+    for (const mineTemplate of starterContentBundle.mineTemplates as Array<Record<string, unknown>>) {
+      expect(mineTemplate).not.toHaveProperty("seedMode");
+      expect(mineTemplate).not.toHaveProperty("strata");
+      expect(mineTemplate).not.toHaveProperty("guaranteedObjects");
+
+      for (const cell of mineTemplate.cellMap as Array<Record<string, unknown>>) {
+        expect(cell).not.toHaveProperty("hpMultiplier");
+      }
+    }
+  });
+
   it("accepts a valid goblin config", () => {
     const result = goblinSchema.safeParse(starterContentBundle.goblins[0]);
 
@@ -203,6 +223,22 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("localization.ru is missing key block.dirt.name");
+  });
+
+  it("rejects suspicious broken localization text", () => {
+    const broken = structuredClone(starterContentBundle);
+    const ru = broken.localization.ru;
+
+    if (ru) {
+      ru["resource.gold.name"] = "??????"; // intentional broken-text fixture
+      ru["resource.stone.name"] = `${String.fromCharCode(0x0420, 0x2014)}${String.fromCharCode(0x0420, 0x0455)}`;
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("localization.ru.resource.gold.name contains suspicious broken text");
+    expect(result.errors).toContain("localization.ru.resource.stone.name contains suspicious broken text");
   });
 
   it("rejects goblin hire cost with missing resources", () => {

@@ -47,6 +47,7 @@ $mojibakeSamples = @(
   ([string][char]0x00D1),
   (New-TextFromCodePoints @(0x0413, 0x2014))
 )
+$questionMarkRunPattern = [regex]::new("\?{4,}")
 $failures = New-Object System.Collections.Generic.List[string]
 
 function Test-ShouldSkipFile {
@@ -110,6 +111,11 @@ foreach ($path in $Paths) {
 
         if ($null -ne $foundSample) {
           $failures.Add("$($file.FullName):$lineNumber possible mojibake")
+          break
+        }
+
+        if ($questionMarkRunPattern.IsMatch($line) -and -not $line.Contains("intentional broken-text fixture")) {
+          $failures.Add("$($file.FullName):$lineNumber possible replacement question marks")
           break
         }
 

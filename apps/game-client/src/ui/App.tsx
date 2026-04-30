@@ -105,12 +105,12 @@ const bossEnergyConfig: BossEnergyConfig = {
   critMultiplier: 2
 };
 const bossEnergyTickMs = Math.max(bossEnergyMinTickMs, Math.round(1000 / Math.max(1, bossEnergyConfig.regenPerSecond)));
-const initialContentBundle = createRuntimeContentBundle(starterContentBundle);
+const initialContentBundle = starterContentBundle;
 
 interface ContentState {
   content: ContentBundle;
   version: string;
-  source: "published" | "fallback";
+  source: "error" | "loading" | "published";
   message: string;
 }
 
@@ -208,9 +208,9 @@ interface ChestRewardFlyout extends RewardDrop {
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: initialContentBundle,
-    version: "fallback",
-    source: "fallback",
-    message: "Стартовый локальный контент"
+    version: "",
+    source: "loading",
+    message: "Загрузка опубликованного контента"
   }));
   const [loadingContent, setLoadingContent] = useState(true);
   const [session, setSession] = useState<MiningSession>(() => createSession(initialContentBundle));
@@ -287,7 +287,7 @@ export function App() {
 
         if (active) {
           const runtimeContent = createRuntimeContentBundle(payload.content);
-          const runtimeVersion = contentVersionWithRuntimeSuffix(payload.version.version, runtimeContent);
+          const runtimeVersion = contentVersionWithRuntimeSuffix(payload.version.version);
           const nextContentState = {
             content: runtimeContent,
             version: runtimeVersion,
@@ -321,26 +321,13 @@ export function App() {
         }
       } catch (error) {
         if (active) {
-          const fallbackVersion = contentVersionWithRuntimeSuffix("fallback", initialContentBundle);
-          const nextRoster = createRestoredGoblinRoster(initialContentBundle, fallbackVersion);
-          const restoredMining = createRestoredMiningState(initialContentBundle, fallbackVersion, nextRoster);
           setContentState({
             content: initialContentBundle,
-            version: fallbackVersion,
-            source: "fallback",
-            message: error instanceof Error ? error.message : "Стартовый локальный контент"
+            version: "",
+            source: "error",
+            message: error instanceof Error ? error.message : "Контент не загрузился"
           });
-          setSession(restoredMining.session);
-          syncVisibleResourceAmounts(restoredMining.session.resources);
-          setRoster(nextRoster);
-          setActiveCell(restoredMining.activeCell);
-          setPlatformRow(restoredMining.platformRow);
-          setOfflineSummary(restoredMining.offlineSummary);
-          setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
-          setGoblinPlacements(restoredMining.goblinPlacements);
-          setBossEnergy(restoredMining.bossEnergy);
-          setBuiltMines(restoredMining.builtMines);
-          setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
+          setSessionReady(false);
           setMineCompletionNoticeOpen(false);
           setPendingRewardChest(null);
           setRewardChestStage("closed");
@@ -1244,10 +1231,16 @@ export function App() {
           </button>
         ) : null}
 
-        {activeSection === "goblins" ? (
+        {contentState.source === "error" ? (
+          <section className="mine-content-loading error">
+            <strong>Контент не загрузился</strong>
+            <span>{contentState.message}</span>
+          </section>
+        ) : activeSection === "goblins" ? (
           <GoblinSection
             availableGoblins={availableGoblins}
             builtMinesCount={visibleBuiltMines.length}
+            content={contentState.content}
             labels={labels}
             onHireGoblin={handleHireGoblin}
             resources={session.resources}
@@ -1296,7 +1289,7 @@ export function App() {
           />
         )}
 
-        {activeSection === "mine" ? (
+        {activeSection === "mine" && sessionReady ? (
           <section className="boss-panel">
           <button
             className={bossEnergyFeedback ? "boss-energy-card warn" : "boss-energy-card"}
@@ -1548,15 +1541,7 @@ function createSession(
     (mineTemplateId ? content.mineTemplates.find((template) => template.id === mineTemplateId) : undefined) ?? content.mineTemplates[0];
 
   if (!mineTemplate) {
-    const fallbackSession = createMiningSession({
-      mine: generateMine(starterContentBundle.mineTemplates[0] as MineTemplateConfig, mineSeed),
-      blockTypes: starterContentBundle.blockTypes
-    });
-
-    return {
-      ...fallbackSession,
-      resources: { ...resources }
-    };
+    throw new Error("Published content has no mine templates.");
   }
 
   const session = createMiningSession({
@@ -1987,6 +1972,7 @@ function BossStat(props: { label: string; value: string }) {
 function GoblinSection(props: {
   availableGoblins: GoblinConfig[];
   builtMinesCount: number;
+  content: ContentBundle;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
@@ -2024,7 +2010,7 @@ function GoblinSection(props: {
               </div>
               <p>{labelFromNameKey(goblin.descriptionKey, goblin.id, props.labels)}</p>
               <footer>
-                <span>{hireCostLabel(goblin, props.labels)}</span>
+                <span>{hireCostLabel(goblin, props.labels, props.content)}</span>
                 <button disabled={hired || !canHire} onClick={() => props.onHireGoblin(goblin)} type="button">
                   {hired ? "Нанят" : "Нанять"}
                 </button>
@@ -2399,11 +2385,7 @@ function createMineCompletionRewardChest(content: ContentBundle, mineTemplateId:
 }
 
 function findRewardChestType(content: ContentBundle, chestTypeId: string): RewardChestTypeConfig | null {
-  return (
-    (content.rewardChestTypes ?? []).find((chestType) => chestType.id === chestTypeId) ??
-    starterContentBundle.rewardChestTypes.find((chestType) => chestType.id === chestTypeId) ??
-    null
-  );
+  return (content.rewardChestTypes ?? []).find((chestType) => chestType.id === chestTypeId) ?? null;
 }
 
 function createChestRewardFlyouts(
@@ -2475,13 +2457,12 @@ function mineTitle(mineTemplate: MineTemplateConfig | undefined, labels: Record<
 }
 
 function veinNameById(veinTypeId: string, content: ContentBundle, labels: Record<string, string>): string {
-  const veinType = content.veinTypes.find((item) => item.id === veinTypeId) ?? starterContentBundle.veinTypes.find((item) => item.id === veinTypeId);
+  const veinType = content.veinTypes.find((item) => item.id === veinTypeId);
   return veinType ? labelFromNameKey(veinType.nameKey, veinType.id, labels) : veinTypeId;
 }
 
 function builtMineTypeName(typeId: string, content: ContentBundle, labels: Record<string, string>): string {
-  const builtMineType =
-    content.builtMineTypes.find((item) => item.id === typeId) ?? starterContentBundle.builtMineTypes.find((item) => item.id === typeId);
+  const builtMineType = content.builtMineTypes.find((item) => item.id === typeId);
   return builtMineType ? labelFromNameKey(builtMineType.nameKey, builtMineType.id, labels) : typeId;
 }
 
@@ -2513,15 +2494,11 @@ function labelFromNameKey(nameKey: string, fallback: string, labels: Record<stri
 }
 
 function createLabels(content: ContentBundle): Record<string, string> {
-  return {
-    ...(starterContentBundle.localization.ru ?? {}),
-    ...(content.localization?.ru ?? {})
-  };
+  return content.localization?.ru ?? {};
 }
 
 function createAvailableGoblins(content: ContentBundle): GoblinConfig[] {
-  const source = content.goblins?.length ? content.goblins : starterContentBundle.goblins;
-  return [...source].sort((left, right) => left.sortOrder - right.sortOrder);
+  return [...content.goblins].sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 function createHiredGoblins(content: ContentBundle, roster: GoblinRosterState): GoblinConfig[] {
@@ -2625,18 +2602,18 @@ function pluralRu(value: number, one: string, few: string, many: string): string
   return many;
 }
 
-function hireCostLabel(goblin: GoblinConfig, labels: Record<string, string>): string {
+function hireCostLabel(goblin: GoblinConfig, labels: Record<string, string>, content: ContentBundle): string {
   if (goblin.hireCost.length === 0) {
     return "Стартовый";
   }
 
   return goblin.hireCost
-    .map((cost) => `-${cost.amount} ${resourceLabelById(cost.resourceId, labels)}`)
+    .map((cost) => `-${cost.amount} ${resourceLabelById(cost.resourceId, labels, content)}`)
     .join(" · ");
 }
 
-function resourceLabelById(resourceId: string, labels: Record<string, string>, content: ContentBundle = starterContentBundle): string {
-  const resource = content.resources.find((item) => item.id === resourceId) ?? starterContentBundle.resources.find((item) => item.id === resourceId);
+function resourceLabelById(resourceId: string, labels: Record<string, string>, content: ContentBundle): string {
+  const resource = content.resources.find((item) => item.id === resourceId);
   return resource ? labelFromNameKey(resource.nameKey, resource.id, labels) : resourceId;
 }
 

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 
 describe("runtime content", () => {
-  it("keeps current starter mine unchanged when it already has test depth", () => {
+  it("keeps current starter content unchanged when it is already sorted", () => {
     expect(createRuntimeContentBundle(starterContentBundle)).toBe(starterContentBundle);
-    expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback:mine-10");
+    expect(contentVersionWithRuntimeSuffix("0.0.8")).toBe("0.0.8");
   });
 
   it("sorts mines by authored sort order", () => {
@@ -17,7 +17,7 @@ describe("runtime content", () => {
     expect(runtimeContent.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
   });
 
-  it("normalizes authored mine content to the 10m runtime depth", () => {
+  it("keeps authored mine dimensions unchanged", () => {
     const content = structuredClone(starterContentBundle);
     const mine = content.mineTemplates[0];
 
@@ -38,11 +38,11 @@ describe("runtime content", () => {
     const runtimeContent = createRuntimeContentBundle(content);
     const runtimeMine = runtimeContent.mineTemplates[0];
 
-    expect(runtimeMine?.height).toBe(10);
-    expect(runtimeMine?.depthMeters).toBe(10);
-    expect(runtimeMine?.id).toBe("old_well_01_test_10");
-    expect(runtimeMine?.cellMap).toHaveLength(mine.width * 10);
-    expect(runtimeMine?.cellMap.at(-1)).toMatchObject({ blockTypeId: "stone", row: 9 });
-    expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-10");
+    expect(runtimeMine?.height).toBe(40);
+    expect(runtimeMine?.depthMeters).toBe(200);
+    expect(runtimeMine?.id).toBe("old_well_01");
+    expect(runtimeMine?.cellMap).toHaveLength(mine.width * 40);
+    expect(runtimeMine?.cellMap.at(-1)).toMatchObject({ blockTypeId: "stone", row: 39 });
+    expect(contentVersionWithRuntimeSuffix("0.0.4")).toBe("0.0.4");
   });
 });
