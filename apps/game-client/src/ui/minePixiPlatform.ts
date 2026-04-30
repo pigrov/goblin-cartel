@@ -49,8 +49,6 @@ export function drawPlatform(input: {
     .rect(input.layout.gridX, input.layout.platformHeight - 6, input.layout.platformWidth, 5)
     .fill({ color: 0x55371f })
     .rect(input.layout.gridX - 2, 0, 3, input.layout.platformHeight - 8)
-    .fill({ color: 0x9ca3ad })
-    .rect(input.layout.gridX + input.layout.platformWidth - 1, 0, 3, input.layout.platformHeight - 8)
     .fill({ color: 0x9ca3ad });
 
   platform.addChild(graphics);

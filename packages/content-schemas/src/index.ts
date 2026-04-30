@@ -257,15 +257,15 @@ export const starterContentBundle: ContentBundle = {
       id: "old_well_01",
       displayNameKey: "mine.old_well.name",
       width: 8,
-      height: 12,
-      depthMeters: 60,
+      height: 40,
+      depthMeters: 200,
       difficulty: 1,
       seedMode: "playerBased",
       strata: [
         {
           id: "top_soil",
           fromRow: 0,
-          toRow: 3,
+          toRow: 7,
           blockWeights: {
             dirt: 70,
             stone: 25,
@@ -274,8 +274,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "stone_layer",
-          fromRow: 4,
-          toRow: 7,
+          fromRow: 8,
+          toRow: 23,
           blockWeights: {
             dirt: 20,
             stone: 60,
@@ -285,8 +285,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "copper_layer",
-          fromRow: 8,
-          toRow: 11,
+          fromRow: 24,
+          toRow: 39,
           blockWeights: {
             stone: 55,
             copper_ore: 40,

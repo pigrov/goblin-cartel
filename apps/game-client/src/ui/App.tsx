@@ -366,8 +366,6 @@ export function App() {
     (row: number) => depthMarkerLabel(session, row, currentPlatformRow),
     [currentPlatformRow, session]
   );
-  const goblinDamagePerSecond = workerAssignments.reduce((total, worker) => total + worker.damagePerSecond, 0);
-  const activeGoblinWorkers = workerAssignments.length;
 
   useEffect(() => {
     if (!sessionReady) {
@@ -715,21 +713,6 @@ export function App() {
             <span className="boss-energy-stats">
               <span>{bossEnergyConfig.damagePerTap} урон</span>
               <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
-            </span>
-          </button>
-          <button className="goblin-info-card" onClick={() => setActiveSection("goblins")} type="button">
-            <span className="goblin-info-icon" aria-hidden="true">
-              <span />
-              <span />
-              <span />
-            </span>
-            <span className="goblin-info-main">
-              <span>Гоблины</span>
-              <strong>{hiredGoblins.length} нанято</strong>
-            </span>
-            <span className="goblin-info-stats">
-              <span>{activeGoblinWorkers} работают</span>
-              <span>{goblinDamagePerSecond}/сек</span>
             </span>
           </button>
         </section>

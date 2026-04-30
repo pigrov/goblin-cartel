@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
+import { Application, Container, Rectangle } from "pixi.js";
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
@@ -7,10 +7,7 @@ import {
   createMinePixiLayout,
   createVisibleRowRange,
   isRowInVisibleRange,
-  pointToMineCell,
   pointToPlatformColumnCell,
-  pointToPlatformCell,
-  type MinePixiCell,
   type MinePixiLayout,
   type MinePixiPoint,
   type MinePixiViewport,
@@ -33,6 +30,11 @@ import {
   blockTypeVisualToken,
   drawBlock
 } from "./minePixiBlocks";
+import { drawSceneBackground } from "./minePixiBackground";
+import {
+  reconcileDepthMarkers,
+  type MinePixiRenderedNode
+} from "./minePixiDepthMarkers";
 import {
   drawDragPreview,
   drawPlatform,
@@ -40,6 +42,13 @@ import {
   type MinePixiDragState
 } from "./minePixiPlatform";
 import { drawLiftCables, drawSurface } from "./minePixiSurface";
+import {
+  bindMinePixiPointerInput,
+  configurePixiInputForTouchScroll,
+  pointFromCanvasEvent,
+  type MinePixiTouchPanState,
+  type PixiDevHitTest
+} from "./minePixiInput";
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
 
@@ -98,27 +107,12 @@ interface RenderedPixiNode {
 
 type DragState = MinePixiDragState;
 
-interface TouchPanState {
-  active: boolean;
-  pointerId: number;
-  scrollTop: number;
-  startX: number;
-  startY: number;
-}
-
 interface PixiDevStats {
   fps: number;
   renderedCells: number;
   scrollRow: number;
   totalCells: number;
   visibleRows: string;
-}
-
-interface PixiDevHitTest {
-  cell: string;
-  point: string;
-  selected: string;
-  state: string;
 }
 
 const minSceneWidth = 320;
@@ -134,7 +128,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const animatedBlockImpactsRef = useRef<Map<number, AnimatedBlockImpact>>(new Map());
   const animatedHitEffectsRef = useRef<AnimatedHitEffect[]>([]);
   const blockNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
-  const depthMarkerNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
+  const depthMarkerNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
@@ -142,7 +136,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const devHitTestLastUpdatedAtRef = useRef(0);
   const devStatsLastUpdatedAtRef = useRef(0);
   const touchPanBlockTapUntilRef = useRef(0);
-  const touchPanStateRef = useRef<TouchPanState | null>(null);
+  const touchPanStateRef = useRef<MinePixiTouchPanState | null>(null);
   const layoutRef = useRef<MinePixiLayout | null>(null);
   const animatedGoblinsRef = useRef<AnimatedItem[]>([]);
   const activeCellRef = useRef(props.activeCell);
@@ -365,133 +359,22 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    const playfield = host;
-
-    function updateDevHitTest(event: PointerEvent, force = false) {
-      if (!devOverlayEnabledRef.current) {
-        return;
-      }
-
-      const now = performance.now();
-
-      if (!force && now - devHitTestLastUpdatedAtRef.current < 80) {
-        return;
-      }
-
-      const layout = layoutRef.current;
-      const canvas = appRef.current?.canvas;
-
-      if (!layout || !canvas) {
-        return;
-      }
-
-      devHitTestLastUpdatedAtRef.current = now;
-      setDevHitTest(createPixiDevHitTest({
-        activeCell: activeCellRef.current,
-        exposedCellKeys: exposedCellKeysRef.current,
-        layout,
-        platformCellKeys: platformCellKeysRef.current,
-        platformRow: currentPlatformRowRef.current,
-        point: pointFromCanvasEvent(event, canvas),
-        sessionBlocks: sessionBlocksRef.current
-      }));
-    }
-
-    function handlePointerDown(event: PointerEvent) {
-      const layout = layoutRef.current;
-      const canvas = appRef.current?.canvas;
-
-      if (layout && canvas) {
-        const point = pointFromCanvasEvent(event, canvas);
-        const platformCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
-        updateDevHitTest(event, true);
-
-        if (platformCell && platformCellKeysRef.current.has(cellKey(platformCell))) {
-          touchPanStateRef.current = null;
-          return;
-        }
-
-        const mineCell = pointToMineCell(point, layout);
-        const block = mineCell ? sessionBlocksRef.current[mineCell.row]?.[mineCell.col] : null;
-
-        if (
-          block &&
-          !block.destroyed &&
-          exposedCellKeysRef.current.has(cellKey(block)) &&
-          performance.now() >= touchPanBlockTapUntilRef.current
-        ) {
-          onBlockHitRef.current(block);
-        }
-      }
-
-      if (event.pointerType !== "touch") {
-        return;
-      }
-
-      touchPanStateRef.current = {
-        active: false,
-        pointerId: event.pointerId,
-        scrollTop: playfield.scrollTop,
-        startX: event.clientX,
-        startY: event.clientY
-      };
-    }
-
-    function handlePointerMove(event: PointerEvent) {
-      updateDevHitTest(event);
-
-      const state = touchPanStateRef.current;
-
-      if (!state || state.pointerId !== event.pointerId) {
-        return;
-      }
-
-      const deltaX = event.clientX - state.startX;
-      const deltaY = event.clientY - state.startY;
-      const absX = Math.abs(deltaX);
-      const absY = Math.abs(deltaY);
-
-      if (!state.active) {
-        if (absY < 8 || absY < absX * 1.1) {
-          return;
-        }
-
-        state.active = true;
-      }
-
-      playfield.scrollTop = Math.max(0, state.scrollTop - deltaY);
-      touchPanBlockTapUntilRef.current = performance.now() + 350;
-      if (event.cancelable) {
-        event.preventDefault();
-      }
-    }
-
-    function finishPointer(event: PointerEvent) {
-      const state = touchPanStateRef.current;
-
-      if (state?.pointerId === event.pointerId && state.active) {
-        touchPanBlockTapUntilRef.current = performance.now() + 350;
-        if (event.cancelable) {
-          event.preventDefault();
-        }
-      }
-
-      if (state?.pointerId === event.pointerId) {
-        touchPanStateRef.current = null;
-      }
-    }
-
-    playfield.addEventListener("pointerdown", handlePointerDown);
-    playfield.addEventListener("pointermove", handlePointerMove, { passive: false });
-    playfield.addEventListener("pointerup", finishPointer, { passive: false });
-    playfield.addEventListener("pointercancel", finishPointer, { passive: false });
-
-    return () => {
-      playfield.removeEventListener("pointerdown", handlePointerDown);
-      playfield.removeEventListener("pointermove", handlePointerMove);
-      playfield.removeEventListener("pointerup", finishPointer);
-      playfield.removeEventListener("pointercancel", finishPointer);
-    };
+    return bindMinePixiPointerInput({
+      activeCellRef,
+      appRef,
+      currentPlatformRowRef,
+      devHitTestLastUpdatedAtRef,
+      devOverlayEnabledRef,
+      exposedCellKeysRef,
+      host,
+      layoutRef,
+      onBlockHitRef,
+      platformCellKeysRef,
+      sessionBlocksRef,
+      setDevHitTest,
+      touchPanBlockTapUntilRef,
+      touchPanStateRef
+    });
   }, [readyTick]);
 
   useEffect(() => {
@@ -606,7 +489,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     }
 
     reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange);
-    reconcileDepthMarkers(layers.markers, depthMarkerNodesRef.current, layout, props, visibleRowRange);
+    reconcileDepthMarkers({
+      currentPlatformRow: props.currentPlatformRow,
+      depthMarkerLabel: props.depthMarkerLabel,
+      layout,
+      renderedMarkers: depthMarkerNodesRef.current,
+      root: layers.markers,
+      visibleRowRange
+    });
   }, [
     layout,
     props.activeCell,
@@ -733,16 +623,6 @@ function clearLayer(layer: Container) {
   }
 }
 
-function configurePixiInputForTouchScroll(app: Application) {
-  const renderer = app.renderer as { events?: { autoPreventDefault: boolean } };
-
-  if (renderer.events) {
-    renderer.events.autoPreventDefault = false;
-  }
-
-  app.canvas.style.touchAction = "pan-y";
-}
-
 function updatePixiDevStats(
   now: number,
   app: Application,
@@ -773,66 +653,6 @@ function updatePixiDevStats(
   });
 }
 
-function createPixiDevHitTest(input: {
-  activeCell: MinePixiCell;
-  exposedCellKeys: ReadonlySet<string>;
-  layout: MinePixiLayout;
-  platformCellKeys: ReadonlySet<string>;
-  platformRow: number;
-  point: MinePixiPoint;
-  sessionBlocks: MiningSession["blocks"];
-}): PixiDevHitTest {
-  const mineCell = pointToMineCell(input.point, input.layout);
-  const platformCell = pointToPlatformCell(input.point, input.layout, input.platformRow);
-  const point = `${Math.round(input.point.x)},${Math.round(input.point.y)}`;
-  const selected = formatDevCell(input.activeCell);
-
-  if (mineCell) {
-    const block = input.sessionBlocks[mineCell.row]?.[mineCell.col];
-    const key = formatDevCell(mineCell);
-
-    if (!block) {
-      return {
-        cell: key,
-        point,
-        selected,
-        state: "mine empty"
-      };
-    }
-
-    return {
-      cell: key,
-      point,
-      selected,
-      state: block.destroyed
-        ? "mine destroyed"
-        : input.exposedCellKeys.has(cellKey(mineCell))
-          ? "mine exposed"
-          : "mine covered"
-    };
-  }
-
-  if (platformCell) {
-    return {
-      cell: formatDevCell(platformCell),
-      point,
-      selected,
-      state: input.platformCellKeys.has(cellKey(platformCell)) ? "platform" : "platform locked"
-    };
-  }
-
-  return {
-    cell: "-",
-    point,
-    selected,
-    state: "void"
-  };
-}
-
-function formatDevCell(cell: MinePixiCell): string {
-  return `${cell.row}:${cell.col}`;
-}
-
 function removeRenderedNode(
   renderedNodes: Map<string, RenderedPixiNode>,
   key: string,
@@ -841,19 +661,6 @@ function removeRenderedNode(
   renderedNode.node.parent?.removeChild(renderedNode.node);
   renderedNode.node.destroy({ children: true });
   renderedNodes.delete(key);
-}
-
-function drawSceneBackground(root: Container, layout: MinePixiLayout) {
-  root.addChild(
-    new Graphics()
-      .rect(0, 0, layout.width, layout.contentHeight)
-      .fill({ color: 0x21170f })
-  );
-  root.addChild(
-    new Graphics()
-      .rect(0, layout.surfaceHeight, layout.width, layout.contentHeight - layout.surfaceHeight)
-      .fill({ color: 0x221811 })
-  );
 }
 
 function reconcileMineBlocks(
@@ -928,79 +735,6 @@ function reconcileMineBlocks(
       });
     }
   }
-}
-
-function reconcileDepthMarkers(
-  root: Container,
-  renderedMarkers: Map<string, RenderedPixiNode>,
-  layout: MinePixiLayout,
-  props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange
-) {
-  const visibleMarkerKeys = new Set<string>();
-
-  for (let row = visibleRowRange.startRow; row <= visibleRowRange.endRow; row += 1) {
-    const label = props.depthMarkerLabel(row);
-
-    if (!label) {
-      continue;
-    }
-
-    const key = String(row);
-    const y = layout.gridY + row * layout.rowStep + layout.cellSize / 2;
-    const signature = [
-      row,
-      label,
-      row === props.currentPlatformRow ? 1 : 0,
-      layout.gridX,
-      layout.gridY,
-      layout.rowStep,
-      layout.cellSize
-    ].join("|");
-    const renderedMarker = renderedMarkers.get(key);
-    visibleMarkerKeys.add(key);
-
-    if (renderedMarker?.signature === signature) {
-      continue;
-    }
-
-    if (renderedMarker) {
-      removeRenderedNode(renderedMarkers, key, renderedMarker);
-    }
-
-    const marker = drawDepthMarker(layout, row, label, row === props.currentPlatformRow, y);
-    root.addChild(marker);
-    renderedMarkers.set(key, {
-      node: marker,
-      signature
-    });
-  }
-
-  for (const [key, renderedMarker] of renderedMarkers) {
-    if (!visibleMarkerKeys.has(key)) {
-      removeRenderedNode(renderedMarkers, key, renderedMarker);
-    }
-  }
-}
-
-function drawDepthMarker(
-  layout: MinePixiLayout,
-  row: number,
-  label: string,
-  active: boolean,
-  y: number
-): Container {
-  const marker = new Container();
-  const text = createText({
-    color: active ? 0xf2b84b : 0xb7a58f,
-    fontSize: 10,
-    fontWeight: "800",
-    text: label
-  });
-  text.anchor.set(1, 0.5);
-  text.position.set(layout.gridX - 6, y);
-  marker.addChild(text);
-  return marker;
 }
 
 function reconcileHitEffects(
@@ -1157,30 +891,4 @@ function currentPlatformDropOffset(now: number, animating: boolean, startedAt: n
   }
 
   return platformDropOffset(elapsed / platformDropDurationMs);
-}
-
-function createText(options: {
-  color: number;
-  fontSize: number;
-  fontWeight: "700" | "800";
-  text: string;
-}): Text {
-  return new Text({
-    style: {
-      fill: options.color,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: options.fontSize,
-      fontWeight: options.fontWeight
-    },
-    text: options.text
-  });
-}
-
-function pointFromCanvasEvent(event: PointerEvent, canvas: HTMLCanvasElement): MinePixiPoint {
-  const rect = canvas.getBoundingClientRect();
-
-  return {
-    x: event.clientX - rect.left,
-    y: event.clientY - rect.top
-  };
 }
