@@ -44,6 +44,8 @@ const hitEffectLifetimeMs = 2400;
 const resourceTooltipLifetimeMs = 3000;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
+const runtimeTestMineRows = 40;
+const runtimeMineMetersPerRow = 5;
 let hitEffectSequence = 0;
 
 type GameSection = "mine" | "goblins";
@@ -191,7 +193,7 @@ export function App() {
 
         if (active) {
           const runtimeContent = createRuntimeContentBundle(payload.content);
-          const runtimeVersion = contentVersionWithDebugSuffix(payload.version.version);
+          const runtimeVersion = contentVersionWithRuntimeSuffix(payload.version.version, runtimeContent);
           const nextContentState = {
             content: runtimeContent,
             version: runtimeVersion,
@@ -216,7 +218,7 @@ export function App() {
         }
       } catch (error) {
         if (active) {
-          const fallbackVersion = contentVersionWithDebugSuffix("fallback");
+          const fallbackVersion = contentVersionWithRuntimeSuffix("fallback", initialContentBundle);
           const nextRoster = createRestoredGoblinRoster(initialContentBundle, fallbackVersion);
           const restoredMining = createRestoredMiningState(initialContentBundle, fallbackVersion, nextRoster);
           setContentState({
@@ -810,9 +812,19 @@ export function App() {
 
 function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
   const debugRows = readDebugMineRows();
+  const targetRows = debugRows ?? runtimeTestMineRows;
+  const targetDepthMeters = targetRows * runtimeMineMetersPerRow;
   const mineTemplate = content.mineTemplates[0];
 
-  if (!debugRows || !mineTemplate) {
+  if (!mineTemplate) {
+    return content;
+  }
+
+  const currentDepthMeters = mineTemplate.depthMeters ?? mineTemplate.height;
+  const shouldUseRuntimeMine =
+    Boolean(debugRows) || mineTemplate.height < targetRows || currentDepthMeters < targetDepthMeters;
+
+  if (!shouldUseRuntimeMine) {
     return content;
   }
 
@@ -827,14 +839,14 @@ function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
     mineTemplates: [
       {
         ...mineTemplate,
-        depthMeters: Math.max(mineTemplate.depthMeters ?? mineTemplate.height, debugRows * 5),
-        height: debugRows,
-        id: `${mineTemplate.id}_debug_${debugRows}`,
+        depthMeters: Math.max(currentDepthMeters, targetDepthMeters),
+        height: targetRows,
+        id: `${mineTemplate.id}_${debugRows ? "debug" : "test"}_${targetRows}`,
         strata: [
           ...mineTemplate.strata.slice(0, -1),
           {
             ...lastStratum,
-            toRow: debugRows - 1
+            toRow: targetRows - 1
           }
         ]
       },
@@ -843,9 +855,15 @@ function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
   };
 }
 
-function contentVersionWithDebugSuffix(version: string): string {
+function contentVersionWithRuntimeSuffix(version: string, content: ContentBundle): string {
   const debugRows = readDebugMineRows();
-  return debugRows ? `${version}:debug-${debugRows}` : version;
+  const mineTemplate = content.mineTemplates[0];
+
+  if (debugRows) {
+    return `${version}:debug-${debugRows}`;
+  }
+
+  return mineTemplate?.id.endsWith(`_test_${runtimeTestMineRows}`) ? `${version}:test-${runtimeTestMineRows}` : version;
 }
 
 function readDebugMineRows(): number | null {
