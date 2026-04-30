@@ -1470,6 +1470,56 @@ body,
   font-size: 13px;
 }
 
+.built-mine-automation-row {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 4%);
+}
+
+.built-mine-automation-row.active {
+  border-color: rgb(111 191 87 / 30%);
+  background:
+    linear-gradient(180deg, rgb(111 191 87 / 9%), rgb(255 255 255 / 3%)),
+    rgb(255 255 255 / 4%);
+}
+
+.built-mine-automation-row > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.built-mine-automation-row strong,
+.built-mine-automation-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.built-mine-automation-row strong {
+  color: var(--gc-text);
+  font-size: 12px;
+}
+
+.built-mine-automation-row small {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.built-mine-automation-row button {
+  min-height: 30px;
+  flex: 0 0 auto;
+  padding: 0 9px;
+  font-size: 11px;
+}
+
 .built-mine-card footer > span {
   min-width: 0;
 }

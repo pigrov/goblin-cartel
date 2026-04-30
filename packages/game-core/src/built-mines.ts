@@ -72,6 +72,19 @@ export interface CollectBuiltMineIncomeResult {
   resources: Record<string, number>;
 }
 
+export interface CollectAutomatedBuiltMineIncomeInput {
+  builtMines: BuiltMineState[];
+  now: number;
+  resources: Record<string, number>;
+}
+
+export interface CollectAutomatedBuiltMineIncomeResult {
+  builtMines: BuiltMineState[];
+  collectedAmount: number;
+  collectedResources: Record<string, number>;
+  resources: Record<string, number>;
+}
+
 const msPerHour = 60 * 60 * 1000;
 
 export function findBuiltMineTypeForVein(
@@ -192,6 +205,43 @@ export function collectBuiltMineIncome(input: CollectBuiltMineIncomeInput): Coll
       ...input.resources,
       [producedBuiltMine.productionResourceId]: (input.resources[producedBuiltMine.productionResourceId] ?? 0) + collectedAmount
     }
+  };
+}
+
+export function collectAutomatedBuiltMineIncome(
+  input: CollectAutomatedBuiltMineIncomeInput
+): CollectAutomatedBuiltMineIncomeResult {
+  let resources = input.resources;
+  let collectedAmount = 0;
+  const collectedResources: Record<string, number> = {};
+
+  const builtMines = input.builtMines.map((builtMine) => {
+    if (!builtMine.assignedCollectorGoblinId) {
+      return builtMine;
+    }
+
+    const result = collectBuiltMineIncome({
+      builtMine,
+      now: input.now,
+      resources
+    });
+
+    resources = result.resources;
+
+    if (result.collectedAmount > 0) {
+      collectedAmount += result.collectedAmount;
+      collectedResources[result.builtMine.productionResourceId] =
+        (collectedResources[result.builtMine.productionResourceId] ?? 0) + result.collectedAmount;
+    }
+
+    return result.builtMine;
+  });
+
+  return {
+    builtMines,
+    collectedAmount,
+    collectedResources,
+    resources
   };
 }
 

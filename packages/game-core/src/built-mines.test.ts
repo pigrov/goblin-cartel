@@ -4,6 +4,7 @@ import {
   assignBuiltMineCollector,
   buildMineFromVein,
   canBuildMineFromVein,
+  collectAutomatedBuiltMineIncome,
   collectBuiltMineIncome,
   type BuiltMineType
 } from "./built-mines";
@@ -184,6 +185,44 @@ describe("built mines", () => {
 
     expect(assignBuiltMineCollector(result.builtMine, "pip_dry_book")).toMatchObject({
       assignedCollectorGoblinId: "pip_dry_book",
+      storedAmount: 0
+    });
+  });
+
+  it("automatically collects income from mines assigned to collectors", () => {
+    const result = buildMineFromVein({
+      builtMineTypes,
+      now: 0,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    const assignedMine = assignBuiltMineCollector(result.builtMine, "pip_dry_book");
+    const automated = collectAutomatedBuiltMineIncome({
+      builtMines: [assignedMine],
+      now: assignedMine.completesAt + 30 * 60 * 1000,
+      resources: result.resources
+    });
+
+    expect(automated.collectedAmount).toBe(60);
+    expect(automated.collectedResources).toEqual({
+      copper_ore: 60
+    });
+    expect(automated.resources).toEqual({
+      copper_ore: 60,
+      gold: 300,
+      stone: 80
+    });
+    expect(automated.builtMines[0]).toMatchObject({
+      assignedCollectorGoblinId: "pip_dry_book",
+      status: "active",
       storedAmount: 0
     });
   });

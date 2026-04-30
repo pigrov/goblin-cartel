@@ -52,3 +52,4 @@
 - `0047_mine_clear_vein_transition_chest` - moved vein discovery to full mine clear, fixed mine ordering, shortened test mines to 10m, and made transition chests open only when starting the next mine.
 - `0048_built_mines_construction_ui` - improved built-mine cards with build costs, missing resources, construction timers, and storage progress.
 - `0049_permanent_mines_screen` - expanded the permanent mines tab with dashboard stats, collect-all income, grouped build projects, explicit mine states, and safer top spacing.
+- `0050_built_mine_auto_collectors` - added collector goblin assignment and automatic built-mine income collection, including offline restore handling.
