@@ -20,7 +20,7 @@ export function drawBlock(
   const container = new Container();
   const size = options.size;
   const hpPercent = normalizeBlockHpPercent(block.hp, block.maxHp);
-  const color = block.destroyed ? 0x15100c : blockColor(block.blockTypeId, blockType);
+  const color = block.destroyed ? 0x15100c : block.special === "vein" ? veinBlockColor(block.blockTypeId, blockType) : blockColor(block.blockTypeId, blockType);
   const crackedAlpha = block.destroyed ? 0 : blockDamageAlpha(hpPercent);
   const nearBreak = !block.destroyed && isNearBreakHpPercent(hpPercent);
 
@@ -37,6 +37,10 @@ export function drawBlock(
         .roundRect(2, 2, size - 4, size - 4, 4)
         .stroke({ color: 0xf2b84b, alpha: 0.3, width: 1 })
     );
+  }
+
+  if (!block.destroyed && block.special === "vein") {
+    container.addChild(drawVeinOverlay(size, block.veinTypeId));
   }
 
   if (!block.destroyed && options.exposed) {
@@ -116,6 +120,51 @@ export function blockColor(blockTypeId: string, blockType: BlockTypeConfig | und
 
 export function blockTypeVisualToken(blockType: BlockTypeConfig | undefined): string {
   return blockType ? `${blockType.id}:${blockType.specialBehavior ?? ""}` : "missing";
+}
+
+function veinBlockColor(blockTypeId: string, blockType: BlockTypeConfig | undefined): number {
+  if (blockTypeId.includes("copper")) {
+    return 0x8f4e32;
+  }
+
+  return blockColor(blockTypeId, blockType);
+}
+
+function drawVeinOverlay(size: number, veinTypeId: string | undefined): Container {
+  const overlay = new Container();
+  const veinColor = veinTypeId?.includes("copper") ? 0xffa35f : 0xf2b84b;
+  const glowColor = veinTypeId?.includes("copper") ? 0xc07a3d : 0xf2b84b;
+
+  overlay.addChild(
+    new Graphics()
+      .roundRect(2, 2, size - 4, size - 4, 4)
+      .stroke({ color: glowColor, alpha: 0.52, width: 2 })
+  );
+
+  overlay.addChild(
+    new Graphics()
+      .moveTo(size * 0.12, size * 0.7)
+      .lineTo(size * 0.3, size * 0.46)
+      .lineTo(size * 0.48, size * 0.54)
+      .lineTo(size * 0.68, size * 0.22)
+      .lineTo(size * 0.88, size * 0.34)
+      .moveTo(size * 0.22, size * 0.84)
+      .lineTo(size * 0.46, size * 0.68)
+      .lineTo(size * 0.78, size * 0.76)
+      .stroke({ color: veinColor, alpha: 0.84, width: 3 })
+  );
+
+  overlay.addChild(
+    new Graphics()
+      .circle(size * 0.34, size * 0.42, Math.max(2.5, size * 0.065))
+      .fill({ color: veinColor, alpha: 0.82 })
+      .circle(size * 0.7, size * 0.24, Math.max(2, size * 0.052))
+      .fill({ color: 0xffd59a, alpha: 0.78 })
+      .circle(size * 0.78, size * 0.76, Math.max(2, size * 0.05))
+      .fill({ color: veinColor, alpha: 0.72 })
+  );
+
+  return overlay;
 }
 
 function drawNearBreakWarning(size: number, hpPercent: number): Container {

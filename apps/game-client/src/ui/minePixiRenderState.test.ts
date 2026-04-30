@@ -83,6 +83,17 @@ describe("minePixiRenderState", () => {
       x: 100,
       y: 120
     })).not.toBe(base);
+
+    expect(createMinePixiBlockRenderSignature({
+      active: false,
+      block: { ...block, special: "vein", veinTypeId: "copper_vein_small" },
+      blockTypeToken: "stone:",
+      exposed: true,
+      platformRow: false,
+      size: 40,
+      x: 100,
+      y: 120
+    })).not.toBe(base);
   });
 
   it("collects visible cell keys only from the requested row range", () => {

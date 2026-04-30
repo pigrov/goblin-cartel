@@ -1,8 +1,11 @@
 import {
+  advanceBuiltMinesProduction,
   applyBossAttack,
   applyPlatformAutoMining,
+  buildMineFromVein,
   calculateCrewAutoDamagePerSecond,
   canHireGoblin,
+  collectBuiltMineIncome,
   createBossEnergyState,
   createMiningSession,
   createInitialGoblinRoster,
@@ -18,13 +21,16 @@ import {
   restoreMiningSession,
   type BossEnergyConfig,
   type BossEnergyState,
+  type BuiltMineState,
   type GoblinRosterState,
   type MiningBlockState,
+  type MiningFoundVein,
   type MiningSession,
   type MiningSessionSave
 } from "@goblin-cartel/game-core";
 import {
   starterContentBundle,
+  type BuiltMineTypeConfig,
   type ContentBundle,
   type GoblinConfig,
   type MineTemplateConfig,
@@ -34,6 +40,12 @@ import { Bot, Coins, Gem, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
+import {
+  canBuildFoundVein,
+  createVisibleBuiltMines,
+  findUnbuiltFoundVeins,
+  hasBuiltMineForVein
+} from "./builtMineClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
@@ -51,7 +63,7 @@ const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
 let hitEffectSequence = 0;
 
-type GameSection = "mine" | "goblins";
+type GameSection = "mine" | "goblins" | "builtMines";
 type GoblinPlacementMap = Record<string, number>;
 type HitEffectVariant = "boss" | "goblin" | "critical";
 type SpawnHitEffect = (
@@ -89,6 +101,7 @@ interface StoredMineSave {
   platformRow?: number;
   goblinPlacements?: GoblinPlacementMap;
   bossEnergy?: BossEnergyState;
+  builtMines?: BuiltMineState[];
   savedAt?: number;
 }
 
@@ -111,6 +124,7 @@ interface RestoredMiningState {
   platformRow: number;
   goblinPlacements: GoblinPlacementMap;
   bossEnergy: BossEnergyState;
+  builtMines: BuiltMineState[];
 }
 
 interface OfflineMiningSummary {
@@ -169,6 +183,9 @@ export function App() {
   const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
   const [goblinPlacements, setGoblinPlacements] = useState<GoblinPlacementMap>({});
+  const [builtMines, setBuiltMines] = useState<BuiltMineState[]>([]);
+  const [builtMineMessage, setBuiltMineMessage] = useState<string | null>(null);
+  const [foundVeinNotice, setFoundVeinNotice] = useState<MiningFoundVein | null>(null);
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
   const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(bossEnergyConfig, Date.now()));
   const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
@@ -189,6 +206,7 @@ export function App() {
   });
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const activeCellRef = useRef(activeCell);
+  const builtMinesRef = useRef(builtMines);
   const contentBlockTypesRef = useRef(contentState.content.blockTypes);
   const goblinPlacementsRef = useRef(goblinPlacements);
   const hiredGoblinsRef = useRef<GoblinConfig[]>([]);
@@ -241,6 +259,9 @@ export function App() {
           setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setGoblinPlacements(restoredMining.goblinPlacements);
           setBossEnergy(restoredMining.bossEnergy);
+          setBuiltMines(restoredMining.builtMines);
+          setBuiltMineMessage(null);
+          setFoundVeinNotice(null);
           setClockNow(Date.now());
           setSessionReady(true);
         }
@@ -264,6 +285,9 @@ export function App() {
           setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setGoblinPlacements(restoredMining.goblinPlacements);
           setBossEnergy(restoredMining.bossEnergy);
+          setBuiltMines(restoredMining.builtMines);
+          setBuiltMineMessage(null);
+          setFoundVeinNotice(null);
           setClockNow(Date.now());
           setSessionReady(true);
         }
@@ -286,8 +310,8 @@ export function App() {
       return;
     }
 
-    saveMiningSession(contentState.version, session, activeCell, platformRow, goblinPlacements, bossEnergy);
-  }, [activeCell, bossEnergy, contentState.version, goblinPlacements, platformRow, session, sessionReady]);
+    saveMiningSession(contentState.version, session, activeCell, platformRow, goblinPlacements, bossEnergy, builtMines);
+  }, [activeCell, bossEnergy, builtMines, contentState.version, goblinPlacements, platformRow, session, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -354,6 +378,11 @@ export function App() {
     [availableGoblins, roster]
   );
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
+  const visibleBuiltMines = useMemo(() => createVisibleBuiltMines(builtMines, clockNow), [builtMines, clockNow]);
+  const unbuiltFoundVeins = useMemo(
+    () => findUnbuiltFoundVeins(session.foundVeins, visibleBuiltMines),
+    [session.foundVeins, visibleBuiltMines]
+  );
   const platformCells = useMemo(() => findPlatformCells(session, currentPlatformRow), [currentPlatformRow, session]);
   const platformCellKeys = useMemo(() => new Set(platformCells.map(cellKey)), [platformCells]);
   const exposedCells = useMemo(() => findExposedCells(session), [session]);
@@ -401,6 +430,7 @@ export function App() {
 
   useEffect(() => {
     activeCellRef.current = activeCell;
+    builtMinesRef.current = builtMines;
     contentBlockTypesRef.current = contentState.content.blockTypes;
     goblinPlacementsRef.current = goblinPlacements;
     hiredGoblinsRef.current = hiredGoblins;
@@ -471,6 +501,7 @@ export function App() {
           const targetDestroyed = Boolean(next.blocks[target.row]?.[target.col]?.destroyed);
 
           spawnHitEffectRef.current(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
+          notifyFoundVein(next.lastFoundVein);
 
           if (targetDestroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
             nextActiveCell = findExposedCellForPreferred(next, worker.targetCell);
@@ -509,6 +540,7 @@ export function App() {
         });
 
         spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
+        notifyFoundVein(next.lastFoundVein);
 
         setActiveCell(findExposedCellForPreferred(next, pendingOfflineFinalHit));
         setOfflineSummary((currentSummary) =>
@@ -619,6 +651,7 @@ export function App() {
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
       spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage, targetDestroyed ? next.lastRewards : undefined);
+      notifyFoundVein(next.lastFoundVein);
       setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);
       setPlatformRow((current) => findPlatformRow(next, current));
       return next;
@@ -637,11 +670,14 @@ export function App() {
     setPlatformRow(nextPlatformRow);
     setGoblinPlacements(nextGoblinPlacements);
     setBossEnergy(nextBossEnergy);
+    setBuiltMines([]);
+    setBuiltMineMessage(null);
+    setFoundVeinNotice(null);
     syncVisibleResourceAmounts(nextSession.resources);
     setClockNow(resetAt);
     setOfflineSummary(null);
     setPendingOfflineFinalHit(null);
-    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy);
+    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy, []);
   }
 
   function handleConfirmResetMine() {
@@ -660,6 +696,73 @@ export function App() {
       resourceId: resource.id,
       value
     });
+  }
+
+  function notifyFoundVein(vein: MiningFoundVein | null) {
+    if (!vein || hasBuiltMineForVein(builtMinesRef.current, vein.id)) {
+      return;
+    }
+
+    setFoundVeinNotice(vein);
+    setBuiltMineMessage(`${veinNameById(vein.veinTypeId, contentState.content, labels)} найдена.`);
+  }
+
+  function handleBuildMineFromVein(vein: MiningFoundVein): boolean {
+    if (hasBuiltMineForVein(builtMines, vein.id)) {
+      setBuiltMineMessage("На этой жиле уже построена шахта.");
+      return false;
+    }
+
+    const result = buildMineFromVein({
+      builtMineTypes: contentState.content.builtMineTypes,
+      now: Date.now(),
+      resources: session.resources,
+      vein
+    });
+
+    if (!result.ok) {
+      setBuiltMineMessage(messageForBuildMineFailure(result.reason));
+      return false;
+    }
+
+    setBuiltMines((current) => [...current, result.builtMine]);
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: result.resources
+    }));
+    syncVisibleResourceAmounts(result.resources);
+    setBuiltMineMessage(`${builtMineTypeName(result.builtMine.typeId, contentState.content, labels)} строится.`);
+    return true;
+  }
+
+  function handleCollectBuiltMine(builtMineId: string) {
+    const builtMine = builtMines.find((mine) => mine.id === builtMineId);
+
+    if (!builtMine) {
+      return;
+    }
+
+    const result = collectBuiltMineIncome({
+      builtMine,
+      now: Date.now(),
+      resources: session.resources
+    });
+
+    setBuiltMines((current) => current.map((mine) => (mine.id === builtMineId ? result.builtMine : mine)));
+
+    if (result.collectedAmount <= 0) {
+      setBuiltMineMessage("В хранилище шахты пока пусто.");
+      return;
+    }
+
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: result.resources
+    }));
+    syncVisibleResourceAmounts(result.resources);
+    setBuiltMineMessage(`Собрано ${formatInteger(result.collectedAmount)} ${resourceLabelById(result.builtMine.productionResourceId, labels, contentState.content)}.`);
   }
 
   function handleHireGoblin(goblin: GoblinConfig) {
@@ -732,6 +835,18 @@ export function App() {
             roster={roster}
             rosterMessage={rosterMessage}
           />
+        ) : activeSection === "builtMines" ? (
+          <BuiltMinesSection
+            builtMines={visibleBuiltMines}
+            builtMineTypes={contentState.content.builtMineTypes}
+            content={contentState.content}
+            foundVeins={unbuiltFoundVeins}
+            labels={labels}
+            message={builtMineMessage}
+            onBuildMine={handleBuildMineFromVein}
+            onCollectMine={handleCollectBuiltMine}
+            resources={session.resources}
+          />
         ) : (
           <MinePixiScene
             activeCell={selectedCell}
@@ -750,7 +865,8 @@ export function App() {
           />
         )}
 
-        <section className="boss-panel">
+        {activeSection === "mine" ? (
+          <section className="boss-panel">
           <button
             className={bossEnergyFeedback ? "boss-energy-card warn" : "boss-energy-card"}
             onClick={() => setBossDetailsOpen(true)}
@@ -770,7 +886,55 @@ export function App() {
               <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
             </span>
           </button>
-        </section>
+          </section>
+        ) : null}
+
+        {foundVeinNotice ? (
+          <div className="modal-backdrop" onClick={() => setFoundVeinNotice(null)} role="presentation">
+            <section className="vein-modal" aria-label="Найдена жила" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <p>Найдена жила</p>
+                  <strong>{veinNameById(foundVeinNotice.veinTypeId, contentState.content, labels)}</strong>
+                </div>
+                <button className="icon-button" onClick={() => setFoundVeinNotice(null)} type="button" aria-label="Закрыть">
+                  <X size={18} />
+                </button>
+              </header>
+              <p className="vein-modal-copy">Теперь из нее можно построить шахту с доходом в час.</p>
+              <div className="vein-modal-actions">
+                <button
+                  disabled={
+                    !canBuildFoundVein({
+                      builtMineTypes: contentState.content.builtMineTypes,
+                      builtMines,
+                      resources: session.resources,
+                      vein: foundVeinNotice
+                    })
+                  }
+                  onClick={() => {
+                    if (handleBuildMineFromVein(foundVeinNotice)) {
+                      setFoundVeinNotice(null);
+                      setActiveSection("builtMines");
+                    }
+                  }}
+                  type="button"
+                >
+                  Построить шахту
+                </button>
+                <button
+                  onClick={() => {
+                    setFoundVeinNotice(null);
+                    setActiveSection("builtMines");
+                  }}
+                  type="button"
+                >
+                  К шахтам
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
 
         {settingsOpen ? (
           <div className="modal-backdrop" onClick={() => setSettingsOpen(false)} role="presentation">
@@ -849,7 +1013,7 @@ export function App() {
             <Users size={18} />
             Гоблины
           </button>
-          <button disabled type="button">
+          <button className={activeSection === "builtMines" ? "active" : ""} onClick={() => setActiveSection("builtMines")} type="button">
             <Warehouse size={18} />
             Шахты
           </button>
@@ -900,7 +1064,8 @@ function createRestoredMiningState(
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
       goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
-      bossEnergy: createBossEnergyState(bossEnergyConfig, now)
+      bossEnergy: createBossEnergyState(bossEnergyConfig, now),
+      builtMines: []
     };
   }
 
@@ -915,6 +1080,7 @@ function createRestoredMiningState(
         })
       : createDefaultGoblinPlacements(restoredSession, hiredGoblins, restoredPlatformRow);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
+    const restoredBuiltMines = advanceBuiltMinesProduction(storedSave.builtMines ?? [], now);
 
     return applyOfflineMining(
       content,
@@ -924,6 +1090,7 @@ function createRestoredMiningState(
       roster,
       restoredPlacements,
       restoredBossEnergy,
+      restoredBuiltMines,
       storedSave.savedAt
     );
   } catch {
@@ -936,7 +1103,8 @@ function createRestoredMiningState(
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
       goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
-      bossEnergy: createBossEnergyState(bossEnergyConfig, now)
+      bossEnergy: createBossEnergyState(bossEnergyConfig, now),
+      builtMines: []
     };
   }
 }
@@ -949,6 +1117,7 @@ function applyOfflineMining(
   roster: GoblinRosterState,
   goblinPlacements: GoblinPlacementMap,
   bossEnergy: BossEnergyState,
+  builtMines: BuiltMineState[],
   savedAt: number | undefined
 ): RestoredMiningState {
   const activePlatformRow = findPlatformRow(session, platformRow);
@@ -961,7 +1130,8 @@ function applyOfflineMining(
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
       goblinPlacements,
-      bossEnergy
+      bossEnergy,
+      builtMines
     };
   }
 
@@ -975,7 +1145,8 @@ function applyOfflineMining(
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
       goblinPlacements,
-      bossEnergy
+      bossEnergy,
+      builtMines
     };
   }
 
@@ -995,7 +1166,8 @@ function applyOfflineMining(
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
       goblinPlacements: restoredPlacements,
-      bossEnergy
+      bossEnergy,
+      builtMines
     };
   }
 
@@ -1062,7 +1234,8 @@ function applyOfflineMining(
       placeMissing: false,
       platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow
     }),
-    bossEnergy
+    bossEnergy,
+    builtMines
   };
 }
 
@@ -1182,6 +1355,97 @@ function GoblinSection(props: {
   );
 }
 
+function BuiltMinesSection(props: {
+  builtMines: BuiltMineState[];
+  builtMineTypes: BuiltMineTypeConfig[];
+  content: ContentBundle;
+  foundVeins: MiningFoundVein[];
+  labels: Record<string, string>;
+  message: string | null;
+  onBuildMine: (vein: MiningFoundVein) => boolean;
+  onCollectMine: (builtMineId: string) => void;
+  resources: Record<string, number>;
+}) {
+  const activeMineCount = props.builtMines.filter((builtMine) => builtMine.status === "active").length;
+
+  return (
+    <section className="built-mines" aria-label="Шахты">
+      <header className="section-title">
+        <div>
+          <p>Производство</p>
+          <strong>{props.builtMines.length} шахт</strong>
+        </div>
+        <span>{activeMineCount} активны</span>
+      </header>
+
+      <p className="built-mine-message">{props.message ?? ""}</p>
+
+      <div className="built-mine-list">
+        {props.foundVeins.map((vein) => {
+          const builtMineType = builtMineTypeForVein(vein, props.builtMineTypes);
+          const canBuild = canBuildFoundVein({
+            builtMineTypes: props.builtMineTypes,
+            builtMines: props.builtMines,
+            resources: props.resources,
+            vein
+          });
+
+          return (
+            <article className="found-vein-card" key={vein.id}>
+              <div className="found-vein-icon" aria-hidden="true">
+                <Gem size={22} />
+              </div>
+              <div>
+                <strong>{veinNameById(vein.veinTypeId, props.content, props.labels)}</strong>
+                <span>{builtMineType ? builtMineCostLabel(builtMineType, props.labels, props.content) : "Нет проекта шахты"}</span>
+              </div>
+              <button disabled={!canBuild || !builtMineType} onClick={() => props.onBuildMine(vein)} type="button">
+                Построить
+              </button>
+            </article>
+          );
+        })}
+
+        {props.builtMines.map((builtMine) => {
+          const collectableAmount = Math.floor(builtMine.storedAmount);
+          const storagePercent = builtMine.capacity > 0 ? Math.min(100, (builtMine.storedAmount / builtMine.capacity) * 100) : 0;
+
+          return (
+            <article className="built-mine-card" key={builtMine.id}>
+              <header>
+                <div>
+                  <strong>{builtMineTypeName(builtMine.typeId, props.content, props.labels)}</strong>
+                  <span>{builtMineStatusLabel(builtMine)}</span>
+                </div>
+                <span>{formatNumber(builtMine.productionPerHour)}/ч</span>
+              </header>
+              <div className="built-mine-storage">
+                <span style={{ width: `${storagePercent}%` }} />
+              </div>
+              <footer>
+                <span>
+                  {formatNumber(builtMine.storedAmount)}/{formatNumber(builtMine.capacity)}{" "}
+                  {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)}
+                </span>
+                <button disabled={builtMine.status !== "active" || collectableAmount <= 0} onClick={() => props.onCollectMine(builtMine.id)} type="button">
+                  Собрать {collectableAmount > 0 ? formatInteger(collectableAmount) : ""}
+                </button>
+              </footer>
+            </article>
+          );
+        })}
+
+        {props.foundVeins.length === 0 && props.builtMines.length === 0 ? (
+          <article className="built-mine-empty">
+            <strong>Шахт пока нет</strong>
+            <span>Докопайся до жилы в руднике, чтобы открыть первую постоянную шахту.</span>
+          </article>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function resourceClassName(resourceId: string): string {
   if (resourceId.includes("gold")) {
     return "gold";
@@ -1216,6 +1480,35 @@ function mineTitle(mineTemplate: MineTemplateConfig | undefined, labels: Record<
   }
 
   return `${labelFromNameKey(mineTemplate.displayNameKey, mineTemplate.id, labels)} · ${mineTemplate.depthMeters} м`;
+}
+
+function veinNameById(veinTypeId: string, content: ContentBundle, labels: Record<string, string>): string {
+  const veinType = content.veinTypes.find((item) => item.id === veinTypeId) ?? starterContentBundle.veinTypes.find((item) => item.id === veinTypeId);
+  return veinType ? labelFromNameKey(veinType.nameKey, veinType.id, labels) : veinTypeId;
+}
+
+function builtMineTypeName(typeId: string, content: ContentBundle, labels: Record<string, string>): string {
+  const builtMineType =
+    content.builtMineTypes.find((item) => item.id === typeId) ?? starterContentBundle.builtMineTypes.find((item) => item.id === typeId);
+  return builtMineType ? labelFromNameKey(builtMineType.nameKey, builtMineType.id, labels) : typeId;
+}
+
+function builtMineTypeForVein(vein: MiningFoundVein, builtMineTypes: BuiltMineTypeConfig[]): BuiltMineTypeConfig | undefined {
+  return builtMineTypes.find((builtMineType) => builtMineType.sourceVeinType === vein.veinTypeId);
+}
+
+function builtMineCostLabel(builtMineType: BuiltMineTypeConfig, labels: Record<string, string>, content: ContentBundle): string {
+  if (builtMineType.buildCost.length === 0) {
+    return "Без стоимости";
+  }
+
+  return builtMineType.buildCost
+    .map((cost) => `${cost.amount} ${resourceLabelById(cost.resourceId, labels, content)}`)
+    .join(" · ");
+}
+
+function builtMineStatusLabel(builtMine: BuiltMineState): string {
+  return builtMine.status === "active" ? "Работает" : "Строится";
 }
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
@@ -1291,6 +1584,17 @@ function messageForHireFailure(reason: string): string {
       return "Не хватает ресурсов для найма.";
     default:
       return "Найм не прошел.";
+  }
+}
+
+function messageForBuildMineFailure(reason: string): string {
+  switch (reason) {
+    case "missing_built_mine_type":
+      return "Для этой жилы пока нет проекта шахты.";
+    case "not_enough_resources":
+      return "Не хватает ресурсов для строительства шахты.";
+    default:
+      return "Шахта не построена.";
   }
 }
 
@@ -1526,7 +1830,8 @@ function saveMiningSession(
   activeCell: { row: number; col: number },
   platformRow: number,
   goblinPlacements: GoblinPlacementMap,
-  bossEnergy: BossEnergyState
+  bossEnergy: BossEnergyState,
+  builtMines: BuiltMineState[]
 ): void {
   const payload: StoredMineSave = {
     contentVersion,
@@ -1535,6 +1840,7 @@ function saveMiningSession(
     platformRow: findPlatformRow(session, platformRow),
     goblinPlacements,
     bossEnergy,
+    builtMines,
     savedAt: Date.now()
   };
   localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
