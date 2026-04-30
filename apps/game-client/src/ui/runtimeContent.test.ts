@@ -5,23 +5,54 @@ import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./r
 describe("runtime content", () => {
   it("keeps current starter mine unchanged when it already has test depth", () => {
     expect(createRuntimeContentBundle(starterContentBundle)).toBe(starterContentBundle);
-    expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback:mine-12");
+    expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback:mine-10");
   });
 
-  it("adds reward chest defaults to older published content", () => {
+  it("adds runtime defaults to older published content", () => {
     const legacyContent = structuredClone(starterContentBundle);
     const mine = legacyContent.mineTemplates[0];
 
+    legacyContent.veinTypes = legacyContent.veinTypes.filter((veinType) => veinType.id !== "gold_vein_small");
+    legacyContent.builtMineTypes = legacyContent.builtMineTypes.filter((builtMineType) => builtMineType.id !== "small_gold_mine");
     legacyContent.rewardChestTypes = [];
 
     if (mine) {
+      mine.guaranteedObjects = [
+        {
+          type: "vein",
+          veinTypeId: "copper_vein_small",
+          blockTypeId: "copper_ore",
+          rowRange: [6, 9],
+          count: 1
+        }
+      ];
+      Reflect.deleteProperty(mine, "completionVeinTypeId");
       Reflect.deleteProperty(mine, "completionRewardChestTypeId");
     }
 
     const runtimeContent = createRuntimeContentBundle(legacyContent);
 
+    expect(runtimeContent.veinTypes.map((veinType) => veinType.id)).toContain("gold_vein_small");
+    expect(runtimeContent.builtMineTypes.map((builtMineType) => builtMineType.id)).toContain("small_gold_mine");
     expect(runtimeContent.rewardChestTypes.map((chestType) => chestType.id)).toContain("wooden_completion_chest");
+    expect(runtimeContent.mineTemplates[0]?.completionVeinTypeId).toBe("gold_vein_small");
     expect(runtimeContent.mineTemplates[0]?.completionRewardChestTypeId).toBe("wooden_completion_chest");
+    expect(runtimeContent.mineTemplates[0]?.guaranteedObjects).toEqual([]);
+  });
+
+  it("restores starter mine ordering for older published content", () => {
+    const legacyContent = structuredClone(starterContentBundle);
+    const reversed = [...legacyContent.mineTemplates].reverse();
+
+    legacyContent.mineTemplates = reversed.map((mineTemplate) => {
+      const next = { ...mineTemplate };
+      Reflect.deleteProperty(next, "sortOrder");
+      return next;
+    });
+
+    const runtimeContent = createRuntimeContentBundle(legacyContent);
+
+    expect(runtimeContent.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
   });
 
   it("normalizes older published mine content to the 60m runtime depth", () => {
@@ -71,15 +102,15 @@ describe("runtime content", () => {
     const runtimeContent = createRuntimeContentBundle(content);
     const runtimeMine = runtimeContent.mineTemplates[0];
 
-    expect(runtimeMine?.height).toBe(12);
-    expect(runtimeMine?.depthMeters).toBe(60);
-    expect(runtimeMine?.id).toBe("old_well_01_test_12");
+    expect(runtimeMine?.height).toBe(10);
+    expect(runtimeMine?.depthMeters).toBe(10);
+    expect(runtimeMine?.id).toBe("old_well_01_test_10");
     expect(runtimeMine?.strata.map((stratum) => [stratum.fromRow, stratum.toRow])).toEqual([
-      [0, 3],
-      [4, 7],
-      [8, 11]
+      [0, 2],
+      [3, 5],
+      [6, 9]
     ]);
-    expect(runtimeMine?.strata.at(-1)?.toRow).toBe(11);
-    expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-12");
+    expect(runtimeMine?.strata.at(-1)?.toRow).toBe(9);
+    expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-10");
   });
 });

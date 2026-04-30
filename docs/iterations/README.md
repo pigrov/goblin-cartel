@@ -49,3 +49,4 @@
 - `0044_next_mine_progression` - added a second mine template and client progression that unlocks the next mine after building a permanent mine from the current vein.
 - `0045_mine_completion_event` - added a one-time mine completion modal with summary, next-mine action, and persisted dismissal state.
 - `0046_reward_chest_opening` - added reward chest content, core reward rolling, and a full-screen chest opening flow before next-mine continuation.
+- `0047_mine_clear_vein_transition_chest` - moved vein discovery to full mine clear, fixed mine ordering, shortened test mines to 10m, and made transition chests open only when starting the next mine.

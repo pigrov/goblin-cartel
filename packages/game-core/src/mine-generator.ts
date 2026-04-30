@@ -3,6 +3,7 @@ export interface MineTemplate {
   width: number;
   height: number;
   depthMeters?: number;
+  completionVeinTypeId?: string;
   strata: MineStratum[];
   guaranteedObjects?: GuaranteedObject[];
 }
@@ -36,6 +37,7 @@ export interface GeneratedMine {
   width: number;
   height: number;
   depthMeters: number;
+  completionVeinTypeId?: string;
   blocks: GeneratedBlock[][];
 }
 
@@ -64,6 +66,7 @@ export function generateMine(template: MineTemplate, seed: string): GeneratedMin
     width: template.width,
     height: template.height,
     depthMeters: template.depthMeters ?? template.height,
+    completionVeinTypeId: template.completionVeinTypeId,
     blocks
   };
 }

@@ -1,10 +1,10 @@
 import { starterContentBundle, type ContentBundle } from "@goblin-cartel/content-schemas";
 
-const runtimeTestMineRows = 12;
-const runtimeMineMetersPerRow = 5;
+const runtimeTestMineRows = 10;
+const runtimeMineMetersPerRow = 1;
 
 export function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
-  const contentWithDefaults = withRewardChestDefaults(content);
+  const contentWithDefaults = withStarterRuntimeDefaults(content);
   const debugRows = readDebugMineRows();
   const targetRows = debugRows ?? runtimeTestMineRows;
   const targetDepthMeters = targetRows * runtimeMineMetersPerRow;
@@ -76,48 +76,97 @@ function readDebugMineRows(): number | null {
   return rows;
 }
 
-function withRewardChestDefaults(content: ContentBundle): ContentBundle {
-  const rewardChestTypes = [...(content.rewardChestTypes ?? [])];
-  const rewardChestTypeIds = new Set(rewardChestTypes.map((chestType) => chestType.id));
+function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
+  const veinTypes = mergeStarterItems(content.veinTypes ?? [], starterContentBundle.veinTypes);
+  const builtMineTypes = mergeStarterItems(content.builtMineTypes ?? [], starterContentBundle.builtMineTypes);
+  const rewardChestTypes = mergeStarterItems(content.rewardChestTypes ?? [], starterContentBundle.rewardChestTypes);
   let changed = false;
 
-  for (const starterRewardChestType of starterContentBundle.rewardChestTypes) {
-    if (!rewardChestTypeIds.has(starterRewardChestType.id)) {
-      rewardChestTypes.push(starterRewardChestType);
-      changed = true;
-    }
+  if (veinTypes !== content.veinTypes || builtMineTypes !== content.builtMineTypes || rewardChestTypes !== content.rewardChestTypes) {
+    changed = true;
   }
 
-  const mineTemplates = content.mineTemplates.map((mineTemplate) => {
-    if (mineTemplate.completionRewardChestTypeId) {
-      return mineTemplate;
-    }
-
+  const mineTemplates = sortMineTemplates(content.mineTemplates).map((mineTemplate) => {
     const starterMineTemplate = findStarterMineTemplate(mineTemplate.id);
+    let nextMineTemplate = mineTemplate;
 
-    if (!starterMineTemplate?.completionRewardChestTypeId) {
-      return mineTemplate;
+    if (!nextMineTemplate.completionVeinTypeId && starterMineTemplate?.completionVeinTypeId) {
+      nextMineTemplate = {
+        ...nextMineTemplate,
+        completionVeinTypeId: starterMineTemplate.completionVeinTypeId
+      };
+      changed = true;
     }
 
-    changed = true;
-    return {
-      ...mineTemplate,
-      completionRewardChestTypeId: starterMineTemplate.completionRewardChestTypeId
-    };
+    if (!nextMineTemplate.completionRewardChestTypeId && starterMineTemplate?.completionRewardChestTypeId) {
+      nextMineTemplate = {
+        ...nextMineTemplate,
+        completionRewardChestTypeId: starterMineTemplate.completionRewardChestTypeId
+      };
+      changed = true;
+    }
+
+    if (!nextMineTemplate.sortOrder && starterMineTemplate?.sortOrder) {
+      nextMineTemplate = {
+        ...nextMineTemplate,
+        sortOrder: starterMineTemplate.sortOrder
+      };
+      changed = true;
+    }
+
+    if (nextMineTemplate.completionVeinTypeId && (nextMineTemplate.guaranteedObjects ?? []).some((object) => object.type === "vein")) {
+      nextMineTemplate = {
+        ...nextMineTemplate,
+        guaranteedObjects: (nextMineTemplate.guaranteedObjects ?? []).filter((object) => object.type !== "vein")
+      };
+      changed = true;
+    }
+
+    return nextMineTemplate;
   });
 
   return changed
     ? {
         ...content,
+        builtMineTypes,
         mineTemplates,
-        rewardChestTypes
+        rewardChestTypes,
+        veinTypes
       }
     : content;
+}
+
+function mergeStarterItems<T extends { id: string }>(items: T[], starterItems: readonly T[]): T[] {
+  const itemIds = new Set(items.map((item) => item.id));
+  const missingStarterItems = starterItems.filter((starterItem) => !itemIds.has(starterItem.id));
+  return missingStarterItems.length > 0 ? [...items, ...missingStarterItems] : items;
 }
 
 function findStarterMineTemplate(mineTemplateId: string): ContentBundle["mineTemplates"][number] | undefined {
   const baseMineTemplateId = mineTemplateId.replace(/_(?:debug|test)_\d+$/, "");
   return starterContentBundle.mineTemplates.find((mineTemplate) => mineTemplate.id === mineTemplateId || mineTemplate.id === baseMineTemplateId);
+}
+
+function sortMineTemplates(mineTemplates: ContentBundle["mineTemplates"]): ContentBundle["mineTemplates"] {
+  const starterOrder = new Map(starterContentBundle.mineTemplates.map((mineTemplate, index) => [mineTemplate.id, index]));
+
+  return [...mineTemplates].sort((left, right) => {
+    const leftSortOrder = left.sortOrder || Number.POSITIVE_INFINITY;
+    const rightSortOrder = right.sortOrder || Number.POSITIVE_INFINITY;
+
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder;
+    }
+
+    const leftOrder = starterOrder.get(left.id) ?? Number.POSITIVE_INFINITY;
+    const rightOrder = starterOrder.get(right.id) ?? Number.POSITIVE_INFINITY;
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
 }
 
 function resizeStrata(strata: ContentBundle["mineTemplates"][number]["strata"], targetRows: number) {

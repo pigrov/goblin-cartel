@@ -144,11 +144,13 @@ export const guaranteedObjectSchema = z.discriminatedUnion("type", [
 export const mineTemplateSchema = z.object({
   id: z.string().min(1),
   displayNameKey: z.string().min(1),
+  sortOrder: z.number().int().default(0),
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   depthMeters: z.number().int().positive(),
   difficulty: z.number().positive(),
   seedMode: z.enum(["fixed", "random", "playerBased"]),
+  completionVeinTypeId: z.string().min(1).optional(),
   completionRewardChestTypeId: z.string().min(1).optional(),
   strata: z.array(
     z.object({
@@ -307,6 +309,13 @@ export const starterContentBundle: ContentBundle = {
   ],
   veinTypes: [
     {
+      id: "gold_vein_small",
+      nameKey: "vein.gold_small.name",
+      resourceId: "gold",
+      rarity: "common",
+      assetId: "vein_gold_small_v1"
+    },
+    {
       id: "copper_vein_small",
       nameKey: "vein.copper_small.name",
       resourceId: "copper_ore",
@@ -315,6 +324,20 @@ export const starterContentBundle: ContentBundle = {
     }
   ],
   builtMineTypes: [
+    {
+      id: "small_gold_mine",
+      nameKey: "built_mine.small_gold.name",
+      sourceVeinType: "gold_vein_small",
+      productionResourceId: "gold",
+      baseProductionPerHour: 90,
+      baseCapacity: 220,
+      buildCost: [
+        { resourceId: "stone", amount: 40 },
+        { resourceId: "copper_ore", amount: 10 }
+      ],
+      buildTimeSec: 45,
+      assetId: "built_mine_gold_small_v1"
+    },
     {
       id: "small_copper_mine",
       nameKey: "built_mine.small_copper.name",
@@ -369,17 +392,19 @@ export const starterContentBundle: ContentBundle = {
     {
       id: "old_well_01",
       displayNameKey: "mine.old_well.name",
+      sortOrder: 10,
       width: 8,
-      height: 12,
-      depthMeters: 60,
+      height: 10,
+      depthMeters: 10,
       difficulty: 1,
       seedMode: "playerBased",
+      completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "wooden_completion_chest",
       strata: [
         {
           id: "top_soil",
           fromRow: 0,
-          toRow: 3,
+          toRow: 2,
           blockWeights: {
             dirt: 70,
             stone: 25,
@@ -388,8 +413,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "stone_layer",
-          fromRow: 4,
-          toRow: 7,
+          fromRow: 3,
+          toRow: 5,
           blockWeights: {
             dirt: 20,
             stone: 60,
@@ -399,8 +424,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "copper_layer",
-          fromRow: 8,
-          toRow: 11,
+          fromRow: 6,
+          toRow: 9,
           blockWeights: {
             stone: 55,
             copper_ore: 40,
@@ -408,30 +433,24 @@ export const starterContentBundle: ContentBundle = {
           }
         }
       ],
-      guaranteedObjects: [
-        {
-          type: "vein",
-          veinTypeId: "copper_vein_small",
-          blockTypeId: "copper_ore",
-          rowRange: [8, 11],
-          count: 1
-        }
-      ]
+      guaranteedObjects: []
     },
     {
       id: "abandoned_crosscut_02",
       displayNameKey: "mine.abandoned_crosscut.name",
+      sortOrder: 20,
       width: 8,
-      height: 12,
-      depthMeters: 60,
+      height: 10,
+      depthMeters: 10,
       difficulty: 1.18,
       seedMode: "playerBased",
+      completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
       strata: [
         {
           id: "top_rubble",
           fromRow: 0,
-          toRow: 3,
+          toRow: 2,
           blockWeights: {
             dirt: 45,
             stone: 50,
@@ -440,8 +459,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "old_supports",
-          fromRow: 4,
-          toRow: 7,
+          fromRow: 3,
+          toRow: 5,
           blockWeights: {
             dirt: 12,
             stone: 66,
@@ -451,8 +470,8 @@ export const starterContentBundle: ContentBundle = {
         },
         {
           id: "deep_copper_cut",
-          fromRow: 8,
-          toRow: 11,
+          fromRow: 6,
+          toRow: 9,
           blockWeights: {
             stone: 48,
             copper_ore: 47,
@@ -460,15 +479,7 @@ export const starterContentBundle: ContentBundle = {
           }
         }
       ],
-      guaranteedObjects: [
-        {
-          type: "vein",
-          veinTypeId: "copper_vein_small",
-          blockTypeId: "copper_ore",
-          rowRange: [8, 11],
-          count: 1
-        }
-      ]
+      guaranteedObjects: []
     }
   ],
   goblins: [
@@ -695,7 +706,9 @@ export const starterContentBundle: ContentBundle = {
       "block.chest_wooden.name": "Деревянный сундук",
       "mine.old_well.name": "Старый колодец",
       "mine.abandoned_crosscut.name": "Заброшенный штрек",
+      "vein.gold_small.name": "Золотая жила",
       "vein.copper_small.name": "Медная жила",
+      "built_mine.small_gold.name": "Малая золотая шахта",
       "built_mine.small_copper.name": "Малая медная шахта",
       "reward_chest.wooden.name": "Деревянный сундук",
       "reward_chest.iron.name": "Железный сундук",
@@ -779,6 +792,10 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
       errors.push(
         `mineTemplates.${mineTemplate.id} references missing completion reward chest ${mineTemplate.completionRewardChestTypeId}`
       );
+    }
+
+    if (mineTemplate.completionVeinTypeId && !veinTypeIds.has(mineTemplate.completionVeinTypeId)) {
+      errors.push(`mineTemplates.${mineTemplate.id} references missing completion vein type ${mineTemplate.completionVeinTypeId}`);
     }
 
     for (const stratum of mineTemplate.strata) {

@@ -186,7 +186,26 @@ export function hitMineBlock(
   const blockType = blockTypes.find((item) => item.id === target.blockTypeId);
   const rewards = destroyed && blockType ? rollRewards(blockType.rewardTable, input.random ?? Math.random) : {};
   const nextResources = { ...session.resources };
-  const foundVein = destroyed ? createFoundVein(session, target) : null;
+  const nextDestroyedBlocks = session.destroyedBlocks + (destroyed ? 1 : 0);
+  const nextBlocks = session.blocks.map((row, rowIndex) =>
+    row.map((block, colIndex) =>
+      rowIndex === input.row && colIndex === input.col
+        ? {
+            ...block,
+            hp: nextHp,
+            destroyed
+          }
+        : block
+    )
+  );
+  const nextSessionForDiscovery = {
+    ...session,
+    blocks: nextBlocks,
+    destroyedBlocks: nextDestroyedBlocks
+  };
+  const foundVein = destroyed
+    ? createFoundVein(session, target) ?? createMineCompletionFoundVeinIfNeeded(nextSessionForDiscovery, session.foundVeins)
+    : null;
 
   for (const [resourceId, amount] of Object.entries(rewards)) {
     nextResources[resourceId] = (nextResources[resourceId] ?? 0) + amount;
@@ -194,22 +213,12 @@ export function hitMineBlock(
 
   return {
     ...session,
-    blocks: session.blocks.map((row, rowIndex) =>
-      row.map((block, colIndex) =>
-        rowIndex === input.row && colIndex === input.col
-          ? {
-              ...block,
-              hp: nextHp,
-              destroyed
-            }
-          : block
-      )
-    ),
+    blocks: nextBlocks,
     resources: nextResources,
     lastRewards: rewards,
     lastFoundVein: foundVein,
     foundVeins: foundVein ? addFoundVein(session.foundVeins, foundVein) : session.foundVeins,
-    destroyedBlocks: session.destroyedBlocks + (destroyed ? 1 : 0)
+    destroyedBlocks: nextDestroyedBlocks
   };
 }
 
@@ -428,6 +437,27 @@ export function isMineRowCleared(session: MiningSession, row: number): boolean {
   return rowBlocks.length === 0 || rowBlocks.every((block) => block.destroyed);
 }
 
+export function isMineFullyCleared(session: MiningSession): boolean {
+  return session.blocks.every((row) => row.every((block) => block.destroyed));
+}
+
+export function createMineCompletionFoundVein(session: MiningSession): MiningFoundVein | null {
+  const veinTypeId = session.mine.completionVeinTypeId;
+
+  if (!veinTypeId || !isMineFullyCleared(session)) {
+    return null;
+  }
+
+  return {
+    id: `${session.mine.templateId}:${session.mine.seed}:completion:${veinTypeId}`,
+    mineTemplateId: session.mine.templateId,
+    seed: session.mine.seed,
+    row: Math.max(0, session.mine.height - 1),
+    col: Math.max(0, Math.floor(session.mine.width / 2)),
+    veinTypeId
+  };
+}
+
 export function exportMiningSessionSave(session: MiningSession): MiningSessionSave {
   return {
     mineTemplateId: session.mine.templateId,
@@ -476,7 +506,7 @@ export function restoreMiningSession(session: MiningSession, save: MiningSession
     })
   );
 
-  return {
+  const restoredSession = {
     ...session,
     blocks,
     resources: { ...save.resources },
@@ -484,6 +514,12 @@ export function restoreMiningSession(session: MiningSession, save: MiningSession
     lastFoundVein: null,
     foundVeins: save.foundVeins?.map((vein) => ({ ...vein })) ?? deriveFoundVeinsFromBlocks(session, blocks),
     destroyedBlocks
+  };
+  const completionFoundVein = createMineCompletionFoundVeinIfNeeded(restoredSession, restoredSession.foundVeins);
+
+  return {
+    ...restoredSession,
+    foundVeins: completionFoundVein ? addFoundVein(restoredSession.foundVeins, completionFoundVein) : restoredSession.foundVeins
   };
 }
 
@@ -508,6 +544,19 @@ function addFoundVein(foundVeins: MiningFoundVein[], vein: MiningFoundVein): Min
   }
 
   return [...foundVeins, vein];
+}
+
+function createMineCompletionFoundVeinIfNeeded(
+  session: MiningSession,
+  foundVeins: readonly MiningFoundVein[]
+): MiningFoundVein | null {
+  const vein = createMineCompletionFoundVein(session);
+
+  if (!vein || foundVeins.some((item) => item.id === vein.id)) {
+    return null;
+  }
+
+  return vein;
 }
 
 function deriveFoundVeinsFromBlocks(session: MiningSession, blocks: MiningBlockState[][]): MiningFoundVein[] {

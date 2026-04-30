@@ -18,6 +18,7 @@ const firstMine = {
   height: 12,
   id: "first_mine",
   seedMode: "playerBased",
+  sortOrder: 10,
   strata: [],
   width: 8
 } satisfies MineTemplateConfig;

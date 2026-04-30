@@ -8,6 +8,7 @@ import {
   exportMiningSessionSave,
   findPlatformRow,
   hitMineBlock,
+  isMineFullyCleared,
   isMineRowCleared,
   restoreMiningSession,
   type MiningBlockType
@@ -123,6 +124,54 @@ describe("mining session", () => {
     expect(destroyed.foundVeins).toEqual([destroyed.lastFoundVein]);
     expect(save.foundVeins).toEqual(destroyed.foundVeins);
     expect(restored.foundVeins).toEqual(destroyed.foundVeins);
+  });
+
+  it("records completion veins only after the whole mine is cleared", () => {
+    const mine = generateMine(
+      {
+        ...template,
+        completionVeinTypeId: "gold_vein_small"
+      },
+      "player-1"
+    );
+    const session = createMiningSession({ mine, blockTypes });
+    const firstDestroyed = hitMineBlock(session, blockTypes, {
+      row: 0,
+      col: 0,
+      damage: 10,
+      random: () => 0
+    });
+    const secondDestroyed = hitMineBlock(firstDestroyed, blockTypes, {
+      row: 0,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+    const thirdDestroyed = hitMineBlock(secondDestroyed, blockTypes, {
+      row: 1,
+      col: 0,
+      damage: 10,
+      random: () => 0
+    });
+    const cleared = hitMineBlock(thirdDestroyed, blockTypes, {
+      row: 1,
+      col: 1,
+      damage: 10,
+      random: () => 0
+    });
+    const restored = restoreMiningSession(createMiningSession({ mine, blockTypes }), exportMiningSessionSave(cleared));
+
+    expect(firstDestroyed.lastFoundVein).toBeNull();
+    expect(thirdDestroyed.lastFoundVein).toBeNull();
+    expect(isMineFullyCleared(cleared)).toBe(true);
+    expect(cleared.lastFoundVein).toMatchObject({
+      id: "old_well_01:player-1:completion:gold_vein_small",
+      mineTemplateId: "old_well_01",
+      seed: "player-1",
+      veinTypeId: "gold_vein_small"
+    });
+    expect(cleared.foundVeins).toEqual([cleared.lastFoundVein]);
+    expect(restored.foundVeins).toEqual(cleared.foundVeins);
   });
 
   it("exports and restores damaged blocks and resources", () => {

@@ -103,12 +103,32 @@ describe("content schemas", () => {
     expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion reward chest missing_chest");
   });
 
+  it("rejects missing mine completion vein references", () => {
+    const broken = structuredClone(starterContentBundle);
+    const mineTemplate = broken.mineTemplates[0];
+
+    if (mineTemplate) {
+      mineTemplate.completionVeinTypeId = "missing_vein";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion vein type missing_vein");
+  });
+
   it("rejects missing vein references in guaranteed mine objects", () => {
     const broken = structuredClone(starterContentBundle);
-    const guaranteedObject = broken.mineTemplates[0]?.guaranteedObjects[0];
+    const mineTemplate = broken.mineTemplates[0];
 
-    if (guaranteedObject?.type === "vein") {
-      guaranteedObject.veinTypeId = "missing_vein";
+    if (mineTemplate) {
+      mineTemplate.guaranteedObjects.push({
+        type: "vein",
+        veinTypeId: "missing_vein",
+        blockTypeId: "copper_ore",
+        rowRange: [6, 9],
+        count: 1
+      });
     }
 
     const result = validateContentBundle(broken);
@@ -119,7 +139,7 @@ describe("content schemas", () => {
 
   it("rejects built mine configs with missing production resources", () => {
     const broken = structuredClone(starterContentBundle);
-    const builtMine = broken.builtMineTypes[0];
+    const builtMine = broken.builtMineTypes.find((item) => item.id === "small_copper_mine");
 
     if (builtMine) {
       builtMine.productionResourceId = "missing_resource";

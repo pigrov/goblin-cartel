@@ -171,6 +171,28 @@ describe("content service", () => {
     expect(current?.content.mineTemplates[0]?.id).toBe("old_well_01");
   });
 
+  it("restores mine template order when reading content entities", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+
+    const reversedContent = {
+      ...starterContentBundle,
+      mineTemplates: [...starterContentBundle.mineTemplates].reverse().map((mineTemplate) => {
+        const next = structuredClone(mineTemplate);
+        Reflect.deleteProperty(next, "sortOrder");
+        return next;
+      })
+    };
+
+    await service.replaceContent("admin-1", detail.version.id, reversedContent);
+    const current = await service.getVersion("admin-1", detail.version.id);
+
+    expect(current?.content.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
+  });
+
   it("rejects invalid content replacement", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({ store });

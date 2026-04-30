@@ -53,8 +53,7 @@ import {
   canMoveToNextMine,
   findMineTemplateIndex,
   findNextMineTemplate,
-  markMineCompletionNoticeSeen,
-  shouldShowMineCompletionNotice
+  markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
@@ -473,42 +472,18 @@ export function App() {
     () => (pendingRewardChest ? findRewardChestType(contentState.content, pendingRewardChest.chestTypeId) : null),
     [contentState.content, pendingRewardChest]
   );
-
-  useEffect(() => {
-    if (
-      !sessionReady ||
-      foundVeinNotice ||
-      mineCompletionNoticeOpen ||
-      pendingRewardChest ||
-      !shouldShowMineCompletionNotice({
-        canStartNextMine,
-        mineTemplateId: session.mine.templateId,
-        seenMineCompletionNoticeIds: mineCompletionNoticeSeenIds
+  const foundVeinBuiltMineType = useMemo(
+    () => (foundVeinNotice ? builtMineTypeForVein(foundVeinNotice, contentState.content.builtMineTypes) : undefined),
+    [contentState.content.builtMineTypes, foundVeinNotice]
+  );
+  const canBuildFoundVeinNotice = foundVeinNotice
+    ? canBuildFoundVein({
+        builtMineTypes: contentState.content.builtMineTypes,
+        builtMines,
+        resources: session.resources,
+        vein: foundVeinNotice
       })
-    ) {
-      return;
-    }
-
-    const rewardChest = createMineCompletionRewardChest(contentState.content, session.mine.templateId);
-
-    if (rewardChest) {
-      setPendingRewardChest(rewardChest);
-      setRewardChestStage("closed");
-      setChestRewardFlyouts([]);
-      return;
-    }
-
-    setMineCompletionNoticeOpen(true);
-  }, [
-    canStartNextMine,
-    contentState.content,
-    foundVeinNotice,
-    mineCompletionNoticeOpen,
-    mineCompletionNoticeSeenIds,
-    pendingRewardChest,
-    session.mine.templateId,
-    sessionReady
-  ]);
+    : false;
 
   const platformCells = useMemo(() => findPlatformCells(session, currentPlatformRow), [currentPlatformRow, session]);
   const platformCellKeys = useMemo(() => new Set(platformCells.map(cellKey)), [platformCells]);
@@ -823,10 +798,6 @@ export function App() {
   }
 
   function handleStartNextMine() {
-    if (openMineCompletionRewardChestIfNeeded()) {
-      return;
-    }
-
     const nextMine = findNextMineTemplate(contentState.content.mineTemplates, session.mine.templateId);
 
     if (!nextMine) {
@@ -836,6 +807,10 @@ export function App() {
 
     if (!canStartNextMine) {
       setBuiltMineMessage("Сначала построй шахту из найденной жилы.");
+      return;
+    }
+
+    if (openMineCompletionRewardChestIfNeeded()) {
       return;
     }
 
@@ -869,6 +844,10 @@ export function App() {
   }
 
   function openMineCompletionRewardChestIfNeeded(): boolean {
+    if (!canStartNextMine) {
+      return false;
+    }
+
     if (mineCompletionNoticeSeenIds.includes(session.mine.templateId)) {
       return false;
     }
@@ -958,7 +937,7 @@ export function App() {
     }
 
     setFoundVeinNotice(vein);
-    setBuiltMineMessage(`${veinNameById(vein.veinTypeId, contentState.content, labels)} найдена.`);
+    setBuiltMineMessage(`Рудник расчищен. ${veinNameById(vein.veinTypeId, contentState.content, labels)} найдена.`);
   }
 
   function handleBuildMineFromVein(vein: MiningFoundVein): boolean {
@@ -1149,27 +1128,38 @@ export function App() {
 
         {foundVeinNotice ? (
           <div className="modal-backdrop" onClick={() => setFoundVeinNotice(null)} role="presentation">
-            <section className="vein-modal" aria-label="Найдена жила" onClick={(event) => event.stopPropagation()}>
+            <section className="vein-modal" aria-label="Рудник расчищен" onClick={(event) => event.stopPropagation()}>
               <header>
                 <div>
-                  <p>Найдена жила</p>
+                  <p>Рудник расчищен</p>
                   <strong>{veinNameById(foundVeinNotice.veinTypeId, contentState.content, labels)}</strong>
                 </div>
                 <button className="icon-button" onClick={() => setFoundVeinNotice(null)} type="button" aria-label="Закрыть">
                   <X size={18} />
                 </button>
               </header>
-              <p className="vein-modal-copy">Теперь из нее можно построить шахту с доходом в час.</p>
+              <p className="vein-modal-copy">
+                Ура, рудник полностью расчищен. Найдена жила: {veinNameById(foundVeinNotice.veinTypeId, contentState.content, labels)}.
+                Построй шахту, чтобы она автоматически приносила ресурс.
+              </p>
+              {foundVeinBuiltMineType ? (
+                <div className="vein-modal-stats">
+                  <div>
+                    <span>Стоимость</span>
+                    <strong>{builtMineCostLabel(foundVeinBuiltMineType, labels, contentState.content)}</strong>
+                  </div>
+                  <div>
+                    <span>Добыча</span>
+                    <strong>
+                      {formatNumber(foundVeinBuiltMineType.baseProductionPerHour)}/ч{" "}
+                      {resourceLabelById(foundVeinBuiltMineType.productionResourceId, labels, contentState.content)}
+                    </strong>
+                  </div>
+                </div>
+              ) : null}
               <div className="vein-modal-actions">
                 <button
-                  disabled={
-                    !canBuildFoundVein({
-                      builtMineTypes: contentState.content.builtMineTypes,
-                      builtMines,
-                      resources: session.resources,
-                      vein: foundVeinNotice
-                    })
-                  }
+                  disabled={!canBuildFoundVeinNotice || !foundVeinBuiltMineType}
                   onClick={() => {
                     if (handleBuildMineFromVein(foundVeinNotice)) {
                       setFoundVeinNotice(null);
@@ -1178,7 +1168,7 @@ export function App() {
                   }}
                   type="button"
                 >
-                  Построить шахту
+                  Построить
                 </button>
                 <button
                   onClick={() => {
@@ -1187,7 +1177,7 @@ export function App() {
                   }}
                   type="button"
                 >
-                  К шахтам
+                  Построить позже
                 </button>
               </div>
             </section>

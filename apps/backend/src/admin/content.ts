@@ -12,6 +12,7 @@ export type ContentEntityType =
   | "blockType"
   | "veinType"
   | "builtMineType"
+  | "rewardChestType"
   | "mineTemplate"
   | "goblin"
   | "localization";
@@ -333,15 +334,44 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   );
 
   return {
-    resources: entities.filter((entity) => entity.entityType === "resource").map((entity) => entity.data),
-    blockTypes: entities.filter((entity) => entity.entityType === "blockType").map((entity) => entity.data),
-    veinTypes: entities.filter((entity) => entity.entityType === "veinType").map((entity) => entity.data),
-    builtMineTypes: entities.filter((entity) => entity.entityType === "builtMineType").map((entity) => entity.data),
-    rewardChestTypes: entities.filter((entity) => entity.entityType === "rewardChestType").map((entity) => entity.data),
-    mineTemplates: entities.filter((entity) => entity.entityType === "mineTemplate").map((entity) => entity.data),
-    goblins: entities.filter((entity) => entity.entityType === "goblin").map((entity) => entity.data),
+    resources: sortContentItems(entities, "resource", starterContentBundle.resources),
+    blockTypes: sortContentItems(entities, "blockType", starterContentBundle.blockTypes),
+    veinTypes: sortContentItems(entities, "veinType", starterContentBundle.veinTypes),
+    builtMineTypes: sortContentItems(entities, "builtMineType", starterContentBundle.builtMineTypes),
+    rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
+    mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
+    goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     localization
   } as ContentBundle;
+}
+
+function sortContentItems<T extends { id: string; sortOrder?: number }>(
+  entities: ContentEntityRecord[],
+  entityType: string,
+  starterItems: readonly T[]
+): T[] {
+  const starterOrder = new Map(starterItems.map((item, index) => [item.id, index]));
+
+  return entities
+    .filter((entity) => entity.entityType === entityType)
+    .map((entity) => entity.data as T)
+    .sort((left, right) => {
+      const leftSortOrder = typeof left.sortOrder === "number" ? left.sortOrder : Number.POSITIVE_INFINITY;
+      const rightSortOrder = typeof right.sortOrder === "number" ? right.sortOrder : Number.POSITIVE_INFINITY;
+
+      if (leftSortOrder !== rightSortOrder) {
+        return leftSortOrder - rightSortOrder;
+      }
+
+      const leftStarterOrder = starterOrder.get(left.id) ?? Number.POSITIVE_INFINITY;
+      const rightStarterOrder = starterOrder.get(right.id) ?? Number.POSITIVE_INFINITY;
+
+      if (leftStarterOrder !== rightStarterOrder) {
+        return leftStarterOrder - rightStarterOrder;
+      }
+
+      return left.id.localeCompare(right.id);
+    });
 }
 
 function detailToRecord(detail: ContentVersionDetail): ContentVersionRecord {
