@@ -73,6 +73,34 @@ describe("content schemas", () => {
     expect(result.errors).toContain("mineTemplates.old_well_01.strata.top_soil references missing block missing_block");
   });
 
+  it("rejects missing vein references in guaranteed mine objects", () => {
+    const broken = structuredClone(starterContentBundle);
+    const guaranteedObject = broken.mineTemplates[0]?.guaranteedObjects[0];
+
+    if (guaranteedObject?.type === "vein") {
+      guaranteedObject.veinTypeId = "missing_vein";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("mineTemplates.old_well_01.guaranteedObjects.vein references missing vein type missing_vein");
+  });
+
+  it("rejects built mine configs with missing production resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const builtMine = broken.builtMineTypes[0];
+
+    if (builtMine) {
+      builtMine.productionResourceId = "missing_resource";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("builtMineTypes.small_copper_mine references missing production resource missing_resource");
+  });
+
   it("accepts legacy content without localization", () => {
     const legacy = structuredClone(starterContentBundle);
     Reflect.deleteProperty(legacy, "localization");

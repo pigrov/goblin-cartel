@@ -52,6 +52,10 @@ class MemoryContentStore implements ContentStore {
     const rows = [
       ...content.resources.map((resource) => this.createEntity(contentVersionId, "resource", resource.id, resource)),
       ...content.blockTypes.map((blockType) => this.createEntity(contentVersionId, "blockType", blockType.id, blockType)),
+      ...content.veinTypes.map((veinType) => this.createEntity(contentVersionId, "veinType", veinType.id, veinType)),
+      ...content.builtMineTypes.map((builtMineType) =>
+        this.createEntity(contentVersionId, "builtMineType", builtMineType.id, builtMineType)
+      ),
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),

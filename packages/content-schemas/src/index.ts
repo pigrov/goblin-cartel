@@ -83,6 +83,26 @@ export const resourceSchema = z.object({
   sortOrder: z.number().int()
 });
 
+export const veinTypeSchema = z.object({
+  id: z.string().min(1),
+  nameKey: z.string().min(1),
+  resourceId: z.string().min(1),
+  rarity: z.enum(["common", "rare", "epic", "legendary"]).default("common"),
+  assetId: z.string().min(1)
+});
+
+export const builtMineTypeSchema = z.object({
+  id: z.string().min(1),
+  nameKey: z.string().min(1),
+  sourceVeinType: z.string().min(1),
+  productionResourceId: z.string().min(1),
+  baseProductionPerHour: z.number().positive(),
+  baseCapacity: z.number().positive(),
+  buildCost: z.array(resourceAmountSchema).default([]),
+  buildTimeSec: z.number().int().nonnegative().default(0),
+  assetId: z.string().min(1)
+});
+
 export const blockTypeSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -96,6 +116,22 @@ export const blockTypeSchema = z.object({
   rewardTable: z.array(rewardEntrySchema),
   specialBehavior: z.enum(["none", "explosion", "chest"]).default("none")
 });
+
+export const guaranteedObjectSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("vein"),
+    veinTypeId: z.string().min(1),
+    blockTypeId: z.string().min(1).optional(),
+    rowRange: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
+    count: z.number().int().positive()
+  }),
+  z.object({
+    type: z.literal("chest"),
+    blockTypeId: z.string().min(1),
+    rowRange: z.tuple([z.number().int().nonnegative(), z.number().int().nonnegative()]),
+    count: z.number().int().positive()
+  })
+]);
 
 export const mineTemplateSchema = z.object({
   id: z.string().min(1),
@@ -112,7 +148,8 @@ export const mineTemplateSchema = z.object({
       toRow: z.number().int().nonnegative(),
       blockWeights: z.record(z.string().min(1), z.number().positive())
     })
-  )
+  ),
+  guaranteedObjects: z.array(guaranteedObjectSchema).default([])
 });
 
 export const goblinSchema = z.object({
@@ -136,6 +173,8 @@ export const contentBundleSchema = z
   .object({
     resources: z.array(resourceSchema).min(1),
     blockTypes: z.array(blockTypeSchema).min(1),
+    veinTypes: z.array(veinTypeSchema).default([]),
+    builtMineTypes: z.array(builtMineTypeSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
     localization: localizationSchema
@@ -143,7 +182,10 @@ export const contentBundleSchema = z
   .strict();
 
 export type ResourceConfig = z.infer<typeof resourceSchema>;
+export type VeinTypeConfig = z.infer<typeof veinTypeSchema>;
+export type BuiltMineTypeConfig = z.infer<typeof builtMineTypeSchema>;
 export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
+export type GuaranteedObjectConfig = z.infer<typeof guaranteedObjectSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
 export type LocalizationConfig = z.infer<typeof localizationSchema>;
@@ -252,6 +294,31 @@ export const starterContentBundle: ContentBundle = {
       specialBehavior: "chest"
     }
   ],
+  veinTypes: [
+    {
+      id: "copper_vein_small",
+      nameKey: "vein.copper_small.name",
+      resourceId: "copper_ore",
+      rarity: "common",
+      assetId: "vein_copper_small_v1"
+    }
+  ],
+  builtMineTypes: [
+    {
+      id: "small_copper_mine",
+      nameKey: "built_mine.small_copper.name",
+      sourceVeinType: "copper_vein_small",
+      productionResourceId: "copper_ore",
+      baseProductionPerHour: 120,
+      baseCapacity: 300,
+      buildCost: [
+        { resourceId: "gold", amount: 500 },
+        { resourceId: "stone", amount: 120 }
+      ],
+      buildTimeSec: 60,
+      assetId: "built_mine_copper_small_v1"
+    }
+  ],
   mineTemplates: [
     {
       id: "old_well_01",
@@ -292,6 +359,15 @@ export const starterContentBundle: ContentBundle = {
             copper_ore: 40,
             chest_wooden: 5
           }
+        }
+      ],
+      guaranteedObjects: [
+        {
+          type: "vein",
+          veinTypeId: "copper_vein_small",
+          blockTypeId: "copper_ore",
+          rowRange: [8, 11],
+          count: 1
         }
       ]
     }
@@ -519,6 +595,8 @@ export const starterContentBundle: ContentBundle = {
       "block.copper_ore.name": "Медная руда",
       "block.chest_wooden.name": "Деревянный сундук",
       "mine.old_well.name": "Старый колодец",
+      "vein.copper_small.name": "Медная жила",
+      "built_mine.small_copper.name": "Малая медная шахта",
       "goblin.gryzz.name": "Грызз Кривозуб",
       "goblin.gryzz.description": "Долбит камни так уверенно, будто камни ему должны.",
       "goblin.myk.name": "Мык Тупая Кирка",
@@ -568,11 +646,14 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   const errors: string[] = [];
   collectDuplicateIds("resources", parsed.data.resources, errors);
   collectDuplicateIds("blockTypes", parsed.data.blockTypes, errors);
+  collectDuplicateIds("veinTypes", parsed.data.veinTypes, errors);
+  collectDuplicateIds("builtMineTypes", parsed.data.builtMineTypes, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
   collectDuplicateIds("goblins", parsed.data.goblins, errors);
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
   const blockTypeIds = new Set(parsed.data.blockTypes.map((blockType) => blockType.id));
+  const veinTypeIds = new Set(parsed.data.veinTypes.map((veinType) => veinType.id));
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
   const ruLocalization = parsed.data.localization.ru;
 
@@ -608,10 +689,49 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
         }
       }
     }
+
+    for (const object of mineTemplate.guaranteedObjects) {
+      if (object.rowRange[0] > object.rowRange[1]) {
+        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} has invalid rowRange`);
+      }
+
+      if (object.rowRange[1] >= mineTemplate.height) {
+        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} exceeds mine height`);
+      }
+
+      if (object.blockTypeId && !blockTypeIds.has(object.blockTypeId)) {
+        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} references missing block ${object.blockTypeId}`);
+      }
+
+      if (object.type === "vein" && !veinTypeIds.has(object.veinTypeId)) {
+        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.vein references missing vein type ${object.veinTypeId}`);
+      }
+    }
   }
 
   for (const resource of parsed.data.resources) {
     validateLocalizationKey(resource.nameKey, "ru", ruLocalization, errors);
+  }
+
+  for (const veinType of parsed.data.veinTypes) {
+    validateLocalizationKey(veinType.nameKey, "ru", ruLocalization, errors);
+
+    if (!resourceIds.has(veinType.resourceId)) {
+      errors.push(`veinTypes.${veinType.id} references missing resource ${veinType.resourceId}`);
+    }
+  }
+
+  for (const builtMineType of parsed.data.builtMineTypes) {
+    validateLocalizationKey(builtMineType.nameKey, "ru", ruLocalization, errors);
+    validateResourceAmounts(`builtMineTypes.${builtMineType.id}.buildCost`, builtMineType.buildCost, resourceIds, errors);
+
+    if (!veinTypeIds.has(builtMineType.sourceVeinType)) {
+      errors.push(`builtMineTypes.${builtMineType.id} references missing vein type ${builtMineType.sourceVeinType}`);
+    }
+
+    if (!resourceIds.has(builtMineType.productionResourceId)) {
+      errors.push(`builtMineTypes.${builtMineType.id} references missing production resource ${builtMineType.productionResourceId}`);
+    }
   }
 
   for (const goblin of parsed.data.goblins) {

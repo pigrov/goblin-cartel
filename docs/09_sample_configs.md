@@ -243,7 +243,7 @@
       "nameKey": "built_mine.small_copper.name",
       "sourceVeinType": "copper_vein_small",
       "productionResourceId": "copper_ore",
-      "baseProductionPerMinute": 12,
+      "baseProductionPerHour": 120,
       "baseCapacity": 300,
       "buildCost": [
         { "resourceId": "gold", "amount": 500 },

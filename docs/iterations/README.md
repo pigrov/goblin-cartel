@@ -44,3 +44,4 @@
 - `0039_pixi_runtime_hook_delayed_rewards` - moved Pixi runtime refs/ticker into a hook and delayed visible resource rewards until the hit animation completes.
 - `0040_resource_display_hook_energy_tick` - moved delayed visible resource rewards into a hook/controller with tests and made boss energy refill in steady integer ticks.
 - `0041_independent_goblin_mining_60m_mine` - decoupled goblin auto-mining from boss taps, normalized the test mine to 60m, and captured next-step mine completion ideas.
+- `0042_vein_built_mine_core` - added content/core support for veins, found veins, built mine types, mine income accumulation, and manual collection.

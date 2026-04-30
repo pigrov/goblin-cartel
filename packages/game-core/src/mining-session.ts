@@ -24,7 +24,9 @@ export interface MiningBlockState {
   hp: number;
   destroyed: boolean;
   tags: string[];
+  special?: "vein" | "chest";
   specialBehavior: "none" | "explosion" | "chest";
+  veinTypeId?: string;
 }
 
 export interface MiningCell {
@@ -37,7 +39,18 @@ export interface MiningSession {
   blocks: MiningBlockState[][];
   resources: Record<string, number>;
   lastRewards: Record<string, number>;
+  lastFoundVein: MiningFoundVein | null;
+  foundVeins: MiningFoundVein[];
   destroyedBlocks: number;
+}
+
+export interface MiningFoundVein {
+  id: string;
+  mineTemplateId: string;
+  seed: string;
+  row: number;
+  col: number;
+  veinTypeId: string;
 }
 
 export interface MiningBlockSave {
@@ -52,6 +65,7 @@ export interface MiningSessionSave {
   seed: string;
   resources: Record<string, number>;
   blocks: MiningBlockSave[];
+  foundVeins?: MiningFoundVein[];
 }
 
 export interface CreateMiningSessionInput {
@@ -134,12 +148,16 @@ export function createMiningSession(input: CreateMiningSessionInput): MiningSess
           hp: maxHp,
           destroyed: false,
           tags: blockType.tags ?? [],
-          specialBehavior: blockType.specialBehavior ?? "none"
+          special: block.special,
+          specialBehavior: blockType.specialBehavior ?? "none",
+          veinTypeId: block.veinTypeId
         };
       })
     ),
     resources: {},
     lastRewards: {},
+    lastFoundVein: null,
+    foundVeins: [],
     destroyedBlocks: 0
   };
 }
@@ -158,7 +176,8 @@ export function hitMineBlock(
   if (!target || target.destroyed) {
     return {
       ...session,
-      lastRewards: {}
+      lastRewards: {},
+      lastFoundVein: null
     };
   }
 
@@ -167,6 +186,7 @@ export function hitMineBlock(
   const blockType = blockTypes.find((item) => item.id === target.blockTypeId);
   const rewards = destroyed && blockType ? rollRewards(blockType.rewardTable, input.random ?? Math.random) : {};
   const nextResources = { ...session.resources };
+  const foundVein = destroyed ? createFoundVein(session, target) : null;
 
   for (const [resourceId, amount] of Object.entries(rewards)) {
     nextResources[resourceId] = (nextResources[resourceId] ?? 0) + amount;
@@ -187,6 +207,8 @@ export function hitMineBlock(
     ),
     resources: nextResources,
     lastRewards: rewards,
+    lastFoundVein: foundVein,
+    foundVeins: foundVein ? addFoundVein(session.foundVeins, foundVein) : session.foundVeins,
     destroyedBlocks: session.destroyedBlocks + (destroyed ? 1 : 0)
   };
 }
@@ -411,6 +433,7 @@ export function exportMiningSessionSave(session: MiningSession): MiningSessionSa
     mineTemplateId: session.mine.templateId,
     seed: session.mine.seed,
     resources: { ...session.resources },
+    foundVeins: session.foundVeins.map((vein) => ({ ...vein })),
     blocks: session.blocks
       .flat()
       .filter((block) => block.destroyed || block.hp < block.maxHp)
@@ -458,8 +481,45 @@ export function restoreMiningSession(session: MiningSession, save: MiningSession
     blocks,
     resources: { ...save.resources },
     lastRewards: {},
+    lastFoundVein: null,
+    foundVeins: save.foundVeins?.map((vein) => ({ ...vein })) ?? deriveFoundVeinsFromBlocks(session, blocks),
     destroyedBlocks
   };
+}
+
+function createFoundVein(session: MiningSession, block: MiningBlockState): MiningFoundVein | null {
+  if (block.special !== "vein" || !block.veinTypeId) {
+    return null;
+  }
+
+  return {
+    id: foundVeinId(session, block),
+    mineTemplateId: session.mine.templateId,
+    seed: session.mine.seed,
+    row: block.row,
+    col: block.col,
+    veinTypeId: block.veinTypeId
+  };
+}
+
+function addFoundVein(foundVeins: MiningFoundVein[], vein: MiningFoundVein): MiningFoundVein[] {
+  if (foundVeins.some((item) => item.id === vein.id)) {
+    return foundVeins;
+  }
+
+  return [...foundVeins, vein];
+}
+
+function deriveFoundVeinsFromBlocks(session: MiningSession, blocks: MiningBlockState[][]): MiningFoundVein[] {
+  return blocks
+    .flat()
+    .filter((block) => block.destroyed)
+    .map((block) => createFoundVein(session, block))
+    .filter((vein): vein is MiningFoundVein => Boolean(vein));
+}
+
+function foundVeinId(session: MiningSession, block: MiningBlockState): string {
+  return `${session.mine.templateId}:${session.mine.seed}:${block.row}:${block.col}:${block.veinTypeId ?? "vein"}`;
 }
 
 function rollRewards(rewardTable: MiningRewardEntry[], random: () => number): Record<string, number> {
