@@ -1,14 +1,16 @@
 import type { Application } from "pixi.js";
-import type { MutableRefObject } from "react";
+import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
 import {
   cellKey,
   pointToMineCell,
   pointToPlatformCell,
+  pointToPlatformColumnCell,
   type MinePixiCell,
   type MinePixiLayout,
   type MinePixiPoint
 } from "./minePixiLayout";
+import type { MinePixiDragState } from "./minePixiPlatform";
 
 export interface PixiDevHitTest {
   cell: string;
@@ -177,6 +179,81 @@ export function bindMinePixiPointerInput(input: {
     playfield.removeEventListener("pointermove", handlePointerMove);
     playfield.removeEventListener("pointerup", finishPointer);
     playfield.removeEventListener("pointercancel", finishPointer);
+  };
+}
+
+export function bindMinePixiDragPlacement(input: {
+  appRef: MutableRefObject<Application | null>;
+  currentPlatformRowRef: MutableRefObject<number>;
+  dragState: MinePixiDragState | null;
+  layoutRef: MutableRefObject<MinePixiLayout | null>;
+  onPlaceGoblinRef: MutableRefObject<(goblinId: string, targetCell: { row: number; col: number }) => void>;
+  platformCellKeysRef: MutableRefObject<ReadonlySet<string>>;
+  setDragState: Dispatch<SetStateAction<MinePixiDragState | null>>;
+}): (() => void) | undefined {
+  if (!input.dragState?.goblinId) {
+    return undefined;
+  }
+
+  const activeDraggingGoblinId = input.dragState.goblinId;
+
+  function updateDragPoint(event: PointerEvent): MinePixiPoint | null {
+    const layout = input.layoutRef.current;
+    const canvas = input.appRef.current?.canvas;
+
+    if (!layout || !canvas) {
+      return null;
+    }
+
+    const point = pointFromCanvasEvent(event, canvas);
+    const targetCell = pointToPlatformColumnCell(point, layout, input.currentPlatformRowRef.current);
+
+    input.setDragState((current) => current
+      ? {
+          ...current,
+          point,
+          targetCell: targetCell && input.platformCellKeysRef.current.has(cellKey(targetCell)) ? targetCell : null
+        }
+      : current);
+
+    return point;
+  }
+
+  function finishDrag(event: PointerEvent) {
+    const layout = input.layoutRef.current;
+    const canvas = input.appRef.current?.canvas;
+
+    if (!layout || !canvas) {
+      input.setDragState(null);
+      return;
+    }
+
+    const point = updateDragPoint(event) ?? pointFromCanvasEvent(event, canvas);
+    const targetCell = pointToPlatformColumnCell(point, layout, input.currentPlatformRowRef.current);
+
+    if (targetCell && input.platformCellKeysRef.current.has(cellKey(targetCell))) {
+      input.onPlaceGoblinRef.current(activeDraggingGoblinId, targetCell);
+    }
+
+    input.setDragState(null);
+  }
+
+  function handlePointerMove(event: PointerEvent) {
+    updateDragPoint(event);
+  }
+
+  function cancelDrag() {
+    input.setDragState(null);
+  }
+
+  window.addEventListener("pointermove", handlePointerMove);
+  window.addEventListener("pointerup", finishDrag);
+  window.addEventListener("pointercancel", cancelDrag);
+
+  return () => {
+    window.removeEventListener("pointermove", handlePointerMove);
+    window.removeEventListener("pointerup", finishDrag);
+    window.removeEventListener("pointercancel", cancelDrag);
   };
 }
 

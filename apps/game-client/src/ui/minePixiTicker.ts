@@ -5,6 +5,7 @@ import type { MinePixiLayout, MinePixiVisibleRowRange } from "./minePixiLayout";
 import type { MinePixiAnimatedItem } from "./minePixiPlatform";
 import type { MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
+import type { MinePixiLiftRail } from "./minePixiBackground";
 
 export interface PixiDevStats {
   fps: number;
@@ -26,6 +27,7 @@ export function runMinePixiTickerFrame(input: {
   devStatsLastUpdatedAtRef: MutableRefObject<number>;
   host: HTMLDivElement | null;
   layout: MinePixiLayout | null;
+  liftRail: MinePixiLiftRail | null;
   now: number;
   platform: MinePixiAnimatedItem | null;
   platformAnimationStartedAt: number;
@@ -34,12 +36,18 @@ export function runMinePixiTickerFrame(input: {
   totalCells: number;
   visibleRowRange: MinePixiVisibleRowRange;
 }) {
+  const platformOffset = currentPlatformDropOffset(
+    input.now,
+    input.platformDropAnimating,
+    input.platformAnimationStartedAt
+  );
+
   if (input.platform) {
-    input.platform.node.y = input.platform.baseY + currentPlatformDropOffset(
-      input.now,
-      input.platformDropAnimating,
-      input.platformAnimationStartedAt
-    );
+    input.platform.node.y = input.platform.baseY + platformOffset;
+  }
+
+  if (input.liftRail) {
+    input.liftRail.node.scale.y = Math.max(0, input.liftRail.baseHeight + platformOffset);
   }
 
   for (const item of input.animatedGoblins) {

@@ -3,12 +3,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
 import {
-  cellKey,
   createMinePixiLayout,
   createVisibleRowRange,
-  pointToPlatformColumnCell,
   type MinePixiLayout,
-  type MinePixiPoint,
   type MinePixiViewport,
   type MinePixiVisibleRowRange
 } from "./minePixiLayout";
@@ -17,7 +14,7 @@ import {
   type MinePixiHitEffect
 } from "./minePixiEffects";
 import { reconcileMineBlocks } from "./minePixiBlockReconciliation";
-import { drawSceneBackground } from "./minePixiBackground";
+import { drawSceneBackground, type MinePixiLiftRail } from "./minePixiBackground";
 import { reconcileDepthMarkers } from "./minePixiDepthMarkers";
 import { reconcileHitEffects, type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import {
@@ -30,9 +27,9 @@ import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
 import { drawLiftCables, drawSurface } from "./minePixiSurface";
 import { currentPlatformDropOffset, runMinePixiTickerFrame, type PixiDevStats } from "./minePixiTicker";
 import {
+  bindMinePixiDragPlacement,
   bindMinePixiPointerInput,
   configurePixiInputForTouchScroll,
-  pointFromCanvasEvent,
   type MinePixiTouchPanState,
   type PixiDevHitTest
 } from "./minePixiInput";
@@ -93,6 +90,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const blockNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const depthMarkerNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const hitEffectNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
+  const liftRailRef = useRef<MinePixiLiftRail | null>(null);
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
   const devOverlayEnabledRef = useRef(props.devOverlayEnabled);
@@ -247,6 +245,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
             devStatsLastUpdatedAtRef,
             host: hostRef.current,
             layout: layoutRef.current,
+            liftRail: liftRailRef.current,
             now: performance.now(),
             platform: platformRef.current,
             platformAnimationStartedAt: platformAnimationStartedAtRef.current,
@@ -271,6 +270,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       blockNodesRef.current.clear();
       depthMarkerNodesRef.current.clear();
       hitEffectNodesRef.current.clear();
+      liftRailRef.current = null;
       platformRef.current = null;
       if (initialized) {
         app.destroy({ removeView: true }, { children: true });
@@ -332,70 +332,15 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, [readyTick]);
 
   useEffect(() => {
-    if (!dragState?.goblinId) {
-      return;
-    }
-
-    const activeDraggingGoblinId = dragState.goblinId;
-
-    function updateDragPoint(event: PointerEvent): MinePixiPoint | null {
-      const layout = layoutRef.current;
-      const canvas = appRef.current?.canvas;
-
-      if (!layout || !canvas) {
-        return null;
-      }
-
-      const point = pointFromCanvasEvent(event, canvas);
-      const targetCell = pointToPlatformColumnCell(point, layout, currentPlatformRowRef.current);
-
-      setDragState((current) => current
-        ? {
-            ...current,
-            point,
-            targetCell: targetCell && platformCellKeysRef.current.has(cellKey(targetCell)) ? targetCell : null
-          }
-        : current);
-
-      return point;
-    }
-
-    function finishDrag(event: PointerEvent) {
-      const layout = layoutRef.current;
-      const canvas = appRef.current?.canvas;
-
-      if (!layout || !canvas) {
-        setDragState(null);
-        return;
-      }
-
-      const point = updateDragPoint(event) ?? pointFromCanvasEvent(event, canvas);
-      const targetCell = pointToPlatformColumnCell(point, layout, currentPlatformRowRef.current);
-
-      if (targetCell && platformCellKeysRef.current.has(cellKey(targetCell))) {
-        onPlaceGoblinRef.current(activeDraggingGoblinId, targetCell);
-      }
-
-      setDragState(null);
-    }
-
-    function handlePointerMove(event: PointerEvent) {
-      updateDragPoint(event);
-    }
-
-    function cancelDrag() {
-      setDragState(null);
-    }
-
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", finishDrag);
-    window.addEventListener("pointercancel", cancelDrag);
-
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", finishDrag);
-      window.removeEventListener("pointercancel", cancelDrag);
-    };
+    return bindMinePixiDragPlacement({
+      appRef,
+      currentPlatformRowRef,
+      dragState,
+      layoutRef,
+      onPlaceGoblinRef,
+      platformCellKeysRef,
+      setDragState
+    });
   }, [dragState?.goblinId]);
 
   useEffect(() => {
@@ -420,7 +365,15 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     }
 
     clearLayer(layers.background);
-    drawSceneBackground(layers.background, layout);
+    liftRailRef.current = drawSceneBackground(layers.background, layout);
+    liftRailRef.current.node.scale.y = Math.max(
+      0,
+      liftRailRef.current.baseHeight + currentPlatformDropOffset(
+        performance.now(),
+        platformDropAnimatingRef.current,
+        platformAnimationStartedAtRef.current
+      )
+    );
   }, [layout, readyTick]);
 
   useEffect(() => {

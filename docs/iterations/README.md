@@ -38,3 +38,4 @@
 - `0033_pixi_surface_platform_blocks` - extracted Pixi surface, platform, and block drawing modules with a brighter surface and glass header.
 - `0034_pixi_background_depth_input` - extracted Pixi background, depth markers, and input handling with a taller surface, compact glass boss energy overlay, and 200m test mine.
 - `0035_pixi_reconciliation_ticker` - extracted Pixi block/effect reconciliation and animation ticker, tightened the boss energy overlay, and made the lift rail grow with platform depth.
+- `0036_pixi_drag_input_lift_rail` - moved Pixi drag placement into input handling, shifted the lift left, and animated rail height with platform descent.
