@@ -370,6 +370,57 @@ export const starterContentBundle: ContentBundle = {
           count: 1
         }
       ]
+    },
+    {
+      id: "abandoned_crosscut_02",
+      displayNameKey: "mine.abandoned_crosscut.name",
+      width: 8,
+      height: 12,
+      depthMeters: 60,
+      difficulty: 1.18,
+      seedMode: "playerBased",
+      strata: [
+        {
+          id: "top_rubble",
+          fromRow: 0,
+          toRow: 3,
+          blockWeights: {
+            dirt: 45,
+            stone: 50,
+            chest_wooden: 5
+          }
+        },
+        {
+          id: "old_supports",
+          fromRow: 4,
+          toRow: 7,
+          blockWeights: {
+            dirt: 12,
+            stone: 66,
+            copper_ore: 17,
+            chest_wooden: 5
+          }
+        },
+        {
+          id: "deep_copper_cut",
+          fromRow: 8,
+          toRow: 11,
+          blockWeights: {
+            stone: 48,
+            copper_ore: 47,
+            chest_wooden: 5
+          }
+        }
+      ],
+      guaranteedObjects: [
+        {
+          type: "vein",
+          veinTypeId: "copper_vein_small",
+          blockTypeId: "copper_ore",
+          rowRange: [8, 11],
+          count: 1
+        }
+      ]
     }
   ],
   goblins: [
@@ -595,6 +646,7 @@ export const starterContentBundle: ContentBundle = {
       "block.copper_ore.name": "Медная руда",
       "block.chest_wooden.name": "Деревянный сундук",
       "mine.old_well.name": "Старый колодец",
+      "mine.abandoned_crosscut.name": "Заброшенный штрек",
       "vein.copper_small.name": "Медная жила",
       "built_mine.small_copper.name": "Малая медная шахта",
       "goblin.gryzz.name": "Грызз Кривозуб",

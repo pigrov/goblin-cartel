@@ -994,6 +994,7 @@ body,
   display: none;
 }
 
+.mine-progress-card,
 .found-vein-card,
 .built-mine-card,
 .built-mine-empty {
@@ -1001,6 +1002,42 @@ body,
   border: 1px solid var(--gc-border);
   border-radius: var(--gc-radius-sm);
   background: var(--gc-panel);
+}
+
+.mine-progress-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-color: rgb(68 198 200 / 32%);
+  background:
+    linear-gradient(180deg, rgb(68 198 200 / 10%), rgb(28 20 14 / 84%)),
+    var(--gc-panel);
+}
+
+.mine-progress-card > div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.mine-progress-card span,
+.mine-progress-card strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-progress-card span {
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mine-progress-card strong {
+  color: var(--gc-text);
+  font-size: 14px;
 }
 
 .found-vein-card {
@@ -1057,6 +1094,7 @@ body,
   font-size: 11px;
 }
 
+.mine-progress-card button,
 .found-vein-card button,
 .built-mine-card button,
 .vein-modal-actions button {
@@ -1069,11 +1107,13 @@ body,
   font-weight: 800;
 }
 
+.mine-progress-card button,
 .found-vein-card button,
 .built-mine-card button {
   padding: 0 10px;
 }
 
+.mine-progress-card button:disabled,
 .found-vein-card button:disabled,
 .built-mine-card button:disabled,
 .vein-modal-actions button:disabled {

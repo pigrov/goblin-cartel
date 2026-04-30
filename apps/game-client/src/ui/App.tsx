@@ -46,6 +46,11 @@ import {
   findUnbuiltFoundVeins,
   hasBuiltMineForVein
 } from "./builtMineClientState";
+import {
+  canMoveToNextMine,
+  findMineTemplateIndex,
+  findNextMineTemplate
+} from "./mineProgressionClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
@@ -366,7 +371,8 @@ export function App() {
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
   );
-  const mineTemplate = contentState.content.mineTemplates[0];
+  const mineTemplate =
+    contentState.content.mineTemplates.find((template) => template.id === session.mine.templateId) ?? contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
   const displayedResources = useMemo(
     () => contentState.content.resources.filter((resource) => resource.id !== "boss_energy").slice(0, 4),
@@ -382,6 +388,19 @@ export function App() {
   const unbuiltFoundVeins = useMemo(
     () => findUnbuiltFoundVeins(session.foundVeins, visibleBuiltMines),
     [session.foundVeins, visibleBuiltMines]
+  );
+  const nextMineTemplate = useMemo(
+    () => findNextMineTemplate(contentState.content.mineTemplates, session.mine.templateId),
+    [contentState.content.mineTemplates, session.mine.templateId]
+  );
+  const canStartNextMine = useMemo(
+    () =>
+      canMoveToNextMine({
+        builtMines: visibleBuiltMines,
+        mineTemplates: contentState.content.mineTemplates,
+        session
+      }),
+    [contentState.content.mineTemplates, session, visibleBuiltMines]
   );
   const platformCells = useMemo(() => findPlatformCells(session, currentPlatformRow), [currentPlatformRow, session]);
   const platformCellKeys = useMemo(() => new Set(platformCells.map(cellKey)), [platformCells]);
@@ -689,6 +708,36 @@ export function App() {
     setSettingsOpen(false);
   }
 
+  function handleStartNextMine() {
+    const nextMine = findNextMineTemplate(contentState.content.mineTemplates, session.mine.templateId);
+
+    if (!nextMine) {
+      setBuiltMineMessage("Следующий рудник пока не открыт.");
+      return;
+    }
+
+    if (!canStartNextMine) {
+      setBuiltMineMessage("Сначала построй шахту из найденной жилы.");
+      return;
+    }
+
+    const nextSession = createSession(contentState.content, nextMine.id, session.resources);
+    const nextPlatformRow = findPlatformRow(nextSession, 0);
+    const nextActiveCell = findFirstPlayableCell(nextSession);
+    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, hiredGoblins, nextPlatformRow);
+
+    setSession(nextSession);
+    setActiveCell(nextActiveCell);
+    setPlatformRow(nextPlatformRow);
+    setGoblinPlacements(nextGoblinPlacements);
+    setFoundVeinNotice(null);
+    setPendingOfflineFinalHit(null);
+    setOfflineSummary(null);
+    setActiveSection("mine");
+    setBuiltMineMessage(`${mineTitle(nextMine, labels)} открыт.`);
+    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, bossEnergy, builtMines);
+  }
+
   function showResourceTooltip(resource: ResourceConfig, value: number) {
     setResourceTooltip({
       id: ++tooltipSequenceRef.current,
@@ -839,12 +888,16 @@ export function App() {
           <BuiltMinesSection
             builtMines={visibleBuiltMines}
             builtMineTypes={contentState.content.builtMineTypes}
+            canStartNextMine={canStartNextMine}
             content={contentState.content}
+            currentMineTemplate={mineTemplate}
             foundVeins={unbuiltFoundVeins}
             labels={labels}
             message={builtMineMessage}
+            nextMineTemplate={nextMineTemplate}
             onBuildMine={handleBuildMineFromVein}
             onCollectMine={handleCollectBuiltMine}
+            onStartNextMine={handleStartNextMine}
             resources={session.resources}
           />
         ) : (
@@ -1027,21 +1080,36 @@ export function App() {
   );
 }
 
-function createSession(content: ContentBundle): MiningSession {
-  const mineTemplate = content.mineTemplates[0];
+function createSession(
+  content: ContentBundle,
+  mineTemplateId?: string,
+  resources: Record<string, number> = {}
+): MiningSession {
+  const mineTemplate =
+    (mineTemplateId ? content.mineTemplates.find((template) => template.id === mineTemplateId) : undefined) ?? content.mineTemplates[0];
 
   if (!mineTemplate) {
-    return createMiningSession({
+    const fallbackSession = createMiningSession({
       mine: generateMine(starterContentBundle.mineTemplates[0] as MineTemplateConfig, mineSeed),
       blockTypes: starterContentBundle.blockTypes
     });
+
+    return {
+      ...fallbackSession,
+      resources: { ...resources }
+    };
   }
 
-  return createMiningSession({
+  const session = createMiningSession({
     mine: generateMine(mineTemplate, mineSeed),
     blockTypes: content.blockTypes,
     mineDifficultyMultiplier: mineTemplate.difficulty
   });
+
+  return {
+    ...session,
+    resources: { ...resources }
+  };
 }
 
 function createRestoredMiningState(
@@ -1049,10 +1117,12 @@ function createRestoredMiningState(
   contentVersion: string,
   roster: GoblinRosterState
 ): RestoredMiningState {
-  const session = createSession(content);
   const storedSave = loadMiningSessionSave();
   const hiredGoblins = createHiredGoblins(content, roster);
   const now = Date.now();
+  const storedMineTemplateId =
+    storedSave?.contentVersion === contentVersion ? storedSave.save.mineTemplateId : undefined;
+  const session = createSession(content, storedMineTemplateId);
 
   if (!storedSave || storedSave.contentVersion !== contentVersion) {
     const initialPlatformRow = findPlatformRow(session, 0);
@@ -1358,15 +1428,20 @@ function GoblinSection(props: {
 function BuiltMinesSection(props: {
   builtMines: BuiltMineState[];
   builtMineTypes: BuiltMineTypeConfig[];
+  canStartNextMine: boolean;
   content: ContentBundle;
+  currentMineTemplate: MineTemplateConfig | undefined;
   foundVeins: MiningFoundVein[];
   labels: Record<string, string>;
   message: string | null;
+  nextMineTemplate: MineTemplateConfig | undefined;
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectMine: (builtMineId: string) => void;
+  onStartNextMine: () => void;
   resources: Record<string, number>;
 }) {
   const activeMineCount = props.builtMines.filter((builtMine) => builtMine.status === "active").length;
+  const currentMineIndex = props.currentMineTemplate ? findMineTemplateIndex(props.content.mineTemplates, props.currentMineTemplate.id) : -1;
 
   return (
     <section className="built-mines" aria-label="Шахты">
@@ -1381,6 +1456,23 @@ function BuiltMinesSection(props: {
       <p className="built-mine-message">{props.message ?? ""}</p>
 
       <div className="built-mine-list">
+        <article className="mine-progress-card">
+          <div>
+            <span>Текущий рудник</span>
+            <strong>
+              {currentMineIndex >= 0 ? `№${currentMineIndex + 1} · ` : ""}
+              {mineTitle(props.currentMineTemplate, props.labels)}
+            </strong>
+          </div>
+          {props.nextMineTemplate ? (
+            <button disabled={!props.canStartNextMine} onClick={props.onStartNextMine} type="button">
+              Рудник №{currentMineIndex + 2}
+            </button>
+          ) : (
+            <span>Следующий скоро</span>
+          )}
+        </article>
+
         {props.foundVeins.map((vein) => {
           const builtMineType = builtMineTypeForVein(vein, props.builtMineTypes);
           const canBuild = canBuildFoundVein({
