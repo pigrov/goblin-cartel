@@ -3,13 +3,18 @@ import type { BuiltMineTypeConfig } from "@goblin-cartel/content-schemas";
 import type { BuiltMineState, MiningFoundVein } from "@goblin-cartel/game-core";
 import {
   canBuildFoundVein,
+  collectBuiltMineIncomeWithCollector,
+  countCollectorAssignedMines,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
   createVisibleBuiltMines,
+  findAssignableCollector,
   findUnbuiltFoundVeins,
   getBuiltMineBuildProgressPercent,
   getBuiltMineBuildRemainingMs,
   getBuiltMineStoragePercent,
+  getGoblinAutoCollectSlots,
+  hasCollectorSlotAvailable,
   hasBuiltMineForVein
 } from "./builtMineClientState";
 
@@ -52,6 +57,32 @@ const builtMineType: BuiltMineTypeConfig = {
   nameKey: "built_mine.small_copper.name",
   productionResourceId: "copper_ore",
   sourceVeinType: "copper_vein_small"
+};
+
+const collector = {
+  ability: {
+    descriptionKey: "ability.collect.description",
+    effects: [{ type: "auto_collect_slots" as const, value: 2 }],
+    id: "collect",
+    nameKey: "ability.collect.name"
+  },
+  assetId: "goblin_collector_v1",
+  baseStats: {
+    loyalty: 1,
+    luck: 1,
+    speed: 1,
+    strength: 1
+  },
+  class: "collector" as const,
+  clan: "neutral" as const,
+  descriptionKey: "goblin.collector.description",
+  hireCost: [],
+  id: "collector_1",
+  nameKey: "goblin.collector.name",
+  rarity: "common" as const,
+  sortOrder: 1,
+  specialization: "warehouse_keeper" as const,
+  unlockRequirements: []
 };
 
 describe("built mine client state", () => {
@@ -178,6 +209,71 @@ describe("built mine client state", () => {
         { amount: 120, resourceId: "copper_ore" },
         { amount: 90, resourceId: "gold" }
       ]
+    });
+  });
+
+  it("tracks collector auto-collect slot availability", () => {
+    const assignedMines = [
+      {
+        ...builtMine,
+        assignedCollectorGoblinId: collector.id,
+        id: "mine-a",
+        status: "active" as const
+      },
+      {
+        ...builtMine,
+        assignedCollectorGoblinId: collector.id,
+        id: "mine-b",
+        status: "active" as const
+      }
+    ];
+
+    expect(getGoblinAutoCollectSlots(collector)).toBe(2);
+    expect(countCollectorAssignedMines(collector.id, assignedMines)).toBe(2);
+    expect(hasCollectorSlotAvailable(collector, assignedMines, "mine-c")).toBe(false);
+    expect(hasCollectorSlotAvailable(collector, assignedMines, "mine-a")).toBe(true);
+    expect(findAssignableCollector([collector], assignedMines, "mine-c")).toBeUndefined();
+  });
+
+  it("applies collector mine bonuses to visible production and collection without changing base stats", () => {
+    const boostedCollector = {
+      ...collector,
+      ability: {
+        ...collector.ability,
+        effects: [
+          { type: "auto_collect_slots" as const, value: 1 },
+          { type: "mine_capacity_multiplier" as const, value: 1.5 },
+          { type: "mine_production_multiplier" as const, resourceId: "copper_ore", value: 2 }
+        ]
+      }
+    };
+    const assignedMine = {
+      ...builtMine,
+      assignedCollectorGoblinId: boostedCollector.id,
+      completesAt: 0,
+      lastProducedAt: 0,
+      status: "active" as const
+    };
+
+    const visible = createVisibleBuiltMines([assignedMine], 30 * 60 * 1000, [boostedCollector])[0];
+
+    expect(visible).toMatchObject({
+      capacity: 450,
+      productionPerHour: 240,
+      storedAmount: 120
+    });
+
+    const collected = collectBuiltMineIncomeWithCollector({
+      builtMine: assignedMine,
+      collector: boostedCollector,
+      now: 30 * 60 * 1000,
+      resources: {}
+    });
+
+    expect(collected.collectedAmount).toBe(120);
+    expect(collected.builtMine).toMatchObject({
+      capacity: 300,
+      productionPerHour: 120
     });
   });
 });

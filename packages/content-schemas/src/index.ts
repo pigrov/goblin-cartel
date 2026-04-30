@@ -14,6 +14,15 @@ export const resourceAmountSchema = z.object({
 
 export const goblinClassSchema = z.enum(["miner", "builder", "collector", "foreman"]);
 export const goblinClanSchema = z.enum(["rusty_picks", "black_pockets", "bolt_skulls", "neutral"]);
+export const goblinSpecializationSchema = z.enum([
+  "stonebreaker",
+  "ore_sniffer",
+  "heavy_striker",
+  "warehouse_keeper",
+  "resource_expert",
+  "construction_foreman",
+  "event"
+]);
 
 export const goblinBaseStatsSchema = z.object({
   strength: z.number().int().nonnegative(),
@@ -39,6 +48,19 @@ export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("auto_collect_slots"),
     value: z.number().int().positive()
+  }),
+  z.object({
+    type: z.literal("mine_capacity_multiplier"),
+    value: z.number().positive()
+  }),
+  z.object({
+    type: z.literal("mine_production_multiplier"),
+    resourceId: z.string().min(1).optional(),
+    value: z.number().positive()
+  }),
+  z.object({
+    type: z.literal("build_time_multiplier"),
+    value: z.number().positive()
   }),
   z.object({
     type: z.literal("auto_select_next_block"),
@@ -168,6 +190,7 @@ export const goblinSchema = z.object({
   nameKey: z.string().min(1),
   descriptionKey: z.string().min(1),
   class: goblinClassSchema,
+  specialization: goblinSpecializationSchema.optional(),
   clan: goblinClanSchema.default("neutral"),
   rarity: z.enum(["common", "rare", "epic", "legendary"]).default("common"),
   assetId: z.string().min(1),
@@ -644,6 +667,7 @@ export const starterContentBundle: ContentBundle = {
       nameKey: "goblin.pip.name",
       descriptionKey: "goblin.pip.description",
       class: "collector",
+      specialization: "warehouse_keeper",
       clan: "black_pockets",
       rarity: "rare",
       assetId: "goblin_pip_v1",
@@ -657,7 +681,10 @@ export const starterContentBundle: ContentBundle = {
         id: "boring_order",
         nameKey: "ability.boring_order.name",
         descriptionKey: "ability.boring_order.description",
-        effects: [{ type: "auto_collect_slots", value: 1 }]
+        effects: [
+          { type: "auto_collect_slots", value: 1 },
+          { type: "mine_capacity_multiplier", value: 1.15 }
+        ]
       },
       hireCost: [
         { resourceId: "gold", amount: 2500 },
@@ -665,6 +692,37 @@ export const starterContentBundle: ContentBundle = {
       ],
       unlockRequirements: [{ type: "built_mines_count", value: 2 }],
       sortOrder: 70
+    },
+    {
+      id: "nokk_copper_quill",
+      nameKey: "goblin.nokk.name",
+      descriptionKey: "goblin.nokk.description",
+      class: "collector",
+      specialization: "resource_expert",
+      clan: "black_pockets",
+      rarity: "rare",
+      assetId: "goblin_nokk_v1",
+      baseStats: {
+        strength: 2,
+        speed: 5,
+        luck: 8,
+        loyalty: 6
+      },
+      ability: {
+        id: "copper_tally",
+        nameKey: "ability.copper_tally.name",
+        descriptionKey: "ability.copper_tally.description",
+        effects: [
+          { type: "auto_collect_slots", value: 1 },
+          { type: "mine_production_multiplier", resourceId: "copper_ore", value: 1.12 }
+        ]
+      },
+      hireCost: [
+        { resourceId: "gold", amount: 4200 },
+        { resourceId: "copper_ore", amount: 180 }
+      ],
+      unlockRequirements: [{ type: "built_mines_count", value: 3 }],
+      sortOrder: 75
     },
     {
       id: "krakk_iron_turnip",
@@ -727,6 +785,8 @@ export const starterContentBundle: ContentBundle = {
       "goblin.tikk.description": "Экономит доски так, будто они родня.",
       "goblin.pip.name": "Пип Сухая Книга",
       "goblin.pip.description": "Собирает доход без лишних слов и почти без потерь.",
+      "goblin.nokk.name": "Нокк Медное Перо",
+      "goblin.nokk.description": "Считает медную руду так быстро, что шахта старается не отставать.",
       "goblin.krakk.name": "Кракк Железная Репа",
       "goblin.krakk.description": "Держит смену в движении одним тяжелым взглядом.",
       "ability.stone_biter.name": "Камнегрыз",
@@ -742,7 +802,9 @@ export const starterContentBundle: ContentBundle = {
       "ability.tidy_planks.name": "Ровные доски",
       "ability.tidy_planks.description": "Снижает строительные расходы аккуратной сборкой.",
       "ability.boring_order.name": "Скучный порядок",
-      "ability.boring_order.description": "Открывает первый слот авто-сбора.",
+      "ability.boring_order.description": "Открывает первый слот авто-сбора и увеличивает вместимость назначенной шахты.",
+      "ability.copper_tally.name": "Медная ведомость",
+      "ability.copper_tally.description": "Открывает слот авто-сбора и усиливает добычу медной руды.",
       "ability.no_idle_picks.name": "Без простоев",
       "ability.no_idle_picks.description": "Гоблины сами переходят к следующему блоку."
     }
@@ -871,6 +933,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
       mineTemplateIds,
       errors
     );
+    validateGoblinAbilityEffects(`goblins.${goblin.id}.ability.effects`, goblin.ability.effects, resourceIds, errors);
   }
 
   return {
@@ -943,6 +1006,19 @@ function validateUnlockRequirements(
 
     if (requirement.type === "mine_completed" && !mineTemplateIds.has(requirement.mineTemplateId)) {
       errors.push(`${owner} references missing mine template ${requirement.mineTemplateId}`);
+    }
+  }
+}
+
+function validateGoblinAbilityEffects(
+  owner: string,
+  effects: Array<{ type: string; resourceId?: string }>,
+  resourceIds: Set<string>,
+  errors: string[]
+): void {
+  for (const effect of effects) {
+    if (effect.type === "mine_production_multiplier" && effect.resourceId && !resourceIds.has(effect.resourceId)) {
+      errors.push(`${owner} references missing resource ${effect.resourceId}`);
     }
   }
 }

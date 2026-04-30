@@ -31,6 +31,19 @@ export type GoblinRosterAbilityEffect =
       value: number;
     }
   | {
+      type: "mine_capacity_multiplier";
+      value: number;
+    }
+  | {
+      type: "mine_production_multiplier";
+      resourceId?: string;
+      value: number;
+    }
+  | {
+      type: "build_time_multiplier";
+      value: number;
+    }
+  | {
       type: "auto_select_next_block";
       enabled: boolean;
     };

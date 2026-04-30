@@ -8,13 +8,14 @@ import {
   Loader2,
   LockKeyhole,
   LogOut,
+  PlusCircle,
   Rocket,
   Save,
   Send,
   ShieldCheck,
   UserPlus
 } from "lucide-react";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 const sessionStorageKey = "goblin-cartel.admin.session-token";
 
@@ -56,11 +57,16 @@ interface ContentVersion {
   publishedAt: string | null;
 }
 
+type ContentRecord = Record<string, unknown>;
+
 interface ContentBundle {
-  resources: unknown[];
-  blockTypes: unknown[];
-  mineTemplates: unknown[];
-  goblins: unknown[];
+  resources: ContentRecord[];
+  blockTypes: ContentRecord[];
+  veinTypes?: ContentRecord[];
+  builtMineTypes?: ContentRecord[];
+  rewardChestTypes?: ContentRecord[];
+  mineTemplates: ContentRecord[];
+  goblins: ContentRecord[];
   localization?: Record<string, Record<string, string>>;
 }
 
@@ -755,8 +761,29 @@ function ContentSection(props: {
   onValidateContent: () => void;
   selectedContentVersion: ContentVersion | null;
 }) {
+  const [draftToolMessage, setDraftToolMessage] = useState<string | null>(null);
+  const contentPreview = useMemo(() => parseContentPreview(props.contentJson), [props.contentJson]);
   const canEdit =
     props.selectedContentVersion?.status === "draft" || props.selectedContentVersion?.status === "validated";
+
+  function applyDraftTool(builder: (content: ContentBundle) => { content: ContentBundle; message: string }) {
+    if (!canEdit || !props.selectedContentVersion) {
+      return;
+    }
+
+    if (!contentPreview) {
+      setDraftToolMessage("JSON сейчас не читается, сначала поправь синтаксис.");
+      return;
+    }
+
+    try {
+      const result = builder(contentPreview);
+      props.onContentJsonChange(JSON.stringify(result.content, null, 2));
+      setDraftToolMessage(result.message);
+    } catch (error) {
+      setDraftToolMessage(error instanceof Error ? error.message : "Не удалось создать шаблон.");
+    }
+  }
 
   return (
     <section className="content-layout">
@@ -831,6 +858,53 @@ function ContentSection(props: {
           </div>
         </div>
 
+        <section className="gc-panel content-entity-tools">
+          <header>
+            <div>
+              <strong>Сущности контента</strong>
+              <span>{contentPreview ? "Быстрые шаблоны попадут в текущий JSON draft" : "JSON пока не разобран"}</span>
+            </div>
+            <div className="content-template-actions">
+              <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => applyDraftTool(addDraftGoblinTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Гоблин
+              </button>
+              <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => applyDraftTool(addDraftMineTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Рудник
+              </button>
+              <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => applyDraftTool(addDraftBuiltMineTypeTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Тип шахты
+              </button>
+            </div>
+          </header>
+
+          <div className="content-entity-kpis" aria-label="Счетчики сущностей">
+            <ContentEntityKpi label="Ресурсы" value={contentEntityCount(contentPreview, "resources")} />
+            <ContentEntityKpi label="Блоки" value={contentEntityCount(contentPreview, "blockTypes")} />
+            <ContentEntityKpi label="Жилы" value={contentEntityCount(contentPreview, "veinTypes")} />
+            <ContentEntityKpi label="Типы шахт" value={contentEntityCount(contentPreview, "builtMineTypes")} />
+            <ContentEntityKpi label="Рудники" value={contentEntityCount(contentPreview, "mineTemplates")} />
+            <ContentEntityKpi label="Гоблины" value={contentEntityCount(contentPreview, "goblins")} />
+          </div>
+
+          {contentPreview ? <ContentEntityPreview content={contentPreview} /> : null}
+          {draftToolMessage ? <p className="content-tool-message">{draftToolMessage}</p> : null}
+        </section>
+
         <textarea
           className="content-json"
           disabled={!props.selectedContentVersion || !canEdit}
@@ -854,6 +928,266 @@ function ContentSection(props: {
       </section>
     </section>
   );
+}
+
+function ContentEntityKpi(props: { label: string; value: number }) {
+  return (
+    <div>
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function ContentEntityPreview(props: { content: ContentBundle }) {
+  const ru = props.content.localization?.ru ?? {};
+  const goblins = props.content.goblins.slice(-3).reverse();
+  const mines = props.content.mineTemplates.slice(-3).reverse();
+  const builtMineTypes = (props.content.builtMineTypes ?? []).slice(-3).reverse();
+
+  return (
+    <div className="content-entity-preview">
+      <ContentEntityColumn items={goblins} label="Последние гоблины" localization={ru} />
+      <ContentEntityColumn items={mines} label="Последние рудники" localization={ru} />
+      <ContentEntityColumn items={builtMineTypes} label="Типы шахт" localization={ru} />
+    </div>
+  );
+}
+
+function ContentEntityColumn(props: {
+  items: ContentRecord[];
+  label: string;
+  localization: Record<string, string>;
+}) {
+  return (
+    <section>
+      <span>{props.label}</span>
+      {props.items.length > 0 ? (
+        props.items.map((item) => (
+          <div key={stringField(item, "id")}>
+            <strong>{contentEntityTitle(item, props.localization)}</strong>
+            <small>{stringField(item, "id")}</small>
+          </div>
+        ))
+      ) : (
+        <p>Пока пусто</p>
+      )}
+    </section>
+  );
+}
+
+function parseContentPreview(contentJson: string): ContentBundle | null {
+  if (!contentJson.trim()) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(contentJson);
+
+    if (!isContentBundleLike(parsed)) {
+      return null;
+    }
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function contentEntityCount(content: ContentBundle | null, key: keyof ContentBundle): number {
+  if (!content) {
+    return 0;
+  }
+
+  const value = content[key];
+  return Array.isArray(value) ? value.length : 0;
+}
+
+function addDraftGoblinTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+  const id = uniqueContentId("collector_draft", content.goblins);
+  const nameKey = `goblin.${id}.name`;
+  const descriptionKey = `goblin.${id}.description`;
+  const abilityNameKey = `ability.${id}.name`;
+  const abilityDescriptionKey = `ability.${id}.description`;
+  const goldResourceId = findResourceId(content, "gold");
+  const copperResourceId = findResourceId(content, "copper_ore");
+
+  return {
+    content: {
+      ...content,
+      goblins: [
+        ...content.goblins,
+        {
+          id,
+          nameKey,
+          descriptionKey,
+          class: "collector",
+          specialization: "warehouse_keeper",
+          clan: "neutral",
+          rarity: "common",
+          assetId: `goblin_${id}_v1`,
+          baseStats: {
+            strength: 2,
+            speed: 4,
+            luck: 5,
+            loyalty: 6
+          },
+          ability: {
+            id: `${id}_auto_collect`,
+            nameKey: abilityNameKey,
+            descriptionKey: abilityDescriptionKey,
+            effects: [
+              { type: "auto_collect_slots", value: 1 },
+              { type: "mine_capacity_multiplier", value: 1.1 }
+            ]
+          },
+          hireCost: [{ resourceId: goldResourceId, amount: 1000 }],
+          unlockRequirements: copperResourceId ? [{ type: "resource_collected", resourceId: copperResourceId, amount: 1 }] : [],
+          sortOrder: nextSortOrder(content.goblins)
+        }
+      ],
+      localization: addRuLocalization(content.localization, {
+        [nameKey]: "Новый сборщик",
+        [descriptionKey]: "Черновой гоблин для настройки в админке.",
+        [abilityNameKey]: "Черновой автосбор",
+        [abilityDescriptionKey]: "Открывает один слот автосбора и немного увеличивает вместимость шахты."
+      })
+    },
+    message: `Добавлен шаблон гоблина ${id}. Сохрани и провалидируй draft перед публикацией.`
+  };
+}
+
+function addDraftMineTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+  const source = content.mineTemplates[content.mineTemplates.length - 1];
+
+  if (!source) {
+    throw new Error("Нужен хотя бы один существующий рудник, чтобы создать шаблон.");
+  }
+
+  const id = uniqueContentId("draft_mine", content.mineTemplates);
+  const displayNameKey = `mine.${id}.name`;
+
+  return {
+    content: {
+      ...content,
+      mineTemplates: [
+        ...content.mineTemplates,
+        {
+          ...cloneRecord(source),
+          id,
+          displayNameKey,
+          sortOrder: nextSortOrder(content.mineTemplates),
+          difficulty: Number(source.difficulty ?? 1) + 0.15
+        }
+      ],
+      localization: addRuLocalization(content.localization, {
+        [displayNameKey]: "Новый рудник"
+      })
+    },
+    message: `Добавлен шаблон рудника ${id}. Проверь жилу, сундук и слои перед публикацией.`
+  };
+}
+
+function addDraftBuiltMineTypeTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+  const builtMineTypes = content.builtMineTypes ?? [];
+  const source = builtMineTypes[builtMineTypes.length - 1];
+
+  if (!source) {
+    throw new Error("Нужен хотя бы один тип шахты, чтобы создать шаблон.");
+  }
+
+  const id = uniqueContentId("draft_built_mine", builtMineTypes);
+  const nameKey = `built_mine.${id}.name`;
+
+  return {
+    content: {
+      ...content,
+      builtMineTypes: [
+        ...builtMineTypes,
+        {
+          ...cloneRecord(source),
+          id,
+          nameKey,
+          assetId: `built_mine_${id}_v1`
+        }
+      ],
+      localization: addRuLocalization(content.localization, {
+        [nameKey]: "Новая постоянная шахта"
+      })
+    },
+    message: `Добавлен шаблон типа шахты ${id}. Проверь ресурс добычи, жилу и стоимость.`
+  };
+}
+
+function isContentBundleLike(value: unknown): value is ContentBundle {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.resources) &&
+    Array.isArray(value.blockTypes) &&
+    Array.isArray(value.mineTemplates) &&
+    Array.isArray(value.goblins)
+  );
+}
+
+function isRecord(value: unknown): value is ContentRecord {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function cloneRecord(record: ContentRecord): ContentRecord {
+  return JSON.parse(JSON.stringify(record)) as ContentRecord;
+}
+
+function stringField(record: ContentRecord, key: string): string {
+  const value = record[key];
+  return typeof value === "string" ? value : "";
+}
+
+function contentEntityTitle(record: ContentRecord, localization: Record<string, string>): string {
+  const titleKey = stringField(record, "nameKey") || stringField(record, "displayNameKey");
+  return localization[titleKey] ?? (titleKey || stringField(record, "id") || "Без id");
+}
+
+function uniqueContentId(prefix: string, items: ContentRecord[]): string {
+  const existingIds = new Set(items.map((item) => stringField(item, "id")).filter(Boolean));
+  let index = items.length + 1;
+  let id = `${prefix}_${String(index).padStart(2, "0")}`;
+
+  while (existingIds.has(id)) {
+    index += 1;
+    id = `${prefix}_${String(index).padStart(2, "0")}`;
+  }
+
+  return id;
+}
+
+function nextSortOrder(items: ContentRecord[]): number {
+  const maxSortOrder = items.reduce((max, item) => {
+    const value = item.sortOrder;
+    return typeof value === "number" && Number.isFinite(value) ? Math.max(max, value) : max;
+  }, 0);
+
+  return maxSortOrder + 10;
+}
+
+function findResourceId(content: ContentBundle, preferredId: string): string {
+  if (content.resources.some((resource) => stringField(resource, "id") === preferredId)) {
+    return preferredId;
+  }
+
+  return content.resources[0] ? stringField(content.resources[0], "id") : preferredId;
+}
+
+function addRuLocalization(
+  localization: ContentBundle["localization"],
+  entries: Record<string, string>
+): ContentBundle["localization"] {
+  return {
+    ...(localization ?? {}),
+    ru: {
+      ...(localization?.ru ?? {}),
+      ...entries
+    }
+  };
 }
 
 function CredentialsSection(props: {

@@ -1330,7 +1330,8 @@ body,
 .found-vein-card button,
 .built-mine-card button,
 .vein-modal-actions button,
-.mine-complete-actions button {
+.mine-complete-actions button,
+.collector-card button {
   min-height: 34px;
   border: 1px solid #a86235;
   border-radius: var(--gc-radius-sm);
@@ -1350,7 +1351,8 @@ body,
 .found-vein-card button:disabled,
 .built-mine-card button:disabled,
 .vein-modal-actions button:disabled,
-.mine-complete-actions button:disabled {
+.mine-complete-actions button:disabled,
+.collector-card button:disabled {
   border-color: var(--gc-border);
   background: var(--gc-panel-raised);
   cursor: not-allowed;
@@ -2512,7 +2514,8 @@ body,
 .boss-modal,
 .settings-modal,
 .vein-modal,
-.mine-complete-modal {
+.mine-complete-modal,
+.collector-modal {
   display: grid;
   gap: 12px;
   padding: 12px;
@@ -2525,7 +2528,8 @@ body,
 .boss-modal header,
 .settings-modal header,
 .vein-modal header,
-.mine-complete-modal header {
+.mine-complete-modal header,
+.collector-modal header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2539,16 +2543,133 @@ body,
 .vein-modal p,
 .vein-modal strong,
 .mine-complete-modal p,
-.mine-complete-modal strong {
+.mine-complete-modal strong,
+.collector-modal p,
+.collector-modal strong {
   margin: 0;
 }
 
 .boss-modal p,
 .settings-modal p,
 .vein-modal p,
-.mine-complete-modal p {
+.mine-complete-modal p,
+.collector-modal p {
   color: var(--gc-muted);
   font-size: 11px;
+}
+
+.collector-modal {
+  max-height: min(72vh, 560px);
+  overflow: hidden;
+  border-color: rgb(68 198 200 / 36%);
+  background:
+    linear-gradient(180deg, rgb(68 198 200 / 10%), transparent 46%),
+    #1c140f;
+}
+
+.collector-modal strong {
+  color: var(--gc-text);
+}
+
+.collector-modal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.collector-modal-summary span {
+  min-width: 0;
+  overflow: hidden;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 5%);
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collector-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.collector-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.collector-card,
+.collector-empty {
+  min-width: 0;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 5%);
+}
+
+.collector-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px;
+}
+
+.collector-card.active {
+  border-color: rgb(111 191 87 / 44%);
+  background:
+    linear-gradient(180deg, rgb(111 191 87 / 12%), rgb(255 255 255 / 4%)),
+    rgb(255 255 255 / 5%);
+}
+
+.collector-card-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.collector-card-main strong,
+.collector-card-main span,
+.collector-card-main p {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.collector-card-main strong {
+  font-size: 13px;
+}
+
+.collector-card-main span,
+.collector-card-main p,
+.collector-empty span {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.collector-card-main p {
+  margin: 0;
+  color: rgb(255 245 210 / 86%);
+}
+
+.collector-card button {
+  min-height: 32px;
+  flex: 0 0 auto;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.collector-empty {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
 }
 
 .vein-modal {

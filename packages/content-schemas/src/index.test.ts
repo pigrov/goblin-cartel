@@ -49,6 +49,13 @@ describe("content schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts collector specialization and mine bonus effects", () => {
+    const collector = starterContentBundle.goblins.find((goblin) => goblin.id === "pip_dry_book");
+
+    expect(collector?.specialization).toBe("warehouse_keeper");
+    expect(goblinSchema.safeParse(collector).success).toBe(true);
+  });
+
   it("accepts a valid reward chest config", () => {
     const result = rewardChestTypeSchema.safeParse(starterContentBundle.rewardChestTypes[0]);
 
@@ -201,5 +208,19 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("localization.ru is missing key goblin.gryzz.name");
+  });
+
+  it("rejects goblin production bonus with missing resource", () => {
+    const broken = structuredClone(starterContentBundle);
+    const goblin = broken.goblins.find((item) => item.id === "nokk_copper_quill");
+
+    if (goblin) {
+      goblin.ability.effects = [{ type: "mine_production_multiplier", resourceId: "missing_resource", value: 1.1 }];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblins.nokk_copper_quill.ability.effects references missing resource missing_resource");
   });
 });

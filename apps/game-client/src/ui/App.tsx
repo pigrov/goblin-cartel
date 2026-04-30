@@ -1,13 +1,10 @@
 import {
-  advanceBuiltMinesProduction,
   applyBossAttack,
   applyPlatformAutoMining,
   assignBuiltMineCollector,
   buildMineFromVein,
   calculateCrewAutoDamagePerSecond,
   canHireGoblin,
-  collectAutomatedBuiltMineIncome,
-  collectBuiltMineIncome,
   createBossEnergyState,
   createMiningSession,
   createInitialGoblinRoster,
@@ -47,13 +44,19 @@ import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import {
   canBuildFoundVein,
+  collectAutomatedBuiltMineIncomeWithCollectors,
+  collectBuiltMineIncomeWithCollector,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
   createVisibleBuiltMines,
+  countCollectorAssignedMines,
+  findAssignableCollector,
   findUnbuiltFoundVeins,
   getBuiltMineBuildProgressPercent,
   getBuiltMineBuildRemainingMs,
   getBuiltMineStoragePercent,
+  getGoblinAutoCollectSlots,
+  hasCollectorSlotAvailable,
   hasBuiltMineForVein,
   isBuiltMineStorageFull
 } from "./builtMineClientState";
@@ -221,6 +224,7 @@ export function App() {
   const [goblinPlacements, setGoblinPlacements] = useState<GoblinPlacementMap>({});
   const [builtMines, setBuiltMines] = useState<BuiltMineState[]>([]);
   const [builtMineMessage, setBuiltMineMessage] = useState<string | null>(null);
+  const [collectorPickerMineId, setCollectorPickerMineId] = useState<string | null>(null);
   const [foundVeinNotice, setFoundVeinNotice] = useState<MiningFoundVein | null>(null);
   const [mineCompletionNoticeOpen, setMineCompletionNoticeOpen] = useState(false);
   const [mineCompletionNoticeSeenIds, setMineCompletionNoticeSeenIds] = useState<string[]>([]);
@@ -413,8 +417,9 @@ export function App() {
         return;
       }
 
-      const result = collectAutomatedBuiltMineIncome({
+      const result = collectAutomatedBuiltMineIncomeWithCollectors({
         builtMines: builtMinesRef.current,
+        collectors: hiredGoblinsRef.current,
         now: Date.now(),
         resources: sessionRef.current.resources
       });
@@ -489,7 +494,14 @@ export function App() {
   );
   const hiredCollectorGoblins = useMemo(() => hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin) > 0), [hiredGoblins]);
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
-  const visibleBuiltMines = useMemo(() => createVisibleBuiltMines(builtMines, clockNow), [builtMines, clockNow]);
+  const visibleBuiltMines = useMemo(
+    () => createVisibleBuiltMines(builtMines, clockNow, hiredCollectorGoblins),
+    [builtMines, clockNow, hiredCollectorGoblins]
+  );
+  const collectorPickerBuiltMine = useMemo(
+    () => visibleBuiltMines.find((builtMine) => builtMine.id === collectorPickerMineId) ?? null,
+    [collectorPickerMineId, visibleBuiltMines]
+  );
   const unbuiltFoundVeins = useMemo(
     () => findUnbuiltFoundVeins(session.foundVeins, visibleBuiltMines),
     [session.foundVeins, visibleBuiltMines]
@@ -1020,8 +1032,12 @@ export function App() {
       return;
     }
 
-    const result = collectBuiltMineIncome({
+    const collector = builtMine.assignedCollectorGoblinId
+      ? hiredCollectorGoblins.find((goblin) => goblin.id === builtMine.assignedCollectorGoblinId)
+      : undefined;
+    const result = collectBuiltMineIncomeWithCollector({
       builtMine,
+      collector,
       now: Date.now(),
       resources: session.resources
     });
@@ -1049,8 +1065,12 @@ export function App() {
     let collectedTotal = 0;
 
     const nextBuiltMines = builtMines.map((builtMine) => {
-      const result = collectBuiltMineIncome({
+      const collector = builtMine.assignedCollectorGoblinId
+        ? hiredCollectorGoblins.find((goblin) => goblin.id === builtMine.assignedCollectorGoblinId)
+        : undefined;
+      const result = collectBuiltMineIncomeWithCollector({
         builtMine,
+        collector,
         now,
         resources: nextResources
       });
@@ -1201,7 +1221,7 @@ export function App() {
             labels={labels}
             message={builtMineMessage}
             nextMineTemplate={nextMineTemplate}
-            onAssignCollector={handleAssignBuiltMineCollector}
+            onOpenCollectorPicker={setCollectorPickerMineId}
             onCollectAllMines={handleCollectAllBuiltMines}
             onBuildMine={handleBuildMineFromVein}
             onCollectMine={handleCollectBuiltMine}
@@ -1249,6 +1269,21 @@ export function App() {
             </span>
           </button>
           </section>
+        ) : null}
+
+        {collectorPickerBuiltMine ? (
+          <CollectorAssignmentModal
+            builtMine={collectorPickerBuiltMine}
+            builtMines={visibleBuiltMines}
+            collectors={hiredCollectorGoblins}
+            content={contentState.content}
+            labels={labels}
+            onAssign={(goblinId) => {
+              handleAssignBuiltMineCollector(collectorPickerBuiltMine.id, goblinId);
+              setCollectorPickerMineId(null);
+            }}
+            onClose={() => setCollectorPickerMineId(null)}
+          />
         ) : null}
 
         {foundVeinNotice ? (
@@ -1525,12 +1560,10 @@ function createRestoredMiningState(
         })
       : createDefaultGoblinPlacements(restoredSession, hiredGoblins, restoredPlatformRow);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
-    const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(
-      advanceBuiltMinesProduction(storedSave.builtMines ?? [], now),
-      hiredGoblins
-    );
-    const automatedMineIncome = collectAutomatedBuiltMineIncome({
+    const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins);
+    const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
+      collectors: hiredGoblins,
       now,
       resources: restoredSession.resources
     });
@@ -1957,10 +1990,10 @@ function BuiltMinesSection(props: {
   message: string | null;
   nextMineTemplate: MineTemplateConfig | undefined;
   now: number;
-  onAssignCollector: (builtMineId: string, goblinId: string | null) => void;
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
+  onOpenCollectorPicker: (builtMineId: string) => void;
   onStartNextMine: () => void;
   resources: Record<string, number>;
 }) {
@@ -2179,13 +2212,10 @@ function BuiltMinesSection(props: {
                         </small>
                       </span>
                       <button
-                        disabled={!assignedCollector && !assignableCollector}
-                        onClick={() =>
-                          props.onAssignCollector(builtMine.id, assignedCollector ? null : assignableCollector?.id ?? null)
-                        }
+                        onClick={() => props.onOpenCollectorPicker(builtMine.id)}
                         type="button"
                       >
-                        {assignedCollector ? "Снять" : "Назначить"}
+                        {assignedCollector ? "Изменить" : "Назначить"}
                       </button>
                     </div>
                     <footer>
@@ -2218,6 +2248,75 @@ function BuiltMinesSection(props: {
         </section>
       </div>
     </section>
+  );
+}
+
+function CollectorAssignmentModal(props: {
+  builtMine: BuiltMineState;
+  builtMines: BuiltMineState[];
+  collectors: GoblinConfig[];
+  content: ContentBundle;
+  labels: Record<string, string>;
+  onAssign: (goblinId: string | null) => void;
+  onClose: () => void;
+}) {
+  const assignedCollectorId = props.builtMine.assignedCollectorGoblinId ?? null;
+  const mineName = builtMineTypeName(props.builtMine.typeId, props.content, props.labels);
+
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section className="collector-modal" aria-label="Выбор сборщика" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <p>Автосбор</p>
+            <strong>{mineName}</strong>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="collector-modal-summary">
+          <span>
+            {formatNumber(props.builtMine.productionPerHour)}/ч {resourceLabelById(props.builtMine.productionResourceId, props.labels, props.content)}
+          </span>
+          <span>
+            {formatNumber(props.builtMine.storedAmount)}/{formatNumber(props.builtMine.capacity)} в хранилище
+          </span>
+        </div>
+
+        {props.collectors.length > 0 ? (
+          <div className="collector-list">
+            {props.collectors.map((collector) => {
+              const isAssigned = assignedCollectorId === collector.id;
+              const usedSlots = countCollectorAssignedMines(collector.id, props.builtMines);
+              const totalSlots = getGoblinAutoCollectSlots(collector);
+              const canAssign = hasCollectorSlotAvailable(collector, props.builtMines, props.builtMine.id);
+
+              return (
+                <article className={isAssigned ? "collector-card active" : "collector-card"} key={collector.id}>
+                  <div className="collector-card-main">
+                    <strong>{goblinName(collector, props.labels)}</strong>
+                    <span>
+                      {collectorSpecializationLabel(collector)} · {usedSlots}/{totalSlots} слотов
+                    </span>
+                    <p>{collectorEffectLabel(collector, props.labels, props.content)}</p>
+                  </div>
+                  <button disabled={!isAssigned && !canAssign} onClick={() => props.onAssign(isAssigned ? null : collector.id)} type="button">
+                    {isAssigned ? "Снять" : canAssign ? "Назначить" : "Занят"}
+                  </button>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <article className="collector-empty">
+            <strong>Нет свободных сборщиков</strong>
+            <span>Найми гоблина-сборщика, чтобы включить автоматический сбор дохода.</span>
+          </article>
+        )}
+      </section>
+    </div>
   );
 }
 
@@ -2380,32 +2479,6 @@ function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
   }
 }
 
-function getGoblinAutoCollectSlots(goblin: GoblinConfig): number {
-  if (goblin.class !== "collector") {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    goblin.ability.effects
-      .filter((effect) => effect.type === "auto_collect_slots")
-      .reduce((total, effect) => total + effect.value, 0)
-  );
-}
-
-function hasCollectorSlotAvailable(goblin: GoblinConfig, builtMines: readonly BuiltMineState[], targetMineId: string): boolean {
-  const assignedCount = builtMines.filter((builtMine) => builtMine.assignedCollectorGoblinId === goblin.id && builtMine.id !== targetMineId).length;
-  return assignedCount < getGoblinAutoCollectSlots(goblin);
-}
-
-function findAssignableCollector(
-  collectors: readonly GoblinConfig[],
-  builtMines: readonly BuiltMineState[],
-  targetMineId: string
-): GoblinConfig | undefined {
-  return collectors.find((collector) => hasCollectorSlotAvailable(collector, builtMines, targetMineId));
-}
-
 function automationHint(
   collectors: readonly GoblinConfig[],
   assignableCollector: GoblinConfig | undefined,
@@ -2416,6 +2489,74 @@ function automationHint(
   }
 
   return collectors.length > 0 ? "Все сборщики заняты" : "Нужен нанятый гоблин-сборщик";
+}
+
+function collectorSpecializationLabel(goblin: GoblinConfig): string {
+  switch (goblin.specialization) {
+    case "construction_foreman":
+      return "Бригадир";
+    case "event":
+      return "Редкий";
+    case "heavy_striker":
+      return "Тяжеловес";
+    case "ore_sniffer":
+      return "Рудный нюх";
+    case "resource_expert":
+      return "Рудный эксперт";
+    case "stonebreaker":
+      return "Камнелом";
+    case "warehouse_keeper":
+      return "Кладовщик";
+    default:
+      return goblinClassLabel(goblin.class);
+  }
+}
+
+function collectorEffectLabel(goblin: GoblinConfig, labels: Record<string, string>, content: ContentBundle): string {
+  const effectLabels = goblin.ability.effects.map((effect) => {
+    switch (effect.type) {
+      case "auto_collect_slots":
+        return `${effect.value} ${pluralRu(effect.value, "шахта", "шахты", "шахт")} автосбора`;
+      case "mine_capacity_multiplier":
+        return `вместимость ${formatMultiplierBonus(effect.value)}`;
+      case "mine_production_multiplier":
+        return effect.resourceId
+          ? `${resourceLabelById(effect.resourceId, labels, content)} ${formatMultiplierBonus(effect.value)}`
+          : `добыча ${formatMultiplierBonus(effect.value)}`;
+      case "build_time_multiplier":
+        return `стройка ${formatMultiplierReduction(effect.value)}`;
+      default:
+        return null;
+    }
+  });
+
+  return effectLabels.filter((label): label is string => Boolean(label)).join(" · ") || labelFromNameKey(goblin.ability.descriptionKey, goblin.id, labels);
+}
+
+function formatMultiplierBonus(value: number): string {
+  const percent = Math.round((value - 1) * 100);
+  return percent >= 0 ? `+${percent}%` : `${percent}%`;
+}
+
+function formatMultiplierReduction(value: number): string {
+  const percent = Math.round((1 - value) * 100);
+  return percent >= 0 ? `-${percent}% времени` : `+${Math.abs(percent)}% времени`;
+}
+
+function pluralRu(value: number, one: string, few: string, many: string): string {
+  const absolute = Math.abs(value);
+  const mod10 = absolute % 10;
+  const mod100 = absolute % 100;
+
+  if (mod10 === 1 && mod100 !== 11) {
+    return one;
+  }
+
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return few;
+  }
+
+  return many;
 }
 
 function hireCostLabel(goblin: GoblinConfig, labels: Record<string, string>): string {
