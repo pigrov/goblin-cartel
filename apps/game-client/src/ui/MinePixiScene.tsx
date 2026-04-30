@@ -1,4 +1,4 @@
-import { Application, Container, Graphics, Rectangle, Text, type FederatedPointerEvent } from "pixi.js";
+import { Application, Container, Graphics, Rectangle, Text } from "pixi.js";
 import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
@@ -29,11 +29,17 @@ import {
   type MinePixiHitEffectVariant
 } from "./minePixiEffects";
 import {
-  isNearBreakHpPercent,
-  nearBreakIntensity,
-  normalizeBlockHpPercent
-} from "./minePixiBlockVisualState";
-import { drawGoblin } from "./minePixiGoblins";
+  blockColor,
+  blockTypeVisualToken,
+  drawBlock
+} from "./minePixiBlocks";
+import {
+  drawDragPreview,
+  drawPlatform,
+  type MinePixiAnimatedItem,
+  type MinePixiDragState
+} from "./minePixiPlatform";
+import { drawLiftCables, drawSurface } from "./minePixiSurface";
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
 
@@ -63,12 +69,7 @@ interface MinePixiSceneProps {
   session: MiningSession;
 }
 
-interface AnimatedItem {
-  baseY: number;
-  node: Container;
-  phase: number;
-  working: boolean;
-}
+type AnimatedItem = MinePixiAnimatedItem;
 
 interface AnimatedBlockImpact {
   cellKey: string;
@@ -95,11 +96,7 @@ interface RenderedPixiNode {
   signature: string;
 }
 
-interface DragState {
-  goblinId: string;
-  point: MinePixiPoint;
-  targetCell: MinePixiCell | null;
-}
+type DragState = MinePixiDragState;
 
 interface TouchPanState {
   active: boolean;
@@ -649,15 +646,17 @@ export function MinePixiScene(props: MinePixiSceneProps) {
 
     clearLayer(layers.platform);
     animatedGoblinsRef.current = [];
-    platformRef.current = null;
-    drawPlatform(
-      layers.platform,
+    platformRef.current = drawPlatform({
+      animatedGoblins: animatedGoblinsRef.current,
+      blocks: props.session.blocks,
+      currentPlatformRow: props.currentPlatformRow,
+      goblins: props.goblins,
       layout,
-      props,
-      animatedGoblinsRef,
-      platformRef,
+      mineWidth: props.session.mine.width,
+      platformCellKeys: props.platformCellKeys,
+      root: layers.platform,
       setDragState
-    );
+    });
 
     const platform = platformRef.current as AnimatedItem | null;
 
@@ -686,7 +685,12 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     }
 
     clearLayer(layers.drag);
-    drawDragPreview(layers.drag, layout, props, dragState);
+    drawDragPreview({
+      dragState,
+      goblins: props.goblins,
+      layout,
+      root: layers.drag
+    });
   }, [dragState, layout, props.goblins, readyTick]);
 
   return (
@@ -852,51 +856,6 @@ function drawSceneBackground(root: Container, layout: MinePixiLayout) {
   );
 }
 
-function drawSurface(root: Container, layout: MinePixiLayout, platformRow: number) {
-  const surface = new Container();
-
-  surface.addChild(
-    new Graphics()
-      .rect(0, 0, layout.width, layout.surfaceHeight)
-      .fill({ color: 0x3d626b })
-      .rect(0, layout.surfaceHeight * 0.48, layout.width, layout.surfaceHeight * 0.22)
-      .fill({ color: 0x315f38 })
-      .rect(0, layout.surfaceHeight * 0.68, layout.width, layout.surfaceHeight * 0.32)
-      .fill({ color: 0x4a321f })
-  );
-
-  drawTree(surface, 20, layout.surfaceHeight - 54, 1);
-  drawTree(surface, 78, layout.surfaceHeight - 48, 0.78);
-  drawTree(surface, layout.width - 54, layout.surfaceHeight - 52, 0.9);
-
-  surface.addChild(
-    new Graphics()
-      .roundRect(layout.gridX - 4, layout.surfaceHeight - 38, layout.platformWidth + 8, 46, 10)
-      .fill({ color: 0x1b130d })
-      .stroke({ color: 0x000000, alpha: 0.4, width: 1 })
-  );
-
-  const depthText = createText({
-    color: 0xf2b84b,
-    fontSize: 14,
-    fontWeight: "800",
-    text: `${platformRow + 1}`
-  });
-  depthText.position.set(12, 22);
-  surface.addChild(depthText);
-
-  const labelText = createText({
-    color: 0xb7a58f,
-    fontSize: 10,
-    fontWeight: "800",
-    text: "DEPTH"
-  });
-  labelText.position.set(12, 9);
-  surface.addChild(labelText);
-
-  root.addChild(surface);
-}
-
 function reconcileMineBlocks(
   mineLayer: Container,
   renderedBlocks: Map<string, RenderedPixiNode>,
@@ -1044,267 +1003,6 @@ function drawDepthMarker(
   return marker;
 }
 
-function drawLiftCables(root: Container, layout: MinePixiLayout) {
-  const cableX = layout.gridX;
-  const cableTop = layout.surfaceHeight - 104;
-  const cableBottom = Math.max(layout.surfaceHeight, layout.platformY + layout.platformHeight - 18);
-
-  root.addChild(
-    new Graphics()
-      .circle(cableX - 3, layout.surfaceHeight - 100, 12)
-      .stroke({ color: 0x9ca3ad, width: 3 })
-      .rect(cableX - 6, layout.surfaceHeight - 75, 12, 75)
-      .fill({ color: 0x604122 })
-      .rect(cableX - 1, cableTop + 16, 2, cableBottom - cableTop)
-      .fill({ color: 0x9ca3ad })
-      .rect(cableX + 4, cableTop + 16, 2, cableBottom - cableTop)
-      .fill({ color: 0x717781 })
-  );
-}
-
-function drawPlatform(
-  root: Container,
-  layout: MinePixiLayout,
-  props: MinePixiSceneProps,
-  animatedGoblinsRef: MutableRefObject<AnimatedItem[]>,
-  platformRef: MutableRefObject<AnimatedItem | null>,
-  setDragState: (state: DragState | null) => void
-) {
-  const platform = new Container();
-  platform.position.set(0, layout.platformY);
-
-  const graphics = new Graphics()
-    .rect(layout.gridX, layout.platformHeight - 18, layout.platformWidth, 13)
-    .fill({ color: 0x9b6a3a })
-    .stroke({ color: 0x24160d, width: 1 })
-    .rect(layout.gridX, layout.platformHeight - 6, layout.platformWidth, 5)
-    .fill({ color: 0x55371f })
-    .rect(layout.gridX - 2, 0, 3, layout.platformHeight - 8)
-    .fill({ color: 0x9ca3ad })
-    .rect(layout.gridX + layout.platformWidth - 1, 0, 3, layout.platformHeight - 8)
-    .fill({ color: 0x9ca3ad });
-
-  platform.addChild(graphics);
-
-  for (let col = 0; col < props.session.mine.width; col += 1) {
-    const block = props.session.blocks[props.currentPlatformRow]?.[col];
-    const slotX = layout.gridX + col * layout.rowStep;
-    const canPlace = Boolean(block && !block.destroyed);
-    const slot = new Graphics()
-      .roundRect(slotX + 3, layout.platformHeight - 23, layout.cellSize - 6, 10, 4)
-      .fill({ color: canPlace ? 0xa8753f : 0x3b2a1b, alpha: canPlace ? 1 : 0.56 });
-
-    platform.addChild(slot);
-  }
-
-  for (const goblin of props.goblins) {
-    if (goblin.col < 0 || goblin.col >= props.session.mine.width) {
-      continue;
-    }
-
-    const x = layout.gridX + goblin.col * layout.rowStep + layout.cellSize / 2;
-    const y = layout.platformHeight - 40;
-    const goblinNode = drawGoblin(layout.cellSize, goblin.working, false);
-    goblinNode.position.set(x, y);
-    goblinNode.eventMode = "static";
-    goblinNode.cursor = "grab";
-    goblinNode.on("pointerdown", (event: FederatedPointerEvent) => {
-      event.stopPropagation();
-      event.preventDefault();
-      const point = {
-        x: event.global.x,
-        y: event.global.y
-      };
-      const targetCell = pointToPlatformColumnCell(point, layout, props.currentPlatformRow);
-      setDragState({
-        goblinId: goblin.id,
-        point,
-        targetCell: targetCell && props.platformCellKeys.has(cellKey(targetCell)) ? targetCell : null
-      });
-    });
-
-    platform.addChild(goblinNode);
-    animatedGoblinsRef.current.push({
-      baseY: y,
-      node: goblinNode,
-      phase: goblin.col * 0.8,
-      working: goblin.working
-    });
-  }
-
-  root.addChild(platform);
-  platformRef.current = {
-    baseY: layout.platformY,
-    node: platform,
-    phase: 0,
-    working: false
-  };
-}
-
-function drawDragPreview(
-  root: Container,
-  layout: MinePixiLayout,
-  props: MinePixiSceneProps,
-  dragState: DragState | null
-) {
-  if (!dragState) {
-    return;
-  }
-
-  const sourceGoblin = props.goblins.find((goblin) => goblin.id === dragState.goblinId);
-
-  if (!sourceGoblin) {
-    return;
-  }
-
-  const preview = drawGoblin(layout.cellSize, sourceGoblin.working, true);
-  preview.alpha = 0.82;
-  preview.position.set(dragState.point.x, dragState.point.y - layout.platformHeight * 0.55);
-  preview.scale.set(preview.scale.x * 1.08);
-  root.addChild(preview);
-
-  if (dragState.targetCell) {
-    const targetX = layout.gridX + dragState.targetCell.col * layout.rowStep;
-    root.addChild(
-      new Graphics()
-        .roundRect(targetX + 2, layout.platformY + layout.platformHeight - 27, layout.cellSize - 4, 16, 5)
-        .stroke({ color: 0xf2b84b, alpha: 0.95, width: 3 })
-    );
-  }
-}
-
-function drawBlock(
-  block: MiningBlockState,
-  blockType: BlockTypeConfig | undefined,
-  options: {
-    active: boolean;
-    exposed: boolean;
-    platformRow: boolean;
-    size: number;
-  }
-): Container {
-  const container = new Container();
-  const size = options.size;
-  const hpPercent = normalizeBlockHpPercent(block.hp, block.maxHp);
-  const color = block.destroyed ? 0x15100c : blockColor(block.blockTypeId, blockType);
-  const crackedAlpha = block.destroyed ? 0 : blockDamageAlpha(hpPercent);
-  const nearBreak = !block.destroyed && isNearBreakHpPercent(hpPercent);
-
-  container.addChild(
-    new Graphics()
-      .roundRect(0, 0, size, size, 5)
-      .fill({ color })
-      .stroke({ color: options.active ? 0xf2b84b : 0x0f0a07, alpha: options.active ? 0.95 : 0.55, width: options.active ? 2 : 1 })
-  );
-
-  if (!block.destroyed && options.platformRow) {
-    container.addChild(
-      new Graphics()
-        .roundRect(2, 2, size - 4, size - 4, 4)
-        .stroke({ color: 0xf2b84b, alpha: 0.3, width: 1 })
-    );
-  }
-
-  if (!block.destroyed && options.exposed) {
-    container.addChild(
-      new Graphics()
-        .rect(0, 0, size, 3)
-        .fill({ color: 0x44c6c8, alpha: 0.52 })
-    );
-  }
-
-  if (!block.destroyed && !options.exposed) {
-    container.addChild(
-      new Graphics()
-        .roundRect(0, 0, size, size, 5)
-        .fill({ color: 0x000000, alpha: 0.32 })
-    );
-  }
-
-  if (crackedAlpha > 0) {
-    container.addChild(drawCracks(size, crackedAlpha));
-  }
-
-  if (nearBreak) {
-    container.addChild(drawNearBreakWarning(size, hpPercent));
-  }
-
-  if (!block.destroyed) {
-    const hpText = createText({
-      color: 0xf7ead8,
-      fontSize: Math.max(9, Math.floor(size * 0.24)),
-      fontWeight: "800",
-      text: String(Math.ceil(block.hp))
-    });
-    hpText.position.set(5, 4);
-    container.addChild(hpText);
-
-    const labelText = createText({
-      color: 0xffffff,
-      fontSize: Math.max(8, Math.floor(size * 0.2)),
-      fontWeight: "800",
-      text: shortBlockLabel(blockType)
-    });
-    labelText.anchor.set(1, 1);
-    labelText.alpha = 0.58;
-    labelText.position.set(size - 4, size - 5);
-    container.addChild(labelText);
-
-    container.addChild(
-      new Graphics()
-        .roundRect(4, size - 7, Math.max(3, (size - 8) * hpPercent), 3, 2)
-        .fill({ color: 0x6fbf57 })
-    );
-  }
-
-  return container;
-}
-
-function drawNearBreakWarning(size: number, hpPercent: number): Container {
-  const warning = new Container();
-  const intensity = nearBreakIntensity(hpPercent);
-
-  warning.addChild(
-    new Graphics()
-      .roundRect(2, 2, size - 4, size - 4, 4)
-      .stroke({ color: 0xf2b84b, alpha: 0.38 + intensity * 0.28, width: 2 })
-      .roundRect(5, 5, size - 10, size - 10, 3)
-      .stroke({ color: 0xc4442d, alpha: 0.24 + intensity * 0.26, width: 1 })
-  );
-
-  warning.addChild(
-    new Graphics()
-      .moveTo(size * 0.18, size * 0.82)
-      .lineTo(size * 0.42, size * 0.56)
-      .lineTo(size * 0.34, size * 0.34)
-      .moveTo(size * 0.58, size * 0.86)
-      .lineTo(size * 0.52, size * 0.56)
-      .lineTo(size * 0.78, size * 0.28)
-      .stroke({ color: 0xf7ead8, alpha: 0.32 + intensity * 0.36, width: 2 })
-  );
-
-  warning.addChild(
-    new Graphics()
-      .circle(size * 0.82, size * 0.18, Math.max(2, size * 0.055))
-      .fill({ color: 0xf2b84b, alpha: 0.56 + intensity * 0.28 })
-      .circle(size * 0.18, size * 0.72, Math.max(1.5, size * 0.04))
-      .fill({ color: 0xc4442d, alpha: 0.42 + intensity * 0.32 })
-  );
-
-  return warning;
-}
-
-function drawCracks(size: number, alpha: number): Graphics {
-  return new Graphics()
-    .moveTo(size * 0.28, size * 0.18)
-    .lineTo(size * 0.46, size * 0.42)
-    .lineTo(size * 0.38, size * 0.7)
-    .moveTo(size * 0.62, size * 0.2)
-    .lineTo(size * 0.52, size * 0.5)
-    .lineTo(size * 0.74, size * 0.76)
-    .stroke({ color: 0x0d0907, alpha, width: 2 });
-}
-
 function reconcileHitEffects(
   root: Container,
   renderedEffects: Map<string, RenderedPixiNode>,
@@ -1436,22 +1134,6 @@ function clamp01(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function drawTree(container: Container, x: number, y: number, scale: number) {
-  const tree = new Container();
-  tree.position.set(x, y);
-  tree.scale.set(scale);
-  tree.addChild(
-    new Graphics()
-      .rect(10, 22, 6, 34)
-      .fill({ color: 0x4a321e })
-      .roundRect(0, 8, 26, 18, 10)
-      .fill({ color: 0x2f6b3b })
-      .roundRect(-4, 20, 34, 20, 10)
-      .fill({ color: 0x255933 })
-  );
-  container.addChild(tree);
-}
-
 function platformDropOffset(progress: number): number {
   if (progress <= 0) {
     return -30;
@@ -1475,62 +1157,6 @@ function currentPlatformDropOffset(now: number, animating: boolean, startedAt: n
   }
 
   return platformDropOffset(elapsed / platformDropDurationMs);
-}
-
-function blockColor(blockTypeId: string, blockType: BlockTypeConfig | undefined): number {
-  if (blockTypeId.includes("copper")) {
-    return 0xa35f38;
-  }
-
-  if (blockTypeId.includes("gold")) {
-    return 0xd49a35;
-  }
-
-  if (blockType?.specialBehavior === "chest" || blockTypeId.includes("chest")) {
-    return 0xb77b35;
-  }
-
-  if (blockTypeId.includes("stone")) {
-    return 0x62666d;
-  }
-
-  return 0x6a4a2e;
-}
-
-function blockTypeVisualToken(blockType: BlockTypeConfig | undefined): string {
-  return blockType ? `${blockType.id}:${blockType.specialBehavior ?? ""}` : "missing";
-}
-
-function blockDamageAlpha(hpPercent: number): number {
-  if (hpPercent <= 0.34) {
-    return 0.78;
-  }
-
-  if (hpPercent <= 0.67) {
-    return 0.52;
-  }
-
-  if (hpPercent < 1) {
-    return 0.34;
-  }
-
-  return 0;
-}
-
-function shortBlockLabel(blockType?: BlockTypeConfig): string {
-  if (!blockType) {
-    return "?";
-  }
-
-  if (blockType.id === "copper_ore") {
-    return "Cu";
-  }
-
-  if (blockType.specialBehavior === "chest") {
-    return "Box";
-  }
-
-  return blockType.id.slice(0, 2).toUpperCase();
 }
 
 function createText(options: {

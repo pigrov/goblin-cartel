@@ -35,3 +35,4 @@
 - `0030_pixi_hit_test_destroy_fx` - Pixi hit-test details in the dev overlay and richer procedural block destruction shards.
 - `0031_pixi_effects_module_near_break` - extracted Pixi hit effects into a module and added near-break block visuals.
 - `0032_pixi_goblin_module_text_motion` - extracted Pixi goblin drawing, widened goblin grab hit area, and adjusted hit text motion.
+- `0033_pixi_surface_platform_blocks` - extracted Pixi surface, platform, and block drawing modules with a brighter surface and glass header.
