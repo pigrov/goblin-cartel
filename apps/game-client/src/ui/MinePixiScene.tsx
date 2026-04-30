@@ -33,6 +33,7 @@ import {
   nearBreakIntensity,
   normalizeBlockHpPercent
 } from "./minePixiBlockVisualState";
+import { drawGoblin } from "./minePixiGoblins";
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
 
@@ -1433,42 +1434,6 @@ function clamp01(value: number): number {
   }
 
   return Math.max(0, Math.min(1, value));
-}
-
-function drawGoblin(cellSize: number, working: boolean, dragging: boolean): Container {
-  const goblin = new Container();
-  const scale = Math.max(0.8, Math.min(1.05, cellSize / 42));
-  goblin.scale.set(scale);
-  goblin.alpha = dragging ? 0.55 : 1;
-
-  goblin.addChild(
-    new Graphics()
-      .roundRect(-10, 16, 20, 7, 5)
-      .fill({ color: 0x2d2118 })
-      .stroke({ color: 0x20170f, width: 1 })
-      .roundRect(-12, 20, 24, 8, 5)
-      .fill({ color: 0x4f7334 })
-      .roundRect(-7, 4, 14, 14, 6)
-      .fill({ color: 0x75a94b })
-      .stroke({ color: 0x18210f, width: 1 })
-      .roundRect(-6, 17, 12, 13, 5)
-      .fill({ color: 0x6b4d2e })
-      .stroke({ color: 0x1b1a12, width: 1 })
-      .rect(-2, 27, 5, 24)
-      .fill({ color: 0x9ca3ad })
-      .rect(-5, 44, 11, 6)
-      .fill({ color: working ? 0xf2b84b : 0xc07a3d, alpha: working ? 0.94 : 0.8 })
-  );
-
-  goblin.addChild(
-    new Graphics()
-      .circle(-3, 10, 1.5)
-      .fill({ color: 0x11170c })
-      .circle(3, 10, 1.5)
-      .fill({ color: 0x11170c })
-  );
-
-  return goblin;
 }
 
 function drawTree(container: Container, x: number, y: number, scale: number) {

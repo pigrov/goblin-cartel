@@ -1,5 +1,8 @@
 import { Container, Graphics, Text } from "pixi.js";
 
+const damageLabelRise = 56;
+const rewardLabelRise = 68;
+
 export type MinePixiHitEffectVariant = "boss" | "goblin" | "critical";
 
 export interface MinePixiRewardDrop {
@@ -247,7 +250,7 @@ export function animateHitEffects(now: number, animatedEffects: AnimatedHitEffec
     }
 
     if (item.damageLabel) {
-      const labelRise = -28 * eased;
+      const labelRise = -damageLabelRise * eased;
       item.damageLabel.y = item.damageLabelBaseY + labelRise;
       item.damageLabel.alpha = progress < 0.18 ? progress / 0.18 : Math.max(0, 1 - (progress - 0.34) / 0.66);
       item.damageLabel.scale.set(1 + (1 - progress) * 0.18);
@@ -256,7 +259,7 @@ export function animateHitEffects(now: number, animatedEffects: AnimatedHitEffec
     for (const rewardLabel of item.rewardLabels) {
       const rewardProgress = clamp01((progress - rewardLabel.delay) / Math.max(0.01, 1 - rewardLabel.delay));
       const rewardEase = 1 - Math.pow(1 - rewardProgress, 3);
-      rewardLabel.node.y = rewardLabel.baseY - rewardEase * 34;
+      rewardLabel.node.y = rewardLabel.baseY - rewardEase * rewardLabelRise;
       rewardLabel.node.alpha = rewardProgress <= 0
         ? 0
         : Math.max(0, rewardProgress < 0.18 ? rewardProgress / 0.18 : 1 - Math.max(0, rewardProgress - 0.62) / 0.38);
@@ -388,14 +391,6 @@ function drawDamageLabel(effect: MinePixiHitEffect, size: number): Container {
   shadow.position.set(1.5, 1.5);
   main.anchor.set(0.5);
   label.addChild(shadow, main);
-
-  if (critical) {
-    const flash = new Graphics()
-      .roundRect(-size * 0.48, -fontSize * 0.58, size * 0.96, fontSize * 1.15, 6)
-      .fill({ color: 0xf2b84b, alpha: 0.18 })
-      .stroke({ color: 0xffffff, alpha: 0.44, width: 1 });
-    label.addChildAt(flash, 0);
-  }
 
   return label;
 }
