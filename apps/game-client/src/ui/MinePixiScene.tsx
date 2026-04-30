@@ -7,6 +7,7 @@ import {
   createMinePixiLayout,
   createVisibleRowRange,
   isRowInVisibleRange,
+  pointToPlatformColumnCell,
   pointToPlatformCell,
   type MinePixiCell,
   type MinePixiLayout,
@@ -28,9 +29,16 @@ export interface MinePixiGoblin {
 
 export type MinePixiHitEffectVariant = "boss" | "goblin" | "critical";
 
+export interface MinePixiRewardDrop {
+  amount: number;
+  label: string;
+  resourceId: string;
+}
+
 export interface MinePixiHitEffect {
   damage: number;
   id: number;
+  rewardDrops: MinePixiRewardDrop[];
   row: number;
   col: number;
   variant: MinePixiHitEffectVariant;
@@ -76,9 +84,16 @@ interface AnimatedHitEffect {
   id: number;
   node: Container;
   particles: AnimatedHitParticle[];
+  rewardLabels: AnimatedRewardLabel[];
   rings: Container[];
   slash: Container | null;
   startedAt: number;
+}
+
+interface AnimatedRewardLabel {
+  baseY: number;
+  delay: number;
+  node: Container;
 }
 
 interface AnimatedHitParticle {
@@ -115,6 +130,7 @@ interface DrawnHitEffect {
   duration: number;
   node: Container;
   particles: AnimatedHitParticle[];
+  rewardLabels: AnimatedRewardLabel[];
   rings: Container[];
   slash: Container | null;
 }
@@ -412,7 +428,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       }
 
       const point = pointFromCanvasEvent(event, canvas);
-      const targetCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
+      const targetCell = pointToPlatformColumnCell(point, layout, currentPlatformRowRef.current);
 
       setDragState((current) => current
         ? {
@@ -435,7 +451,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       }
 
       const point = updateDragPoint(event) ?? pointFromCanvasEvent(event, canvas);
-      const targetCell = pointToPlatformCell(point, layout, currentPlatformRowRef.current);
+      const targetCell = pointToPlatformColumnCell(point, layout, currentPlatformRowRef.current);
 
       if (targetCell && platformCellKeysRef.current.has(cellKey(targetCell))) {
         onPlaceGoblinRef.current(activeDraggingGoblinId, targetCell);
@@ -916,7 +932,7 @@ function drawPlatform(
         x: event.global.x,
         y: event.global.y
       };
-      const targetCell = pointToPlatformCell(point, layout, props.currentPlatformRow);
+      const targetCell = pointToPlatformColumnCell(point, layout, props.currentPlatformRow);
       setDragState({
         goblinId: goblin.id,
         point,
@@ -1094,6 +1110,7 @@ function reconcileHitEffects(
       effect.col,
       effect.variant,
       effect.damage,
+      rewardDropsSignature(effect.rewardDrops),
       destroyed ? 1 : 0,
       layout.cellSize,
       x,
@@ -1120,6 +1137,7 @@ function reconcileHitEffects(
       id: effect.id,
       node: drawnEffect.node,
       particles: drawnEffect.particles,
+      rewardLabels: drawnEffect.rewardLabels,
       rings: drawnEffect.rings,
       slash: drawnEffect.slash,
       startedAt: performance.now()
@@ -1151,10 +1169,11 @@ function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: nu
   const particles: AnimatedHitParticle[] = [];
   const palette = hitEffectPalette(effect.variant, destroyed);
   const particleCount = destroyed ? 16 : effect.variant === "critical" ? 14 : effect.variant === "boss" ? 11 : 8;
-  const duration = destroyed ? 820 : effect.variant === "critical" ? 720 : 620;
+  const duration = destroyed ? 980 : effect.variant === "critical" ? 720 : 620;
   const flashScale = effect.variant === "critical" ? 1.18 : effect.variant === "goblin" ? 0.82 : 1;
   const damageLabel = drawDamageLabel(effect, size);
   const damageLabelBaseY = -size * (effect.variant === "critical" ? 0.72 : 0.54);
+  const rewardLabels = destroyed ? drawRewardLabels(effect.rewardDrops, size) : [];
 
   burst.position.set(x, y);
   burst.alpha = 0.98;
@@ -1219,12 +1238,17 @@ function drawHitEffect(effect: MinePixiHitEffect, x: number, y: number, size: nu
   damageLabel.position.set(0, damageLabelBaseY);
   burst.addChild(damageLabel);
 
+  for (const rewardLabel of rewardLabels) {
+    burst.addChild(rewardLabel.node);
+  }
+
   return {
     damageLabel,
     damageLabelBaseY,
     duration,
     node: burst,
     particles,
+    rewardLabels,
     rings,
     slash
   };
@@ -1309,6 +1333,16 @@ function animateHitEffects(now: number, animatedEffects: AnimatedHitEffect[]) {
       item.damageLabel.scale.set(1 + (1 - progress) * 0.18);
     }
 
+    for (const rewardLabel of item.rewardLabels) {
+      const rewardProgress = clamp01((progress - rewardLabel.delay) / Math.max(0.01, 1 - rewardLabel.delay));
+      const rewardEase = 1 - Math.pow(1 - rewardProgress, 3);
+      rewardLabel.node.y = rewardLabel.baseY - rewardEase * 22;
+      rewardLabel.node.alpha = rewardProgress <= 0
+        ? 0
+        : Math.max(0, rewardProgress < 0.18 ? rewardProgress / 0.18 : 1 - Math.max(0, rewardProgress - 0.62) / 0.38);
+      rewardLabel.node.scale.set(0.86 + rewardEase * 0.16);
+    }
+
     for (const particle of item.particles) {
       const particleProgress = clamp01((progress - particle.delay) / Math.max(0.01, 1 - particle.delay));
       const particleEase = 1 - Math.pow(1 - particleProgress, 2);
@@ -1389,12 +1423,69 @@ function drawDamageLabel(effect: MinePixiHitEffect, size: number): Container {
   return label;
 }
 
+function drawRewardLabels(rewardDrops: MinePixiRewardDrop[], size: number): AnimatedRewardLabel[] {
+  return rewardDrops.slice(0, 3).map((drop, index) => {
+    const fontSize = Math.max(10, Math.floor(size * 0.22));
+    const text = createText({
+      color: 0xf7ead8,
+      fontSize,
+      fontWeight: "800",
+      text: `+${formatDamageAmount(drop.amount)} ${drop.label}`
+    });
+    const label = new Container();
+    const width = Math.max(size * 0.82, text.width + size * 0.42);
+    const height = Math.max(16, fontSize * 1.45);
+    const baseY = size * 0.13 + index * (height + 3);
+    const color = resourceColor(drop.resourceId);
+
+    text.anchor.set(0, 0.5);
+    text.position.set(-width / 2 + height + 3, 0);
+    label.position.set((index % 2 === 0 ? -1 : 1) * size * 0.06, baseY);
+    label.alpha = 0;
+    label.addChild(
+      new Graphics()
+        .roundRect(-width / 2, -height / 2, width, height, 7)
+        .fill({ color: 0x15100c, alpha: 0.72 })
+        .stroke({ color, alpha: 0.7, width: 1 })
+        .circle(-width / 2 + height / 2, 0, Math.max(4, height * 0.26))
+        .fill({ color, alpha: 0.95 })
+    );
+    label.addChild(text);
+
+    return {
+      baseY,
+      delay: 0.16 + index * 0.08,
+      node: label
+    };
+  });
+}
+
 function formatDamageAmount(damage: number): string {
   if (!Number.isFinite(damage)) {
     return "0";
   }
 
   return Number.isInteger(damage) ? String(damage) : damage.toFixed(1);
+}
+
+function rewardDropsSignature(rewardDrops: MinePixiRewardDrop[]): string {
+  return rewardDrops.map((drop) => `${drop.resourceId}:${drop.amount}:${drop.label}`).join(",");
+}
+
+function resourceColor(resourceId: string): number {
+  if (resourceId.includes("gold")) {
+    return 0xf2b84b;
+  }
+
+  if (resourceId.includes("copper")) {
+    return 0xc07a3d;
+  }
+
+  if (resourceId.includes("stone")) {
+    return 0x9ca3ad;
+  }
+
+  return 0x6fbf57;
 }
 
 function clamp01(value: number): number {

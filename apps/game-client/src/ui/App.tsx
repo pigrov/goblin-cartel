@@ -40,7 +40,7 @@ const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyTickMs = 500;
 const offlineFinalHitDelayMs = 900;
-const hitEffectLifetimeMs = 900;
+const hitEffectLifetimeMs = 1200;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
 let hitEffectSequence = 0;
@@ -118,9 +118,16 @@ interface GoblinWorkerAssignment {
 interface HitEffect {
   damage: number;
   id: number;
+  rewardDrops: RewardDrop[];
   row: number;
   col: number;
   variant: HitEffectVariant;
+}
+
+interface RewardDrop {
+  amount: number;
+  label: string;
+  resourceId: string;
 }
 
 export function App() {
@@ -381,15 +388,16 @@ export function App() {
             continue;
           }
 
-          spawnHitEffect(worker.targetCell, "goblin", worker.damagePerSecond);
-
           const next = hitMineBlock(nextSession, contentState.content.blockTypes, {
             row: target.row,
             col: target.col,
             damage: worker.damagePerSecond
           });
+          const targetDestroyed = Boolean(next.blocks[target.row]?.[target.col]?.destroyed);
 
-          if (next.blocks[target.row]?.[target.col]?.destroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
+          spawnHitEffect(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
+
+          if (targetDestroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
             nextActiveCell = findExposedCellForPreferred(next, worker.targetCell);
           }
 
@@ -419,13 +427,13 @@ export function App() {
           return current;
         }
 
-        spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp));
-
         const next = hitMineBlock(current, contentState.content.blockTypes, {
           row: target.row,
           col: target.col,
           damage: Math.max(1, target.hp)
         });
+
+        spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
 
         setActiveCell(findExposedCellForPreferred(next, pendingOfflineFinalHit));
         setOfflineSummary((currentSummary) =>
@@ -491,10 +499,16 @@ export function App() {
     [placeGoblinOnCellKey]
   );
 
-  function spawnHitEffect(cell: { row: number; col: number }, variant: HitEffectVariant, damage: number) {
+  function spawnHitEffect(
+    cell: { row: number; col: number },
+    variant: HitEffectVariant,
+    damage: number,
+    rewards: Record<string, number> = {}
+  ) {
     const id = ++hitEffectSequence;
+    const rewardDrops = rewardDropsFromMap(rewards, contentState.content, labels);
 
-    setHitEffects((current) => [...current.slice(-16), { damage, id, row: cell.row, col: cell.col, variant }]);
+    setHitEffects((current) => [...current.slice(-16), { damage, id, rewardDrops, row: cell.row, col: cell.col, variant }]);
     window.setTimeout(() => {
       setHitEffects((current) => current.filter((effect) => effect.id !== id));
     }, hitEffectLifetimeMs);
@@ -521,8 +535,6 @@ export function App() {
       return;
     }
 
-    spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage);
-
     setSession((current) => {
       const next = hitMineBlock(current, contentState.content.blockTypes, {
         row: block.row,
@@ -530,6 +542,7 @@ export function App() {
         damage: attack.damage
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
+      spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage, targetDestroyed ? next.lastRewards : undefined);
       setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);
       setPlatformRow((current) => findPlatformRow(next, current));
       return next;
@@ -1089,9 +1102,20 @@ function hireCostLabel(goblin: GoblinConfig, labels: Record<string, string>): st
     .join(" · ");
 }
 
-function resourceLabelById(resourceId: string, labels: Record<string, string>): string {
-  const resource = starterContentBundle.resources.find((item) => item.id === resourceId);
+function resourceLabelById(resourceId: string, labels: Record<string, string>, content: ContentBundle = starterContentBundle): string {
+  const resource = content.resources.find((item) => item.id === resourceId) ?? starterContentBundle.resources.find((item) => item.id === resourceId);
   return resource ? labelFromNameKey(resource.nameKey, resource.id, labels) : resourceId;
+}
+
+function rewardDropsFromMap(rewards: Record<string, number>, content: ContentBundle, labels: Record<string, string>): RewardDrop[] {
+  return Object.entries(rewards)
+    .filter(([, amount]) => amount > 0)
+    .sort(([leftResourceId], [rightResourceId]) => leftResourceId.localeCompare(rightResourceId))
+    .map(([resourceId, amount]) => ({
+      amount,
+      label: resourceLabelById(resourceId, labels, content),
+      resourceId
+    }));
 }
 
 function messageForHireFailure(reason: string): string {

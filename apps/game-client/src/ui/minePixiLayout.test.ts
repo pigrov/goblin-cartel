@@ -5,7 +5,8 @@ import {
   isRowInVisibleRange,
   minePixiLayoutConfig,
   pointToMineCell,
-  pointToPlatformCell
+  pointToPlatformCell,
+  pointToPlatformColumnCell
 } from "./minePixiLayout";
 
 const mine = {
@@ -69,6 +70,22 @@ describe("minePixiLayout", () => {
     expect(pointToPlatformCell(point, layout, platformRow)).toEqual({ row: platformRow, col: 6 });
     expect(pointToPlatformCell({ x: layout.gridX + layout.gridWidth + 1, y: point.y }, layout, platformRow)).toBeNull();
     expect(pointToPlatformCell({ x: point.x, y: layout.platformY - 1 }, layout, platformRow)).toBeNull();
+  });
+
+  it("maps goblin drag drops by column regardless of vertical release position", () => {
+    const platformRow = 5;
+    const layout = createMinePixiLayout(mine, 430, platformRow);
+    const x = layout.gridX + 3 * layout.rowStep + layout.cellSize / 2;
+
+    expect(pointToPlatformColumnCell({ x, y: layout.platformY - layout.rowStep * 2 }, layout, platformRow)).toEqual({
+      row: platformRow,
+      col: 3
+    });
+    expect(pointToPlatformColumnCell({ x, y: layout.gridY + layout.rowStep * 10 }, layout, platformRow)).toEqual({
+      row: platformRow,
+      col: 3
+    });
+    expect(pointToPlatformColumnCell({ x: layout.gridX + layout.gridWidth + 1, y: layout.platformY }, layout, platformRow)).toBeNull();
   });
 
   it("creates an overscanned visible row range from scroll position", () => {

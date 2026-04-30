@@ -119,6 +119,23 @@ export function pointToPlatformCell(
   };
 }
 
+export function pointToPlatformColumnCell(
+  point: MinePixiPoint,
+  layout: MinePixiLayout,
+  platformRow: number
+): MinePixiCell | null {
+  const col = pointToColumn(point.x, layout);
+
+  if (col === null) {
+    return null;
+  }
+
+  return {
+    row: clampInteger(platformRow, 0, layout.mineHeight - 1),
+    col
+  };
+}
+
 export function pointToMineCell(point: MinePixiPoint, layout: MinePixiLayout): MinePixiCell | null {
   const col = pointToColumn(point.x, layout);
 
