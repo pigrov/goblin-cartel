@@ -1,12 +1,11 @@
 import { Application, Container, Rectangle } from "pixi.js";
-import { useEffect, useMemo, useRef, useState, type MutableRefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
 import {
   cellKey,
   createMinePixiLayout,
   createVisibleRowRange,
-  isRowInVisibleRange,
   pointToPlatformColumnCell,
   type MinePixiLayout,
   type MinePixiPoint,
@@ -14,34 +13,22 @@ import {
   type MinePixiVisibleRowRange
 } from "./minePixiLayout";
 import {
-  createMinePixiBlockRenderSignature,
-  createMinePixiVisibleCellKeySet
-} from "./minePixiRenderState";
-import {
-  animateHitEffects,
-  drawHitEffect,
-  rewardDropsSignature,
   type AnimatedHitEffect,
-  type MinePixiHitEffect,
-  type MinePixiHitEffectVariant
+  type MinePixiHitEffect
 } from "./minePixiEffects";
-import {
-  blockColor,
-  blockTypeVisualToken,
-  drawBlock
-} from "./minePixiBlocks";
+import { reconcileMineBlocks } from "./minePixiBlockReconciliation";
 import { drawSceneBackground } from "./minePixiBackground";
-import {
-  reconcileDepthMarkers,
-  type MinePixiRenderedNode
-} from "./minePixiDepthMarkers";
+import { reconcileDepthMarkers } from "./minePixiDepthMarkers";
+import { reconcileHitEffects, type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import {
   drawDragPreview,
   drawPlatform,
   type MinePixiAnimatedItem,
   type MinePixiDragState
 } from "./minePixiPlatform";
+import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
 import { drawLiftCables, drawSurface } from "./minePixiSurface";
+import { currentPlatformDropOffset, runMinePixiTickerFrame, type PixiDevStats } from "./minePixiTicker";
 import {
   bindMinePixiPointerInput,
   configurePixiInputForTouchScroll,
@@ -80,14 +67,6 @@ interface MinePixiSceneProps {
 
 type AnimatedItem = MinePixiAnimatedItem;
 
-interface AnimatedBlockImpact {
-  cellKey: string;
-  destroyed: boolean;
-  duration: number;
-  startedAt: number;
-  variant: MinePixiHitEffectVariant;
-}
-
 interface SceneLayers {
   background: Container;
   drag: Container;
@@ -98,25 +77,9 @@ interface SceneLayers {
   surface: Container;
 }
 
-interface RenderedPixiNode {
-  baseX?: number;
-  baseY?: number;
-  node: Container;
-  signature: string;
-}
-
 type DragState = MinePixiDragState;
 
-interface PixiDevStats {
-  fps: number;
-  renderedCells: number;
-  scrollRow: number;
-  totalCells: number;
-  visibleRows: string;
-}
-
 const minSceneWidth = 320;
-const platformDropDurationMs = 1450;
 const defaultSceneViewport: MinePixiViewport = {
   height: 0,
   scrollTop: 0
@@ -125,11 +88,11 @@ const defaultSceneViewport: MinePixiViewport = {
 export function MinePixiScene(props: MinePixiSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const appRef = useRef<Application | null>(null);
-  const animatedBlockImpactsRef = useRef<Map<number, AnimatedBlockImpact>>(new Map());
+  const animatedBlockImpactsRef = useRef<Map<number, MinePixiAnimatedBlockImpact>>(new Map());
   const animatedHitEffectsRef = useRef<AnimatedHitEffect[]>([]);
-  const blockNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
+  const blockNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const depthMarkerNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
-  const hitEffectNodesRef = useRef<Map<string, RenderedPixiNode>>(new Map());
+  const hitEffectNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
   const layersRef = useRef<SceneLayers | null>(null);
   const rootRef = useRef<Container | null>(null);
   const devOverlayEnabledRef = useRef(props.devOverlayEnabled);
@@ -274,33 +237,24 @@ export function MinePixiScene(props: MinePixiSceneProps) {
         rootRef.current = root;
 
         app.ticker.add(() => {
-          const now = performance.now();
-          const platform = platformRef.current;
-
-          if (platform) {
-            platform.node.y = platform.baseY + currentPlatformDropOffset(now, platformDropAnimatingRef.current, platformAnimationStartedAtRef.current);
-          }
-
-          for (const item of animatedGoblinsRef.current) {
-            const drillOffset = item.working ? Math.sin(now / 48 + item.phase) * 1.8 : Math.sin(now / 420 + item.phase) * 0.5;
-            item.node.y = item.baseY + drillOffset;
-            item.node.rotation = item.working ? Math.sin(now / 70 + item.phase) * 0.035 : 0;
-          }
-
-          animateBlockImpacts(now, animatedBlockImpactsRef.current, blockNodesRef.current);
-          animateHitEffects(now, animatedHitEffectsRef.current);
-          updatePixiDevStats(
-            now,
+          runMinePixiTickerFrame({
+            animatedBlockImpacts: animatedBlockImpactsRef.current,
+            animatedGoblins: animatedGoblinsRef.current,
+            animatedHitEffects: animatedHitEffectsRef.current,
             app,
-            hostRef.current,
-            layoutRef.current,
-            visibleRowRangeRef.current,
-            blockNodesRef.current.size,
-            totalCellCountRef.current,
+            blockNodes: blockNodesRef.current,
             devOverlayEnabledRef,
             devStatsLastUpdatedAtRef,
-            setDevStats
-          );
+            host: hostRef.current,
+            layout: layoutRef.current,
+            now: performance.now(),
+            platform: platformRef.current,
+            platformAnimationStartedAt: platformAnimationStartedAtRef.current,
+            platformDropAnimating: platformDropAnimatingRef.current,
+            setDevStats,
+            totalCells: totalCellCountRef.current,
+            visibleRowRange: visibleRowRangeRef.current
+          });
         });
 
         setReadyTick((current) => current + 1);
@@ -488,7 +442,17 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileMineBlocks(layers.mine, blockNodesRef.current, layout, props, visibleRowRange);
+    reconcileMineBlocks({
+      activeCell: props.activeCell,
+      blockTypeById: props.blockTypeById,
+      currentPlatformRow: props.currentPlatformRow,
+      exposedCellKeys: props.exposedCellKeys,
+      layout,
+      mineLayer: layers.mine,
+      renderedBlocks: blockNodesRef.current,
+      sessionBlocks: props.session.blocks,
+      visibleRowRange
+    });
     reconcileDepthMarkers({
       currentPlatformRow: props.currentPlatformRow,
       depthMarkerLabel: props.depthMarkerLabel,
@@ -516,15 +480,17 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileHitEffects(
-      layers.effects,
-      hitEffectNodesRef.current,
-      animatedHitEffectsRef,
+    reconcileHitEffects({
       animatedBlockImpactsRef,
+      animatedHitEffectsRef,
+      blockTypeById: props.blockTypeById,
+      hitEffects: props.hitEffects,
       layout,
-      props,
+      renderedEffects: hitEffectNodesRef.current,
+      root: layers.effects,
+      sessionBlocks: props.session.blocks,
       visibleRowRange
-    );
+    });
   }, [layout, props.hitEffects, readyTick, visibleRowRange]);
 
   useEffect(() => {
@@ -621,274 +587,4 @@ function clearLayer(layer: Container) {
   for (const child of layer.removeChildren()) {
     child.destroy({ children: true });
   }
-}
-
-function updatePixiDevStats(
-  now: number,
-  app: Application,
-  host: HTMLDivElement | null,
-  layout: MinePixiLayout | null,
-  visibleRowRange: MinePixiVisibleRowRange,
-  renderedCells: number,
-  totalCells: number,
-  devOverlayEnabledRef: MutableRefObject<boolean>,
-  devStatsLastUpdatedAtRef: MutableRefObject<number>,
-  setDevStats: (stats: PixiDevStats) => void
-) {
-  if (!devOverlayEnabledRef.current || !layout || now - devStatsLastUpdatedAtRef.current < 350) {
-    return;
-  }
-
-  devStatsLastUpdatedAtRef.current = now;
-  const scrollTop = Math.max(0, host?.scrollTop ?? 0);
-  const scrollRow = Math.max(0, Math.floor(Math.max(0, scrollTop - layout.gridY) / layout.rowStep));
-  const ticker = app.ticker as { FPS?: number };
-
-  setDevStats({
-    fps: Math.round(ticker.FPS ?? 0),
-    renderedCells,
-    scrollRow,
-    totalCells,
-    visibleRows: `${visibleRowRange.startRow}-${visibleRowRange.endRow}`
-  });
-}
-
-function removeRenderedNode(
-  renderedNodes: Map<string, RenderedPixiNode>,
-  key: string,
-  renderedNode: RenderedPixiNode
-) {
-  renderedNode.node.parent?.removeChild(renderedNode.node);
-  renderedNode.node.destroy({ children: true });
-  renderedNodes.delete(key);
-}
-
-function reconcileMineBlocks(
-  mineLayer: Container,
-  renderedBlocks: Map<string, RenderedPixiNode>,
-  layout: MinePixiLayout,
-  props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange
-) {
-  const visibleCellKeys = createMinePixiVisibleCellKeySet(props.session.blocks, visibleRowRange);
-
-  for (const [key, renderedBlock] of renderedBlocks) {
-    if (!visibleCellKeys.has(key)) {
-      removeRenderedNode(renderedBlocks, key, renderedBlock);
-    }
-  }
-
-  for (let rowIndex = visibleRowRange.startRow; rowIndex <= visibleRowRange.endRow; rowIndex += 1) {
-    const row = props.session.blocks[rowIndex];
-
-    if (!row) {
-      continue;
-    }
-
-    for (const block of row) {
-      const blockKey = cellKey(block);
-      const exposed = props.exposedCellKeys.has(blockKey);
-      const active = block.row === props.activeCell.row && block.col === props.activeCell.col;
-      const platformRow = block.row === props.currentPlatformRow;
-      const x = layout.gridX + block.col * layout.rowStep;
-      const y = layout.gridY + block.row * layout.rowStep;
-      const blockType = props.blockTypeById.get(block.blockTypeId);
-      const signature = createMinePixiBlockRenderSignature({
-        active,
-        block,
-        blockTypeToken: blockTypeVisualToken(blockType),
-        exposed,
-        platformRow,
-        size: layout.cellSize,
-        x,
-        y
-      });
-      const renderedBlock = renderedBlocks.get(blockKey);
-
-      if (renderedBlock?.signature === signature) {
-        continue;
-      }
-
-      if (renderedBlock) {
-        removeRenderedNode(renderedBlocks, blockKey, renderedBlock);
-      }
-
-      const blockGraphics = drawBlock(block, props.blockTypeById.get(block.blockTypeId), {
-        active,
-        exposed,
-        platformRow,
-        size: layout.cellSize
-      });
-
-      blockGraphics.position.set(x, y);
-
-      if (!block.destroyed && exposed) {
-        blockGraphics.cursor = "pointer";
-      }
-
-      mineLayer.addChild(blockGraphics);
-      renderedBlocks.set(blockKey, {
-        baseX: x,
-        baseY: y,
-        node: blockGraphics,
-        signature
-      });
-    }
-  }
-}
-
-function reconcileHitEffects(
-  root: Container,
-  renderedEffects: Map<string, RenderedPixiNode>,
-  animatedHitEffectsRef: MutableRefObject<AnimatedHitEffect[]>,
-  animatedBlockImpactsRef: MutableRefObject<Map<number, AnimatedBlockImpact>>,
-  layout: MinePixiLayout,
-  props: MinePixiSceneProps,
-  visibleRowRange: MinePixiVisibleRowRange
-) {
-  const visibleEffectKeys = new Set<string>();
-
-  for (const effect of props.hitEffects) {
-    if (!isRowInVisibleRange(effect.row, visibleRowRange)) {
-      continue;
-    }
-
-    const key = String(effect.id);
-    const targetBlock = props.session.blocks[effect.row]?.[effect.col];
-    const destroyed = Boolean(targetBlock?.destroyed);
-    const x = layout.gridX + effect.col * layout.rowStep + layout.cellSize / 2;
-    const y = layout.gridY + effect.row * layout.rowStep + layout.cellSize / 2;
-    const signature = [
-      effect.id,
-      effect.row,
-      effect.col,
-      effect.variant,
-      effect.damage,
-      rewardDropsSignature(effect.rewardDrops),
-      destroyed ? 1 : 0,
-      layout.cellSize,
-      x,
-      y
-    ].join("|");
-    const renderedEffect = renderedEffects.get(key);
-    visibleEffectKeys.add(key);
-
-    if (renderedEffect?.signature === signature) {
-      continue;
-    }
-
-    if (renderedEffect) {
-      removeRenderedNode(renderedEffects, key, renderedEffect);
-      animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => item.id !== effect.id);
-    }
-
-    const targetBlockType = targetBlock ? props.blockTypeById.get(targetBlock.blockTypeId) : undefined;
-    const drawnEffect = drawHitEffect(
-      effect,
-      x,
-      y,
-      layout.cellSize,
-      destroyed,
-      blockColor(targetBlock?.blockTypeId ?? "", targetBlockType)
-    );
-    root.addChild(drawnEffect.node);
-    animatedHitEffectsRef.current.push({
-      collapseShards: drawnEffect.collapseShards,
-      damageLabel: drawnEffect.damageLabel,
-      damageLabelBaseY: drawnEffect.damageLabelBaseY,
-      duration: drawnEffect.duration,
-      id: effect.id,
-      node: drawnEffect.node,
-      particles: drawnEffect.particles,
-      rewardLabels: drawnEffect.rewardLabels,
-      rings: drawnEffect.rings,
-      slash: drawnEffect.slash,
-      startedAt: performance.now()
-    });
-    animatedBlockImpactsRef.current.set(effect.id, {
-      cellKey: cellKey(effect),
-      destroyed,
-      duration: destroyed ? 620 : 360,
-      startedAt: performance.now(),
-      variant: effect.variant
-    });
-    renderedEffects.set(key, {
-      node: drawnEffect.node,
-      signature
-    });
-  }
-
-  for (const [key, renderedEffect] of renderedEffects) {
-    if (!visibleEffectKeys.has(key)) {
-      removeRenderedNode(renderedEffects, key, renderedEffect);
-      animatedHitEffectsRef.current = animatedHitEffectsRef.current.filter((item) => String(item.id) !== key);
-    }
-  }
-}
-
-function animateBlockImpacts(
-  now: number,
-  impacts: Map<number, AnimatedBlockImpact>,
-  renderedBlocks: ReadonlyMap<string, RenderedPixiNode>
-) {
-  for (const renderedBlock of renderedBlocks.values()) {
-    if (typeof renderedBlock.baseX === "number" && typeof renderedBlock.baseY === "number") {
-      renderedBlock.node.position.set(renderedBlock.baseX, renderedBlock.baseY);
-    }
-  }
-
-  for (const [id, impact] of impacts) {
-    const elapsed = now - impact.startedAt;
-
-    if (elapsed >= impact.duration) {
-      impacts.delete(id);
-      continue;
-    }
-
-    const renderedBlock = renderedBlocks.get(impact.cellKey);
-
-    if (!renderedBlock || typeof renderedBlock.baseX !== "number" || typeof renderedBlock.baseY !== "number") {
-      continue;
-    }
-
-    const progress = clamp01(elapsed / impact.duration);
-    const strength = (impact.variant === "critical" ? 1.55 : impact.variant === "goblin" ? 0.72 : 1) * (impact.destroyed ? 1.18 : 1);
-    const fade = 1 - progress;
-    const x = Math.sin(progress * Math.PI * 9) * fade * 3.4 * strength;
-    const y = Math.abs(Math.sin(progress * Math.PI * 4.5)) * fade * 2.2 * strength;
-    renderedBlock.node.position.set(renderedBlock.baseX + x, renderedBlock.baseY + y);
-  }
-}
-
-function clamp01(value: number): number {
-  if (!Number.isFinite(value)) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(1, value));
-}
-
-function platformDropOffset(progress: number): number {
-  if (progress <= 0) {
-    return -30;
-  }
-
-  if (progress >= 1) {
-    return 0;
-  }
-
-  const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-  return -30 * (1 - eased);
-}
-
-function currentPlatformDropOffset(now: number, animating: boolean, startedAt: number): number {
-  const elapsed = now - startedAt;
-
-  if (!animating || elapsed < 0 || elapsed >= platformDropDurationMs) {
-    return 0;
-  }
-
-  return platformDropOffset(elapsed / platformDropDurationMs);
 }

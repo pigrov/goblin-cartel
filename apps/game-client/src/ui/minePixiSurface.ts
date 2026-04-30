@@ -49,7 +49,7 @@ export function drawSurface(root: Container, layout: MinePixiLayout, platformRow
 }
 
 export function drawLiftCables(root: Container, layout: MinePixiLayout) {
-  const cableX = layout.gridX;
+  const cableX = layout.gridX - 4;
   const pulleyY = layout.surfaceHeight - 108;
   const cableTop = pulleyY + 13;
   const cableBottom = Math.max(layout.surfaceHeight, layout.platformY + layout.platformHeight - 18);
@@ -149,7 +149,7 @@ function drawGrassClumps(container: Container, layout: MinePixiLayout) {
 }
 
 function drawSurfaceLift(container: Container, layout: MinePixiLayout) {
-  const x = layout.gridX;
+  const x = layout.gridX - 4;
   const y = layout.surfaceHeight - 104;
 
   container.addChild(

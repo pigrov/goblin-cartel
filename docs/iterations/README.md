@@ -37,3 +37,4 @@
 - `0032_pixi_goblin_module_text_motion` - extracted Pixi goblin drawing, widened goblin grab hit area, and adjusted hit text motion.
 - `0033_pixi_surface_platform_blocks` - extracted Pixi surface, platform, and block drawing modules with a brighter surface and glass header.
 - `0034_pixi_background_depth_input` - extracted Pixi background, depth markers, and input handling with a taller surface, compact glass boss energy overlay, and 200m test mine.
+- `0035_pixi_reconciliation_ticker` - extracted Pixi block/effect reconciliation and animation ticker, tightened the boss energy overlay, and made the lift rail grow with platform depth.

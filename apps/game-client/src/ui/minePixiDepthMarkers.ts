@@ -3,13 +3,7 @@ import type {
   MinePixiLayout,
   MinePixiVisibleRowRange
 } from "./minePixiLayout";
-
-export interface MinePixiRenderedNode {
-  baseX?: number;
-  baseY?: number;
-  node: Container;
-  signature: string;
-}
+import { removeMinePixiRenderedNode, type MinePixiRenderedNode } from "./minePixiRenderNodes";
 
 export function reconcileDepthMarkers(input: {
   currentPlatformRow: number;
@@ -47,7 +41,7 @@ export function reconcileDepthMarkers(input: {
     }
 
     if (renderedMarker) {
-      removeRenderedNode(input.renderedMarkers, key, renderedMarker);
+      removeMinePixiRenderedNode(input.renderedMarkers, key, renderedMarker);
     }
 
     const marker = drawDepthMarker(input.layout, label, row === input.currentPlatformRow, y);
@@ -60,7 +54,7 @@ export function reconcileDepthMarkers(input: {
 
   for (const [key, renderedMarker] of input.renderedMarkers) {
     if (!visibleMarkerKeys.has(key)) {
-      removeRenderedNode(input.renderedMarkers, key, renderedMarker);
+      removeMinePixiRenderedNode(input.renderedMarkers, key, renderedMarker);
     }
   }
 }
@@ -82,16 +76,6 @@ function drawDepthMarker(
   text.position.set(layout.gridX - 6, y);
   marker.addChild(text);
   return marker;
-}
-
-function removeRenderedNode(
-  renderedNodes: Map<string, MinePixiRenderedNode>,
-  key: string,
-  renderedNode: MinePixiRenderedNode
-) {
-  renderedNode.node.parent?.removeChild(renderedNode.node);
-  renderedNode.node.destroy({ children: true });
-  renderedNodes.delete(key);
 }
 
 function createText(options: {

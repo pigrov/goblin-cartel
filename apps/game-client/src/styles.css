@@ -1306,11 +1306,11 @@ body,
   border-color: rgb(71 138 191 / 56%);
   border-radius: var(--gc-radius-sm);
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 16%), rgb(69 141 199 / 10%)),
-    rgb(21 29 37 / 42%);
+    linear-gradient(180deg, rgb(255 255 255 / 20%), rgb(69 141 199 / 16%)),
+    rgb(21 29 37 / 72%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 16%),
-    0 10px 26px rgb(0 0 0 / 20%);
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 10px 26px rgb(0 0 0 / 28%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   text-align: left;
