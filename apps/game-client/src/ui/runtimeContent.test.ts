@@ -5,10 +5,10 @@ import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./r
 describe("runtime content", () => {
   it("keeps current starter mine unchanged when it already has test depth", () => {
     expect(createRuntimeContentBundle(starterContentBundle)).toBe(starterContentBundle);
-    expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback");
+    expect(contentVersionWithRuntimeSuffix("fallback", starterContentBundle)).toBe("fallback:mine-12");
   });
 
-  it("expands older published mine content to the 200m test depth", () => {
+  it("normalizes older published mine content to the 60m runtime depth", () => {
     const content = structuredClone(starterContentBundle);
     const mine = content.mineTemplates[0];
 
@@ -16,13 +16,13 @@ describe("runtime content", () => {
       throw new Error("Missing starter mine");
     }
 
-    mine.height = 12;
-    mine.depthMeters = 60;
+    mine.height = 40;
+    mine.depthMeters = 200;
     mine.strata = [
       {
         id: "top_soil",
         fromRow: 0,
-        toRow: 3,
+        toRow: 7,
         blockWeights: {
           dirt: 70,
           stone: 25,
@@ -31,8 +31,8 @@ describe("runtime content", () => {
       },
       {
         id: "stone_layer",
-        fromRow: 4,
-        toRow: 7,
+        fromRow: 8,
+        toRow: 23,
         blockWeights: {
           dirt: 20,
           stone: 60,
@@ -42,8 +42,8 @@ describe("runtime content", () => {
       },
       {
         id: "copper_layer",
-        fromRow: 8,
-        toRow: 11,
+        fromRow: 24,
+        toRow: 39,
         blockWeights: {
           stone: 55,
           copper_ore: 40,
@@ -55,10 +55,15 @@ describe("runtime content", () => {
     const runtimeContent = createRuntimeContentBundle(content);
     const runtimeMine = runtimeContent.mineTemplates[0];
 
-    expect(runtimeMine?.height).toBe(40);
-    expect(runtimeMine?.depthMeters).toBe(200);
-    expect(runtimeMine?.id).toBe("old_well_01_test_40");
-    expect(runtimeMine?.strata.at(-1)?.toRow).toBe(39);
-    expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-40");
+    expect(runtimeMine?.height).toBe(12);
+    expect(runtimeMine?.depthMeters).toBe(60);
+    expect(runtimeMine?.id).toBe("old_well_01_test_12");
+    expect(runtimeMine?.strata.map((stratum) => [stratum.fromRow, stratum.toRow])).toEqual([
+      [0, 3],
+      [4, 7],
+      [8, 11]
+    ]);
+    expect(runtimeMine?.strata.at(-1)?.toRow).toBe(11);
+    expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-12");
   });
 });

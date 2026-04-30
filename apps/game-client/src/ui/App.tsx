@@ -54,6 +54,12 @@ let hitEffectSequence = 0;
 type GameSection = "mine" | "goblins";
 type GoblinPlacementMap = Record<string, number>;
 type HitEffectVariant = "boss" | "goblin" | "critical";
+type SpawnHitEffect = (
+  cell: { row: number; col: number },
+  variant: HitEffectVariant,
+  damage: number,
+  rewards?: Record<string, number>
+) => void;
 
 const bossEnergyConfig: BossEnergyConfig = {
   maxEnergy: 600,
@@ -182,7 +188,14 @@ export function App() {
     rewardSettleDelayMs: resourceRewardSettleDelayMs
   });
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
+  const activeCellRef = useRef(activeCell);
+  const contentBlockTypesRef = useRef(contentState.content.blockTypes);
+  const goblinPlacementsRef = useRef(goblinPlacements);
+  const hiredGoblinsRef = useRef<GoblinConfig[]>([]);
+  const pendingOfflineFinalHitRef = useRef(pendingOfflineFinalHit);
+  const platformRowRef = useRef(platformRow);
   const previousPlatformRowRef = useRef(0);
+  const spawnHitEffectRef = useRef<SpawnHitEffect>(() => undefined);
   const tooltipSequenceRef = useRef(0);
 
   useEffect(() => {
@@ -387,6 +400,16 @@ export function App() {
   );
 
   useEffect(() => {
+    activeCellRef.current = activeCell;
+    contentBlockTypesRef.current = contentState.content.blockTypes;
+    goblinPlacementsRef.current = goblinPlacements;
+    hiredGoblinsRef.current = hiredGoblins;
+    pendingOfflineFinalHitRef.current = pendingOfflineFinalHit;
+    platformRowRef.current = platformRow;
+    spawnHitEffectRef.current = spawnHitEffect;
+  });
+
+  useEffect(() => {
     if (!sessionReady) {
       previousPlatformRowRef.current = currentPlatformRow;
       return;
@@ -406,15 +429,24 @@ export function App() {
   }, [currentPlatformRow, sessionReady]);
 
   useEffect(() => {
-    if (!sessionReady || pendingOfflineFinalHit) {
+    if (!sessionReady) {
       return;
     }
 
     const intervalId = window.setInterval(() => {
       setSession((current) => {
-        const currentSelectedCell = findExposedCellForPreferred(current, activeCell);
-        const nextPlatformStartRow = findPlatformRow(current, platformRow);
-        const currentWorkers = assignGoblinWorkers(current, hiredGoblins, goblinPlacements, nextPlatformStartRow);
+        if (pendingOfflineFinalHitRef.current) {
+          return current;
+        }
+
+        const currentSelectedCell = findExposedCellForPreferred(current, activeCellRef.current);
+        const nextPlatformStartRow = findPlatformRow(current, platformRowRef.current);
+        const currentWorkers = assignGoblinWorkers(
+          current,
+          hiredGoblinsRef.current,
+          goblinPlacementsRef.current,
+          nextPlatformStartRow
+        );
 
         if (currentWorkers.length === 0) {
           return current;
@@ -431,14 +463,14 @@ export function App() {
             continue;
           }
 
-          const next = hitMineBlock(nextSession, contentState.content.blockTypes, {
+          const next = hitMineBlock(nextSession, contentBlockTypesRef.current, {
             row: target.row,
             col: target.col,
             damage: worker.damagePerSecond
           });
           const targetDestroyed = Boolean(next.blocks[target.row]?.[target.col]?.destroyed);
 
-          spawnHitEffect(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
+          spawnHitEffectRef.current(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
 
           if (targetDestroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
             nextActiveCell = findExposedCellForPreferred(next, worker.targetCell);
@@ -455,7 +487,7 @@ export function App() {
     }, autoMiningTickMs);
 
     return () => window.clearInterval(intervalId);
-  }, [activeCell, contentState.content.blockTypes, goblinPlacements, hiredGoblins, pendingOfflineFinalHit, platformRow, sessionReady]);
+  }, [sessionReady]);
 
   useEffect(() => {
     if (!sessionReady || !pendingOfflineFinalHit) {
