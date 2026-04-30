@@ -50,3 +50,4 @@
 - `0045_mine_completion_event` - added a one-time mine completion modal with summary, next-mine action, and persisted dismissal state.
 - `0046_reward_chest_opening` - added reward chest content, core reward rolling, and a full-screen chest opening flow before next-mine continuation.
 - `0047_mine_clear_vein_transition_chest` - moved vein discovery to full mine clear, fixed mine ordering, shortened test mines to 10m, and made transition chests open only when starting the next mine.
+- `0048_built_mines_construction_ui` - improved built-mine cards with build costs, missing resources, construction timers, and storage progress.

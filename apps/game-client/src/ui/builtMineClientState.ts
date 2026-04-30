@@ -6,6 +6,14 @@ import {
   type MiningFoundVein
 } from "@goblin-cartel/game-core";
 
+export interface BuildCostRequirement {
+  available: number;
+  missing: number;
+  ok: boolean;
+  required: number;
+  resourceId: string;
+}
+
 export function createVisibleBuiltMines(builtMines: BuiltMineState[], now: number): BuiltMineState[] {
   return builtMines.map((builtMine) => advanceBuiltMineProduction(builtMine, now));
 }
@@ -36,4 +44,61 @@ export function canBuildFoundVein(input: {
     resources: input.resources,
     veinTypeId: input.vein.veinTypeId
   });
+}
+
+export function createBuildCostRequirements(
+  buildCost: Array<{ amount: number; resourceId: string }>,
+  resources: Record<string, number>
+): BuildCostRequirement[] {
+  return buildCost.map((cost) => {
+    const available = Math.max(0, Math.floor(resources[cost.resourceId] ?? 0));
+    const required = Math.max(0, cost.amount);
+    const missing = Math.max(0, required - available);
+
+    return {
+      available,
+      missing,
+      ok: missing === 0,
+      required,
+      resourceId: cost.resourceId
+    };
+  });
+}
+
+export function getBuiltMineBuildProgressPercent(builtMine: BuiltMineState, now: number): number {
+  if (builtMine.status === "active") {
+    return 100;
+  }
+
+  const durationMs = builtMine.completesAt - builtMine.startedAt;
+
+  if (durationMs <= 0) {
+    return 100;
+  }
+
+  return clampPercent(((now - builtMine.startedAt) / durationMs) * 100);
+}
+
+export function getBuiltMineBuildRemainingMs(builtMine: BuiltMineState, now: number): number {
+  return builtMine.status === "active" ? 0 : Math.max(0, builtMine.completesAt - now);
+}
+
+export function getBuiltMineStoragePercent(builtMine: BuiltMineState): number {
+  if (builtMine.capacity <= 0) {
+    return 0;
+  }
+
+  return clampPercent((builtMine.storedAmount / builtMine.capacity) * 100);
+}
+
+export function isBuiltMineStorageFull(builtMine: BuiltMineState): boolean {
+  return builtMine.capacity > 0 && builtMine.storedAmount >= builtMine.capacity;
+}
+
+function clampPercent(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.min(100, Math.max(0, value));
 }

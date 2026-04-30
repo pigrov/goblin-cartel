@@ -3,8 +3,12 @@ import type { BuiltMineTypeConfig } from "@goblin-cartel/content-schemas";
 import type { BuiltMineState, MiningFoundVein } from "@goblin-cartel/game-core";
 import {
   canBuildFoundVein,
+  createBuildCostRequirements,
   createVisibleBuiltMines,
   findUnbuiltFoundVeins,
+  getBuiltMineBuildProgressPercent,
+  getBuiltMineBuildRemainingMs,
+  getBuiltMineStoragePercent,
   hasBuiltMineForVein
 } from "./builtMineClientState";
 
@@ -105,5 +109,35 @@ describe("built mine client state", () => {
       status: "building",
       storedAmount: 0
     });
+  });
+
+  it("builds cost requirement details for the UI", () => {
+    expect(
+      createBuildCostRequirements(builtMineType.buildCost, {
+        gold: 600,
+        stone: 100
+      })
+    ).toEqual([
+      {
+        available: 600,
+        missing: 0,
+        ok: true,
+        required: 500,
+        resourceId: "gold"
+      },
+      {
+        available: 100,
+        missing: 20,
+        ok: false,
+        required: 120,
+        resourceId: "stone"
+      }
+    ]);
+  });
+
+  it("calculates build and storage progress for mine cards", () => {
+    expect(getBuiltMineBuildProgressPercent(builtMine, 30_000)).toBe(50);
+    expect(getBuiltMineBuildRemainingMs(builtMine, 30_000)).toBe(30_000);
+    expect(getBuiltMineStoragePercent({ ...builtMine, capacity: 300, storedAmount: 75 })).toBe(25);
   });
 });

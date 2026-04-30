@@ -1043,7 +1043,7 @@ body,
 .found-vein-card {
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr) auto;
-  align-items: center;
+  align-items: start;
   gap: 9px;
   padding: 9px;
   border-color: rgb(192 122 61 / 44%);
@@ -1062,7 +1062,7 @@ body,
   color: var(--gc-copper);
 }
 
-.found-vein-card > div:nth-child(2),
+.found-vein-main,
 .built-mine-card header > div {
   min-width: 0;
   display: grid;
@@ -1071,6 +1071,7 @@ body,
 
 .found-vein-card strong,
 .found-vein-card span,
+.found-vein-card small,
 .built-mine-card strong,
 .built-mine-card span,
 .built-mine-empty strong,
@@ -1092,6 +1093,42 @@ body,
 .built-mine-empty span {
   color: var(--gc-muted);
   font-size: 11px;
+}
+
+.found-vein-card small {
+  color: var(--gc-gold);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.build-cost-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.build-cost-list span {
+  min-width: 0;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 5%);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.build-cost-list span.ok {
+  color: #9ee18b;
+}
+
+.build-cost-list span.missing {
+  color: #ffb0a1;
 }
 
 .mine-progress-card button,
@@ -1131,6 +1168,14 @@ body,
   padding: 10px;
 }
 
+.built-mine-card.building {
+  border-color: rgb(242 184 75 / 36%);
+}
+
+.built-mine-card.full {
+  border-color: rgb(68 198 200 / 38%);
+}
+
 .built-mine-card header,
 .built-mine-card footer {
   min-width: 0;
@@ -1151,20 +1196,28 @@ body,
   min-width: 0;
 }
 
-.built-mine-storage {
+.built-mine-progress {
   height: 9px;
   overflow: hidden;
   border-radius: 999px;
   background: rgb(255 255 255 / 9%);
 }
 
-.built-mine-storage span {
+.built-mine-progress span {
   display: block;
   min-width: 2px;
   height: 100%;
   border-radius: inherit;
+}
+
+.built-mine-progress.storage span {
   background:
     linear-gradient(90deg, var(--gc-copper), var(--gc-gold));
+}
+
+.built-mine-progress.building span {
+  background:
+    linear-gradient(90deg, #44c6c8, var(--gc-gold));
 }
 
 .built-mine-empty {

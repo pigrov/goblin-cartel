@@ -45,9 +45,14 @@ import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import {
   canBuildFoundVein,
+  createBuildCostRequirements,
   createVisibleBuiltMines,
   findUnbuiltFoundVeins,
-  hasBuiltMineForVein
+  getBuiltMineBuildProgressPercent,
+  getBuiltMineBuildRemainingMs,
+  getBuiltMineStoragePercent,
+  hasBuiltMineForVein,
+  isBuiltMineStorageFull
 } from "./builtMineClientState";
 import {
   canMoveToNextMine,
@@ -1082,6 +1087,7 @@ export function App() {
             onBuildMine={handleBuildMineFromVein}
             onCollectMine={handleCollectBuiltMine}
             onStartNextMine={handleStartNextMine}
+            now={clockNow}
             resources={session.resources}
           />
         ) : (
@@ -1782,12 +1788,14 @@ function BuiltMinesSection(props: {
   labels: Record<string, string>;
   message: string | null;
   nextMineTemplate: MineTemplateConfig | undefined;
+  now: number;
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectMine: (builtMineId: string) => void;
   onStartNextMine: () => void;
   resources: Record<string, number>;
 }) {
   const activeMineCount = props.builtMines.filter((builtMine) => builtMine.status === "active").length;
+  const buildingMineCount = props.builtMines.filter((builtMine) => builtMine.status === "building").length;
   const currentMineIndex = props.currentMineTemplate ? findMineTemplateIndex(props.content.mineTemplates, props.currentMineTemplate.id) : -1;
 
   return (
@@ -1797,7 +1805,7 @@ function BuiltMinesSection(props: {
           <p>Производство</p>
           <strong>{props.builtMines.length} шахт</strong>
         </div>
-        <span>{activeMineCount} активны</span>
+        <span>{activeMineCount} работают · {buildingMineCount} строятся</span>
       </header>
 
       <p className="built-mine-message">{props.message ?? ""}</p>
@@ -1828,18 +1836,47 @@ function BuiltMinesSection(props: {
             resources: props.resources,
             vein
           });
+          const buildRequirements = builtMineType ? createBuildCostRequirements(builtMineType.buildCost, props.resources) : [];
+          const missingRequirements = buildRequirements.filter((requirement) => !requirement.ok);
 
           return (
             <article className="found-vein-card" key={vein.id}>
               <div className="found-vein-icon" aria-hidden="true">
                 <Gem size={22} />
               </div>
-              <div>
+              <div className="found-vein-main">
                 <strong>{veinNameById(vein.veinTypeId, props.content, props.labels)}</strong>
-                <span>{builtMineType ? builtMineCostLabel(builtMineType, props.labels, props.content) : "Нет проекта шахты"}</span>
+                {builtMineType ? (
+                  <>
+                    <span>
+                      {builtMineTypeName(builtMineType.id, props.content, props.labels)} · {formatNumber(builtMineType.baseProductionPerHour)}/ч{" "}
+                      {resourceLabelById(builtMineType.productionResourceId, props.labels, props.content)}
+                    </span>
+                    <div className="build-cost-list">
+                      {buildRequirements.map((requirement) => (
+                        <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                          <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                          {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                        </span>
+                      ))}
+                    </div>
+                    <small>
+                      {missingRequirements.length > 0
+                        ? `Не хватает: ${missingRequirements
+                            .map(
+                              (requirement) =>
+                                `${formatInteger(requirement.missing)} ${resourceLabelById(requirement.resourceId, props.labels, props.content)}`
+                            )
+                            .join(" · ")}`
+                        : `Строительство ${formatDurationMs(builtMineType.buildTimeSec * 1000)}`}
+                    </small>
+                  </>
+                ) : (
+                  <span>Нет проекта шахты</span>
+                )}
               </div>
               <button disabled={!canBuild || !builtMineType} onClick={() => props.onBuildMine(vein)} type="button">
-                Построить
+                {canBuild ? "Построить" : "Не хватает"}
               </button>
             </article>
           );
@@ -1847,27 +1884,35 @@ function BuiltMinesSection(props: {
 
         {props.builtMines.map((builtMine) => {
           const collectableAmount = Math.floor(builtMine.storedAmount);
-          const storagePercent = builtMine.capacity > 0 ? Math.min(100, (builtMine.storedAmount / builtMine.capacity) * 100) : 0;
+          const storagePercent = getBuiltMineStoragePercent(builtMine);
+          const buildProgressPercent = getBuiltMineBuildProgressPercent(builtMine, props.now);
+          const buildRemainingMs = getBuiltMineBuildRemainingMs(builtMine, props.now);
+          const progressPercent = builtMine.status === "building" ? buildProgressPercent : storagePercent;
+          const storageFull = isBuiltMineStorageFull(builtMine);
 
           return (
-            <article className="built-mine-card" key={builtMine.id}>
+            <article className={`built-mine-card ${builtMine.status}${storageFull ? " full" : ""}`} key={builtMine.id}>
               <header>
                 <div>
                   <strong>{builtMineTypeName(builtMine.typeId, props.content, props.labels)}</strong>
-                  <span>{builtMineStatusLabel(builtMine)}</span>
+                  <span>{builtMineStatusLabel(builtMine, props.now)}</span>
                 </div>
                 <span>{formatNumber(builtMine.productionPerHour)}/ч</span>
               </header>
-              <div className="built-mine-storage">
-                <span style={{ width: `${storagePercent}%` }} />
+              <div className={builtMine.status === "building" ? "built-mine-progress building" : "built-mine-progress storage"}>
+                <span style={{ width: `${progressPercent}%` }} />
               </div>
               <footer>
-                <span>
-                  {formatNumber(builtMine.storedAmount)}/{formatNumber(builtMine.capacity)}{" "}
-                  {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)}
-                </span>
+                {builtMine.status === "building" ? (
+                  <span>Готово через {formatDurationMs(buildRemainingMs)}</span>
+                ) : (
+                  <span>
+                    {formatNumber(builtMine.storedAmount)}/{formatNumber(builtMine.capacity)}{" "}
+                    {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)}
+                  </span>
+                )}
                 <button disabled={builtMine.status !== "active" || collectableAmount <= 0} onClick={() => props.onCollectMine(builtMine.id)} type="button">
-                  Собрать {collectableAmount > 0 ? formatInteger(collectableAmount) : ""}
+                  {builtMine.status === "building" ? "Строится" : `Собрать ${collectableAmount > 0 ? formatInteger(collectableAmount) : ""}`}
                 </button>
               </footer>
             </article>
@@ -1998,8 +2043,13 @@ function builtMineCostLabel(builtMineType: BuiltMineTypeConfig, labels: Record<s
     .join(" · ");
 }
 
-function builtMineStatusLabel(builtMine: BuiltMineState): string {
-  return builtMine.status === "active" ? "Работает" : "Строится";
+function builtMineStatusLabel(builtMine: BuiltMineState, now: number): string {
+  if (builtMine.status === "building") {
+    const remainingMs = getBuiltMineBuildRemainingMs(builtMine, now);
+    return remainingMs > 0 ? `Строится · ${formatDurationMs(remainingMs)}` : "Запускается";
+  }
+
+  return isBuiltMineStorageFull(builtMine) ? "Хранилище заполнено" : "Работает";
 }
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
@@ -2107,6 +2157,30 @@ function formatSeconds(value: number): string {
   }
 
   return `${Math.max(0, value).toFixed(1)} сек`;
+}
+
+function formatDurationMs(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0 сек";
+  }
+
+  const seconds = Math.ceil(value / 1000);
+
+  if (seconds < 60) {
+    return `${seconds} сек`;
+  }
+
+  const minutes = Math.floor(seconds / 60);
+  const restSeconds = seconds % 60;
+
+  if (minutes < 60) {
+    return restSeconds > 0 ? `${minutes} мин ${restSeconds} сек` : `${minutes} мин`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const restMinutes = minutes % 60;
+
+  return restMinutes > 0 ? `${hours} ч ${restMinutes} мин` : `${hours} ч`;
 }
 
 function mergeResourceMaps(left: Record<string, number>, right: Record<string, number>): Record<string, number> {
