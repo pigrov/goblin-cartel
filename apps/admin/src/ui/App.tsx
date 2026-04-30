@@ -93,22 +93,19 @@ interface DraftContentToolResult {
   message: string;
 }
 
-interface MineVisualObjectMarker {
-  index: number;
-  label: string;
-  shortLabel: string;
-  type: string;
+interface MineVisualCell {
+  blockTypeId: string;
+  col: number;
+  hpMultiplier: string;
+  row: number;
+  special: string;
+  veinTypeId: string;
 }
 
 interface MineVisualRow {
-  dominantBlockId: string;
-  objectMarkers: MineVisualObjectMarker[];
+  cells: MineVisualCell[];
   row: number;
-  stratumId: string;
-  stratumIndex: number;
 }
-
-type MineVisualClickTool = "objectRow" | "strataEnd" | "strataStart";
 
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
   { value: "api_key", label: "API key" },
@@ -160,12 +157,6 @@ const rarityOptions = [
   { value: "legendary", label: "Legendary" }
 ];
 
-const seedModeOptions = [
-  { value: "fixed", label: "Fixed" },
-  { value: "random", label: "Random" },
-  { value: "playerBased", label: "Player based" }
-];
-
 const specialBehaviorOptions = [
   { value: "none", label: "None" },
   { value: "explosion", label: "Explosion" },
@@ -177,11 +168,6 @@ const rewardChestTierOptions = [
   { value: "iron", label: "Iron" },
   { value: "steel", label: "Steel" },
   { value: "golden", label: "Golden" }
-];
-
-const guaranteedObjectTypeOptions = [
-  { value: "vein", label: "Жила" },
-  { value: "chest", label: "Сундук" }
 ];
 
 const cards = [
@@ -1430,12 +1416,11 @@ function renderEntityFields(
         <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
         <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
         <div className="content-form-grid">
-          <ContentTextField label="Sort order" name="sortOrder" onChange={updateField} type="number" value={formState.sortOrder} />
           <ContentTextField label="Ширина" name="width" onChange={updateField} type="number" value={formState.width} />
-          <ContentTextField label="Высота" name="height" onChange={updateField} type="number" value={formState.height} />
+          <ContentTextField label="Высота, рядов" name="height" onChange={updateField} type="number" value={formState.height} />
           <ContentTextField label="Глубина, м" name="depthMeters" onChange={updateField} type="number" value={formState.depthMeters} />
-          <ContentTextField label="Сложность" name="difficulty" onChange={updateField} type="number" value={formState.difficulty} />
-          <ContentSelectField label="Seed mode" name="seedMode" onChange={updateField} options={seedModeOptions} value={formState.seedMode} />
+          <ContentTextField label="Сложность от" name="difficultyStart" onChange={updateField} type="number" value={formState.difficultyStart} />
+          <ContentTextField label="Сложность до" name="difficultyEnd" onChange={updateField} type="number" value={formState.difficultyEnd} />
         </div>
         <div className="content-form-grid">
           <ContentSelectField
@@ -1454,8 +1439,6 @@ function renderEntityFields(
           />
         </div>
         <ContentMineVisualEditor content={content} formState={formState} updateFields={updateFields} />
-        <ContentStrataRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
-        <ContentGuaranteedObjectRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
       </>
     );
   }
@@ -1700,140 +1683,97 @@ function ContentMineVisualEditor(props: {
   formState: EntityFormState;
   updateFields: (values: EntityFormState) => void;
 }) {
-  const [activeObjectIndex, setActiveObjectIndex] = useState(0);
-  const [activeStratumIndex, setActiveStratumIndex] = useState(0);
-  const [clickTool, setClickTool] = useState<MineVisualClickTool>("strataEnd");
-  const [selectedRow, setSelectedRow] = useState(0);
+  const firstBlockId = stringField(props.content.blockTypes[0] ?? {}, "id");
+  const [brushBlockTypeId, setBrushBlockTypeId] = useState(firstBlockId);
+  const [detailCell, setDetailCell] = useState<{ col: number; row: number } | null>(null);
+  const [isPainting, setIsPainting] = useState(false);
   const visualRows = createMineVisualRows(props.content, props.formState);
   const mineWidth = Math.max(1, toInteger(props.formState.width));
-  const displayWidth = Math.min(16, mineWidth);
-  const hiddenColumns = Math.max(0, mineWidth - displayWidth);
-  const stratumCount = formCount(props.formState, "strataCount", 1);
-  const objectCount = formCount(props.formState, "objectCount", 0);
-  const selectedStratumIndex = Math.min(activeStratumIndex, Math.max(0, stratumCount - 1));
-  const selectedObjectIndex = Math.min(activeObjectIndex, Math.max(0, objectCount - 1));
+  const mineHeight = visualRows.length;
+  const selectedCell = detailCell ? getMineVisualCell(props.formState, detailCell.row, detailCell.col, props.content) : null;
   const ru = props.content.localization?.ru ?? {};
 
-  function handleRowClick(row: number) {
-    setSelectedRow(row);
-
-    if (clickTool === "strataStart") {
-      const currentEnd = toInteger(props.formState[`strataToRow_${selectedStratumIndex}`]);
-      props.updateFields({
-        [`strataFromRow_${selectedStratumIndex}`]: String(row),
-        ...(currentEnd < row ? { [`strataToRow_${selectedStratumIndex}`]: String(row) } : {})
-      });
-      return;
-    }
-
-    if (clickTool === "strataEnd") {
-      const currentStart = toInteger(props.formState[`strataFromRow_${selectedStratumIndex}`]);
-      props.updateFields({
-        ...(currentStart > row ? { [`strataFromRow_${selectedStratumIndex}`]: String(row) } : {}),
-        [`strataToRow_${selectedStratumIndex}`]: String(row)
-      });
-      return;
-    }
-
-    if (objectCount === 0) {
-      props.updateFields(createMineObjectAtRowPatch(props.content, props.formState, row));
-      setActiveObjectIndex(0);
-      return;
-    }
-
+  function paintCell(row: number, col: number) {
     props.updateFields({
-      [`objectRowEnd_${selectedObjectIndex}`]: String(row),
-      [`objectRowStart_${selectedObjectIndex}`]: String(row)
+      [`cellBlock_${row}_${col}`]: brushBlockTypeId || firstBlockId
     });
   }
 
-  function handleAddObject() {
-    props.updateFields(createMineObjectAtRowPatch(props.content, props.formState, selectedRow));
-    setActiveObjectIndex(objectCount);
-    setClickTool("objectRow");
+  function updateDetailCell(values: EntityFormState) {
+    if (!detailCell) {
+      return;
+    }
+
+    props.updateFields(
+      Object.fromEntries(Object.entries(values).map(([key, value]) => [`cell${key}_${detailCell.row}_${detailCell.col}`, value]))
+    );
   }
 
   return (
-    <section className="content-mine-visual-editor">
+    <section className="content-mine-visual-editor" onPointerLeave={() => setIsPainting(false)} onPointerUp={() => setIsPainting(false)}>
       <header>
         <div>
           <strong>Визуальный редактор шахты</strong>
           <span>
-            {mineWidth}x{visualRows.length} · ряд {selectedRow + 1}
+            {mineWidth}x{mineHeight} · сложность {props.formState.difficultyStart || "1"} → {props.formState.difficultyEnd || "1"}
           </span>
         </div>
-        <button onClick={() => props.updateFields(createEvenMineStrataPatch(props.formState))} type="button">
-          Разложить слои
-        </button>
       </header>
 
       <div className="content-mine-visual-controls">
         <label>
-          Действие клика
-          <select onChange={(event) => setClickTool(event.target.value as MineVisualClickTool)} value={clickTool}>
-            <option value="strataStart">Начало слоя</option>
-            <option value="strataEnd">Конец слоя</option>
-            <option value="objectRow">Ряд объекта</option>
-          </select>
-        </label>
-        <label>
-          Слой
-          <select onChange={(event) => setActiveStratumIndex(Number(event.target.value))} value={selectedStratumIndex}>
-            {Array.from({ length: stratumCount }, (_, index) => (
-              <option key={index} value={index}>
-                {props.formState[`strataId_${index}`] || `stratum_${index + 1}`}
+          Кисть
+          <select onChange={(event) => setBrushBlockTypeId(event.target.value)} value={brushBlockTypeId}>
+            {props.content.blockTypes.map((blockType) => (
+              <option key={stringField(blockType, "id")} value={stringField(blockType, "id")}>
+                {contentEntityTitle(blockType, ru)}
               </option>
             ))}
           </select>
         </label>
-        <label>
-          Объект
-          <select
-            disabled={objectCount === 0}
-            onChange={(event) => setActiveObjectIndex(Number(event.target.value))}
-            value={selectedObjectIndex}
-          >
-            {objectCount === 0 ? <option value={0}>Объектов нет</option> : null}
-            {Array.from({ length: objectCount }, (_, index) => (
-              <option key={index} value={index}>
-                {objectLabel(props.content, props.formState, index)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button onClick={handleAddObject} type="button">
-          Добавить объект
-        </button>
+        <span>Зажми левую кнопку и веди по клеткам. Двойной клик открывает параметры клетки.</span>
       </div>
 
-      <div className="content-mine-visual-grid" style={{ "--mine-columns": displayWidth } as CSSProperties}>
+      <div className="content-mine-visual-grid" style={{ "--mine-columns": mineWidth } as CSSProperties}>
         {visualRows.map((row) => {
-          const blockTitle = blockTitleById(props.content, row.dominantBlockId);
-          const rowStyle = { "--mine-cell-color": mineVisualBlockColor(row.dominantBlockId, row.stratumIndex) } as CSSProperties;
+          const rowDifficulty = mineRowDifficulty(props.formState, row.row);
 
           return (
-            <button
-              className={row.row === selectedRow ? "content-mine-visual-row active" : "content-mine-visual-row"}
-              key={row.row}
-              onClick={() => handleRowClick(row.row)}
-              style={rowStyle}
-              title={`${row.row + 1}: ${row.stratumId || "без слоя"} · ${blockTitle}`}
-              type="button"
-            >
+            <div className="content-mine-visual-row" key={row.row}>
               <span className="content-mine-row-label">{row.row + 1}</span>
-              {Array.from({ length: displayWidth }, (_, col) => {
-                const marker = row.objectMarkers[col];
+              {row.cells.map((cell) => {
+                const blockTitle = blockTitleById(props.content, cell.blockTypeId);
+                const marker = cell.special === "vein" ? "Ж" : cell.special === "chest" ? "С" : "";
+                const isSelected = detailCell?.row === cell.row && detailCell.col === cell.col;
+                const cellStyle = { "--mine-cell-color": mineVisualBlockColor(cell.blockTypeId, cell.row + cell.col) } as CSSProperties;
+
                 return (
-                  <span className={marker ? "content-mine-cell special" : "content-mine-cell"} key={col} title={marker ? marker.label : blockTitle}>
-                    {marker ? marker.shortLabel : blockTitle.slice(0, 1)}
-                  </span>
+                  <button
+                    className={isSelected ? "content-mine-cell active" : marker ? "content-mine-cell special" : "content-mine-cell"}
+                    key={`${cell.row}:${cell.col}`}
+                    onDoubleClick={() => setDetailCell({ col: cell.col, row: cell.row })}
+                    onPointerDown={(event) => {
+                      if (event.button !== 0) {
+                        return;
+                      }
+                      setIsPainting(true);
+                      paintCell(cell.row, cell.col);
+                    }}
+                    onPointerEnter={() => {
+                      if (isPainting) {
+                        paintCell(cell.row, cell.col);
+                      }
+                    }}
+                    style={cellStyle}
+                    title={`${cell.row + 1}:${cell.col + 1} · ${blockTitle}${cell.hpMultiplier ? ` · x${cell.hpMultiplier}` : ""}`}
+                    type="button"
+                  >
+                    {marker || blockTitle.slice(0, 1)}
+                  </button>
                 );
               })}
-              <span className="content-mine-row-meta">
-                {row.stratumId || "нет"}
-                {hiddenColumns > 0 ? ` +${hiddenColumns}` : ""}
-              </span>
-            </button>
+              <span className="content-mine-row-meta">x{rowDifficulty}</span>
+            </div>
           );
         })}
       </div>
@@ -1851,141 +1791,56 @@ function ContentMineVisualEditor(props: {
           );
         })}
       </div>
-    </section>
-  );
-}
 
-function ContentStrataRows(props: {
-  content: ContentBundle;
-  formState: EntityFormState;
-  updateField: (name: string, value: string) => void;
-  updateFields: (values: EntityFormState) => void;
-}) {
-  const count = formCount(props.formState, "strataCount", 1);
-  const blockTypes = props.content.blockTypes;
-
-  return (
-    <ContentNestedSection
-      addLabel="Добавить слой"
-      onAdd={() => {
-        const nextIndex = count;
-        const previousToRow = toInteger(props.formState[`strataToRow_${count - 1}`]);
-        const patch: EntityFormState = {
-          strataCount: String(count + 1),
-          [`strataFromRow_${nextIndex}`]: String(Math.max(0, previousToRow + 1)),
-          [`strataId_${nextIndex}`]: `stratum_${nextIndex + 1}`,
-          [`strataToRow_${nextIndex}`]: String(Math.max(0, previousToRow + 1))
-        };
-        for (const blockType of blockTypes) {
-          patch[`strataWeight_${nextIndex}_${stringField(blockType, "id")}`] = "0";
-        }
-        props.updateFields(patch);
-      }}
-      title="Слои рудника"
-    >
-      {Array.from({ length: count }, (_, index) => (
-        <section className="content-nested-card" key={`strata-${index}`}>
-          <div className="content-list-row content-list-row-wide">
-            <ContentTextField label="ID слоя" name={`strataId_${index}`} onChange={props.updateField} value={props.formState[`strataId_${index}`]} />
-            <ContentTextField label="С ряда" name={`strataFromRow_${index}`} onChange={props.updateField} type="number" value={props.formState[`strataFromRow_${index}`]} />
-            <ContentTextField label="По ряд" name={`strataToRow_${index}`} onChange={props.updateField} type="number" value={props.formState[`strataToRow_${index}`]} />
-            <button
-              disabled={count <= 1}
-              onClick={() => props.updateFields(removeStrataRow(props.formState, props.content, index, count))}
-              type="button"
-            >
-              Убрать
+      {detailCell && selectedCell ? (
+        <section className="content-mine-cell-details">
+          <header>
+            <strong>
+              Клетка {detailCell.row + 1}:{detailCell.col + 1}
+            </strong>
+            <button onClick={() => setDetailCell(null)} type="button">
+              Закрыть
             </button>
-          </div>
-          <div className="content-weight-grid">
-            {blockTypes.map((blockType) => {
-              const blockId = stringField(blockType, "id");
-              return (
-                <ContentTextField
-                  key={blockId}
-                  label={contentEntityTitle(blockType, props.content.localization?.ru ?? {})}
-                  name={`strataWeight_${index}_${blockId}`}
-                  onChange={props.updateField}
-                  type="number"
-                  value={props.formState[`strataWeight_${index}_${blockId}`]}
-                />
-              );
-            })}
+          </header>
+          <div className="content-form-grid">
+            <ContentSelectField
+              label="Тип камня"
+              name="Block"
+              onChange={(_name, value) => updateDetailCell({ Block: value })}
+              options={blockTypeSelectOptions(props.content)}
+              value={selectedCell.blockTypeId}
+            />
+            <ContentTextField
+              label="Множитель прочности"
+              name="HpMultiplier"
+              onChange={(_name, value) => updateDetailCell({ HpMultiplier: value })}
+              type="number"
+              value={selectedCell.hpMultiplier}
+            />
+            <ContentSelectField
+              label="Особое"
+              name="Special"
+              onChange={(_name, value) => updateDetailCell({ Special: value })}
+              options={[
+                { value: "", label: "Нет" },
+                { value: "vein", label: "Жила" },
+                { value: "chest", label: "Сундук" }
+              ]}
+              value={selectedCell.special}
+            />
+            {selectedCell.special === "vein" ? (
+              <ContentSelectField
+                label="Тип жилы"
+                name="VeinTypeId"
+                onChange={(_name, value) => updateDetailCell({ VeinTypeId: value })}
+                options={veinSelectOptions(props.content)}
+                value={selectedCell.veinTypeId}
+              />
+            ) : null}
           </div>
         </section>
-      ))}
-    </ContentNestedSection>
-  );
-}
-
-function ContentGuaranteedObjectRows(props: {
-  content: ContentBundle;
-  formState: EntityFormState;
-  updateField: (name: string, value: string) => void;
-  updateFields: (values: EntityFormState) => void;
-}) {
-  const count = formCount(props.formState, "objectCount", 0);
-  const blockOptions = [{ value: "", label: "Не задан" }, ...blockTypeSelectOptions(props.content)];
-  const requiredBlockOptions = blockTypeSelectOptions(props.content);
-
-  return (
-    <ContentNestedSection
-      addLabel="Добавить объект"
-      onAdd={() =>
-        props.updateFields({
-          [`objectBlockTypeId_${count}`]: requiredBlockOptions[0]?.value ?? "",
-          objectCount: String(count + 1),
-          [`objectItemCount_${count}`]: "1",
-          [`objectRowEnd_${count}`]: "0",
-          [`objectRowStart_${count}`]: "0",
-          [`objectType_${count}`]: "vein",
-          [`objectVeinTypeId_${count}`]: veinSelectOptions(props.content)[0]?.value ?? ""
-        })
-      }
-      title="Гарантированные объекты"
-    >
-      {count === 0 ? <p className="content-tool-message">Объекты не заданы.</p> : null}
-      {Array.from({ length: count }, (_, index) => {
-        const type = props.formState[`objectType_${index}`] || "vein";
-        return (
-          <section className="content-nested-card" key={`object-${index}`}>
-            <div className="content-list-row content-list-row-wide">
-              <ContentSelectField
-                label="Тип"
-                name={`objectType_${index}`}
-                onChange={props.updateField}
-                options={guaranteedObjectTypeOptions}
-                value={type}
-              />
-              <ContentSelectField
-                label="Блок"
-                name={`objectBlockTypeId_${index}`}
-                onChange={props.updateField}
-                options={type === "chest" ? requiredBlockOptions : blockOptions}
-                value={props.formState[`objectBlockTypeId_${index}`]}
-              />
-              {type === "vein" ? (
-                <ContentSelectField
-                  label="Жила"
-                  name={`objectVeinTypeId_${index}`}
-                  onChange={props.updateField}
-                  options={veinSelectOptions(props.content)}
-                  value={props.formState[`objectVeinTypeId_${index}`]}
-                />
-              ) : null}
-              <button onClick={() => props.updateFields(removeGuaranteedObjectRow(props.formState, index, count))} type="button">
-                Убрать
-              </button>
-            </div>
-            <div className="content-form-grid">
-              <ContentTextField label="С ряда" name={`objectRowStart_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectRowStart_${index}`]} />
-              <ContentTextField label="По ряд" name={`objectRowEnd_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectRowEnd_${index}`]} />
-              <ContentTextField label="Кол-во" name={`objectItemCount_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectItemCount_${index}`]} />
-            </div>
-          </section>
-        );
-      })}
-    </ContentNestedSection>
+      ) : null}
+    </section>
   );
 }
 
@@ -2063,129 +1918,51 @@ function contentEntityCount(content: ContentBundle | null, key: keyof ContentBun
 }
 
 export function createMineVisualRows(content: ContentBundle, formState: EntityFormState): MineVisualRow[] {
-  const height = Math.max(1, Math.min(120, toInteger(formState.height)));
-
-  return Array.from({ length: height }, (_, row): MineVisualRow => {
-    const stratumIndex = findStratumIndexForRow(formState, row);
-    const stratumId = stratumIndex >= 0 ? formValue(formState, `strataId_${stratumIndex}`) : "";
-
-    return {
-      dominantBlockId: dominantBlockIdForStratum(content, formState, stratumIndex),
-      objectMarkers: objectMarkersForRow(content, formState, row),
-      row,
-      stratumId,
-      stratumIndex
-    };
-  });
-}
-
-export function createEvenMineStrataPatch(formState: EntityFormState): EntityFormState {
   const height = Math.max(1, toInteger(formState.height));
-  const count = formCount(formState, "strataCount", 1);
-  const patch: EntityFormState = {};
 
-  for (let index = 0; index < count; index += 1) {
-    const fromRow = Math.min(height - 1, Math.floor((index * height) / count));
-    const toRow = Math.min(height - 1, Math.max(fromRow, Math.floor(((index + 1) * height) / count) - 1));
-    patch[`strataFromRow_${index}`] = String(fromRow);
-    patch[`strataToRow_${index}`] = String(toRow);
-  }
-
-  return patch;
+  return Array.from({ length: height }, (_, row): MineVisualRow => ({
+    cells: Array.from({ length: Math.max(1, toInteger(formState.width)) }, (_item, col) => getMineVisualCell(formState, row, col, content)),
+    row
+  }));
 }
 
-function findStratumIndexForRow(formState: EntityFormState, row: number): number {
-  const count = formCount(formState, "strataCount", 1);
-
-  for (let index = 0; index < count; index += 1) {
-    const fromRow = toInteger(formState[`strataFromRow_${index}`]);
-    const toRow = toInteger(formState[`strataToRow_${index}`]);
-
-    if (row >= fromRow && row <= toRow) {
-      return index;
-    }
-  }
-
-  return -1;
-}
-
-function dominantBlockIdForStratum(content: ContentBundle, formState: EntityFormState, stratumIndex: number): string {
-  let dominantBlockId = stringField(content.blockTypes[0] ?? {}, "id");
-  let dominantWeight = -1;
-
-  if (stratumIndex < 0) {
-    return dominantBlockId;
-  }
-
-  for (const blockType of content.blockTypes) {
-    const blockId = stringField(blockType, "id");
-    const weight = toNumber(formState[`strataWeight_${stratumIndex}_${blockId}`]);
-
-    if (weight > dominantWeight) {
-      dominantBlockId = blockId;
-      dominantWeight = weight;
-    }
-  }
-
-  return dominantBlockId;
-}
-
-function objectMarkersForRow(content: ContentBundle, formState: EntityFormState, row: number): MineVisualObjectMarker[] {
-  const count = formCount(formState, "objectCount", 0);
-  const markers: MineVisualObjectMarker[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const fromRow = toInteger(formState[`objectRowStart_${index}`]);
-    const toRow = toInteger(formState[`objectRowEnd_${index}`]);
-
-    if (row >= fromRow && row <= toRow) {
-      const type = formValue(formState, `objectType_${index}`) || "vein";
-      markers.push({
-        index,
-        label: objectLabel(content, formState, index),
-        shortLabel: type === "chest" ? "С" : "Ж",
-        type
-      });
-    }
-  }
-
-  return markers;
-}
-
-function createMineObjectAtRowPatch(content: ContentBundle, formState: EntityFormState, row: number): EntityFormState {
-  const count = formCount(formState, "objectCount", 0);
+export function getMineVisualCell(formState: EntityFormState, row: number, col: number, content: ContentBundle): MineVisualCell {
+  const fallbackBlockId = firstBlockTypeId(content);
 
   return {
-    [`objectBlockTypeId_${count}`]: "",
-    objectCount: String(count + 1),
-    [`objectItemCount_${count}`]: "1",
-    [`objectRowEnd_${count}`]: String(row),
-    [`objectRowStart_${count}`]: String(row),
-    [`objectType_${count}`]: "vein",
-    [`objectVeinTypeId_${count}`]: veinSelectOptions(content)[0]?.value ?? ""
+    blockTypeId: formValue(formState, mineCellField("Block", row, col)) || fallbackBlockId,
+    col,
+    hpMultiplier: formValue(formState, mineCellField("HpMultiplier", row, col)),
+    row,
+    special: formValue(formState, mineCellField("Special", row, col)),
+    veinTypeId: formValue(formState, mineCellField("VeinTypeId", row, col))
   };
 }
 
-function objectLabel(content: ContentBundle, formState: EntityFormState, index: number): string {
-  const type = formValue(formState, `objectType_${index}`) || "vein";
-  const rowStart = formValue(formState, `objectRowStart_${index}`) || "0";
-  const rowEnd = formValue(formState, `objectRowEnd_${index}`) || rowStart;
+function mineCellField(suffix: string, row: number, col: number): string {
+  return `cell${suffix}_${row}_${col}`;
+}
 
-  if (type === "chest") {
-    return `Сундук ${index + 1}: ${blockTitleById(content, formValue(formState, `objectBlockTypeId_${index}`))} · ${rowStart}-${rowEnd}`;
+function firstBlockTypeId(content: ContentBundle): string {
+  return stringField(content.blockTypes[0] ?? {}, "id");
+}
+
+function mineRowDifficulty(formState: EntityFormState, row: number): number {
+  const height = Math.max(1, toInteger(formState.height));
+  const start = toNumber(formState.difficultyStart) || 1;
+  const end = toNumber(formState.difficultyEnd) || start;
+
+  if (height <= 1) {
+    return Math.round(start * 1000) / 1000;
   }
 
-  return `Жила ${index + 1}: ${veinTitleById(content, formValue(formState, `objectVeinTypeId_${index}`))} · ${rowStart}-${rowEnd}`;
+  const progress = Math.min(1, Math.max(0, row / (height - 1)));
+  return Math.round((start + (end - start) * progress) * 1000) / 1000;
 }
 
 function blockTitleById(content: ContentBundle, blockId: string): string {
   const blockType = content.blockTypes.find((item) => stringField(item, "id") === blockId);
   return blockType ? contentEntityTitle(blockType, content.localization?.ru ?? {}) : blockId || "Блок";
-}
-
-function veinTitleById(content: ContentBundle, veinId: string): string {
-  const veinType = (content.veinTypes ?? []).find((item) => stringField(item, "id") === veinId);
-  return veinType ? contentEntityTitle(veinType, content.localization?.ru ?? {}) : veinId || "Жила";
 }
 
 function mineVisualBlockColor(blockId: string, fallbackIndex: number): string {
@@ -2293,7 +2070,7 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
   };
 }
 
-function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
+export function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
   const source = content.mineTemplates[content.mineTemplates.length - 1];
 
   if (!source) {
@@ -2302,6 +2079,8 @@ function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
 
   const id = uniqueContentId("draft_mine", content.mineTemplates);
   const displayNameKey = `mine.${id}.name`;
+  const width = 8;
+  const height = 10;
 
   return {
     content: {
@@ -2309,11 +2088,17 @@ function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
       mineTemplates: [
         ...content.mineTemplates,
         {
-          ...cloneRecord(source),
+          completionRewardChestTypeId: stringField(source, "completionRewardChestTypeId") || undefined,
+          completionVeinTypeId: stringField(source, "completionVeinTypeId") || undefined,
+          depthMeters: 10,
+          difficultyEnd: 1.8,
+          difficultyStart: 1,
           id,
+          cellMap: createDefaultMineCellMap(content, width, height),
           displayNameKey,
+          height,
           sortOrder: nextSortOrder(content.mineTemplates),
-          difficulty: Number(source.difficulty ?? 1) + 0.15
+          width
         }
       ],
       localization: addRuLocalization(content.localization, {
@@ -2322,8 +2107,20 @@ function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
     },
     entityId: id,
     entityKind: "mineTemplates",
-    message: `Добавлен шаблон рудника ${id}. Проверь жилу, сундук и слои перед публикацией.`
+    message: `Добавлен шаблон рудника ${id}. Проверь размер, жилу, сундук и карту клеток перед публикацией.`
   };
+}
+
+function createDefaultMineCellMap(content: ContentBundle, width: number, height: number): ContentRecord[] {
+  const blockTypeId = firstBlockTypeId(content);
+
+  return Array.from({ length: height }, (_rowItem, row) =>
+    Array.from({ length: width }, (_colItem, col) => ({
+      blockTypeId,
+      col,
+      row
+    }))
+  ).flat();
 }
 
 function addDraftBuiltMineTypeTemplate(content: ContentBundle): DraftContentToolResult {
@@ -2545,19 +2342,22 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
 }
 
 function createMineTemplateFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const width = Math.max(1, numberField(entity, "width", 8));
+  const height = Math.max(1, numberField(entity, "height", 10));
+  const difficulty = numberField(entity, "difficulty", 1);
+
   return {
     completionRewardChestTypeId: stringField(entity, "completionRewardChestTypeId"),
     completionVeinTypeId: stringField(entity, "completionVeinTypeId"),
     depthMeters: numberString(numberField(entity, "depthMeters", 1)),
-    difficulty: numberString(numberField(entity, "difficulty", 1)),
-    height: numberString(numberField(entity, "height", 1)),
+    difficultyEnd: numberString(numberField(entity, "difficultyEnd", difficulty)),
+    difficultyStart: numberString(numberField(entity, "difficultyStart", difficulty)),
+    height: numberString(height),
     id: stringField(entity, "id"),
-    seedMode: stringField(entity, "seedMode") || "playerBased",
     sortOrder: numberString(numberField(entity, "sortOrder", 0)),
     title: localizationValue(content, stringField(entity, "displayNameKey")),
-    width: numberString(numberField(entity, "width", 1)),
-    ...createGuaranteedObjectsFormState(arrayField(entity, "guaranteedObjects"), content),
-    ...createStrataFormState(arrayField(entity, "strata"), content)
+    width: numberString(width),
+    ...createCellMapFormState(entity, content, width, height)
   };
 }
 
@@ -2624,44 +2424,23 @@ function createRewardTableFormState(prefix: string, rows: ContentRecord[], conte
   return state;
 }
 
-function createStrataFormState(strata: ContentRecord[], content: ContentBundle): EntityFormState {
-  const count = Math.max(1, strata.length);
-  const state: EntityFormState = {
-    strataCount: String(count)
-  };
+function createCellMapFormState(entity: ContentRecord, content: ContentBundle, width: number, height: number): EntityFormState {
+  const state: EntityFormState = {};
+  const cellMap = arrayField(entity, "cellMap");
+  const fallbackBlockId = firstBlockTypeId(content);
+  const cellsByKey = new Map(cellMap.map((cell) => [`${numberField(cell, "row", 0)}:${numberField(cell, "col", 0)}`, cell]));
 
-  for (let index = 0; index < count; index += 1) {
-    const stratum = recordAt(strata, index);
-    const weights = recordField(stratum, "blockWeights");
-    state[`strataFromRow_${index}`] = numberString(numberField(stratum, "fromRow", 0));
-    state[`strataId_${index}`] = stringField(stratum, "id") || `stratum_${index + 1}`;
-    state[`strataToRow_${index}`] = numberString(numberField(stratum, "toRow", 0));
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const cell = cellsByKey.get(`${row}:${col}`) ?? {};
+      const hpMultiplier = numberField(cell, "hpMultiplier", 0);
 
-    for (const blockType of content.blockTypes) {
-      const blockId = stringField(blockType, "id");
-      state[`strataWeight_${index}_${blockId}`] = numberString(numberField(weights, blockId, 0));
+      state[mineCellField("Block", row, col)] = stringField(cell, "blockTypeId") || fallbackBlockId;
+      state[mineCellField("HpMultiplier", row, col)] = hpMultiplier > 0 ? numberString(hpMultiplier) : "";
+      state[mineCellField("Special", row, col)] = stringField(cell, "special");
+      state[mineCellField("VeinTypeId", row, col)] = stringField(cell, "veinTypeId");
     }
   }
-
-  return state;
-}
-
-function createGuaranteedObjectsFormState(objects: ContentRecord[], content: ContentBundle): EntityFormState {
-  const state: EntityFormState = {
-    objectCount: String(objects.length)
-  };
-  const fallbackBlockId = stringField(content.blockTypes[0] ?? {}, "id");
-  const fallbackVeinId = stringField((content.veinTypes ?? [])[0] ?? {}, "id");
-
-  objects.forEach((object, index) => {
-    const rowRange = Array.isArray(object.rowRange) ? object.rowRange : [0, 0];
-    state[`objectBlockTypeId_${index}`] = stringField(object, "blockTypeId") || (stringField(object, "type") === "chest" ? fallbackBlockId : "");
-    state[`objectItemCount_${index}`] = numberString(numberField(object, "count", 1));
-    state[`objectRowEnd_${index}`] = numberString(typeof rowRange[1] === "number" ? rowRange[1] : 0);
-    state[`objectRowStart_${index}`] = numberString(typeof rowRange[0] === "number" ? rowRange[0] : 0);
-    state[`objectType_${index}`] = stringField(object, "type") || "vein";
-    state[`objectVeinTypeId_${index}`] = stringField(object, "veinTypeId") || fallbackVeinId;
-  });
 
   return state;
 }
@@ -2771,11 +2550,8 @@ function validateMineTemplateForm(state: EntityFormState, content: ContentBundle
   validateIntegerField(state, "width", "Ширина", errors, { min: 1 });
   validateIntegerField(state, "height", "Высота", errors, { min: 1 });
   validateIntegerField(state, "depthMeters", "Глубина", errors, { min: 1 });
-  validateNumberField(state, "difficulty", "Сложность", errors, { min: 0.01 });
-
-  if (!seedModeOptions.some((option) => option.value === formValue(state, "seedMode"))) {
-    errors.push("Выбери корректный seed mode.");
-  }
+  validateNumberField(state, "difficultyStart", "Сложность от", errors, { min: 0.01 });
+  validateNumberField(state, "difficultyEnd", "Сложность до", errors, { min: 0.01 });
 
   const completionVeinTypeId = formValue(state, "completionVeinTypeId");
   const completionRewardChestTypeId = formValue(state, "completionRewardChestTypeId");
@@ -2788,8 +2564,7 @@ function validateMineTemplateForm(state: EntityFormState, content: ContentBundle
     errors.push("Сундук перехода не найден.");
   }
 
-  validateStrataRows(state, content, errors);
-  validateGuaranteedObjectRows(state, content, errors);
+  validateCellMapRows(state, content, errors);
 }
 
 function validateBuiltMineTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -2878,91 +2653,36 @@ function validateRewardRows(state: EntityFormState, prefix: string, content: Con
   }
 }
 
-function validateStrataRows(state: EntityFormState, content: ContentBundle, errors: string[]) {
-  const count = formCount(state, "strataCount", 1);
-  const seenIds = new Set<string>();
-  const mineHeight = toInteger(state.height);
-
-  for (let index = 0; index < count; index += 1) {
-    const id = formValue(state, `strataId_${index}`).trim();
-    const fromRow = toNumber(state[`strataFromRow_${index}`]);
-    const toRow = toNumber(state[`strataToRow_${index}`]);
-    let hasWeight = false;
-
-    if (!id) {
-      errors.push(`Слой ${index + 1}: ID обязателен.`);
-    } else if (seenIds.has(id)) {
-      errors.push(`Слой ${index + 1}: ID должен быть уникальным.`);
-    }
-    seenIds.add(id);
-
-    validateIntegerField(state, `strataFromRow_${index}`, `Слой ${index + 1} с ряда`, errors, { min: 0 });
-    validateIntegerField(state, `strataToRow_${index}`, `Слой ${index + 1} по ряд`, errors, { min: 0 });
-
-    if (fromRow > toRow) {
-      errors.push(`Слой ${index + 1}: начало не может быть больше конца.`);
-    }
-
-    if (Number.isFinite(toRow) && Number.isInteger(toRow) && mineHeight > 0 && toRow >= mineHeight) {
-      errors.push(`Слой ${index + 1}: ряд выходит за высоту рудника.`);
-    }
-
-    for (const blockType of content.blockTypes) {
-      const blockId = stringField(blockType, "id");
-      const weightField = `strataWeight_${index}_${blockId}`;
-      const weight = toNumber(state[weightField]);
-      validateNumberField(state, weightField, `Слой ${index + 1} ${blockId}`, errors, { min: 0 });
-
-      if (weight > 0) {
-        hasWeight = true;
-      }
-    }
-
-    if (!hasWeight) {
-      errors.push(`Слой ${index + 1}: нужен хотя бы один блок с весом больше 0.`);
-    }
-  }
-}
-
-function validateGuaranteedObjectRows(state: EntityFormState, content: ContentBundle, errors: string[]) {
-  const count = formCount(state, "objectCount", 0);
-  const mineHeight = toInteger(state.height);
+function validateCellMapRows(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  const mineHeight = Math.max(0, toInteger(state.height));
+  const mineWidth = Math.max(0, toInteger(state.width));
   const blockIds = blockTypeIdSet(content);
   const veinIds = veinIdSet(content);
 
-  for (let index = 0; index < count; index += 1) {
-    const type = formValue(state, `objectType_${index}`) || "vein";
-    const blockTypeId = formValue(state, `objectBlockTypeId_${index}`);
-    const veinTypeId = formValue(state, `objectVeinTypeId_${index}`);
-    const fromRow = toNumber(state[`objectRowStart_${index}`]);
-    const toRow = toNumber(state[`objectRowEnd_${index}`]);
+  for (let row = 0; row < mineHeight; row += 1) {
+    for (let col = 0; col < mineWidth; col += 1) {
+      const label = `Клетка ${row + 1}:${col + 1}`;
+      const cell = getMineVisualCell(state, row, col, content);
+      const blockTypeId = cell.blockTypeId;
+      const hpMultiplier = cell.hpMultiplier;
+      const special = cell.special;
+      const veinTypeId = cell.veinTypeId;
 
-    if (!guaranteedObjectTypeOptions.some((option) => option.value === type)) {
-      errors.push(`Объект ${index + 1}: тип некорректен.`);
-    }
+      if (!blockIds.has(blockTypeId)) {
+        errors.push(`${label}: выбери тип камня.`);
+      }
 
-    if (type === "chest" && !blockIds.has(blockTypeId)) {
-      errors.push(`Объект ${index + 1}: выбери блок сундука.`);
-    }
+      if (hpMultiplier.trim()) {
+        validateNumberField(state, mineCellField("HpMultiplier", row, col), `${label} множитель прочности`, errors, { min: 0.01 });
+      }
 
-    if (type === "vein" && !veinIds.has(veinTypeId)) {
-      errors.push(`Объект ${index + 1}: выбери жилу.`);
-    }
+      if (special && special !== "vein" && special !== "chest") {
+        errors.push(`${label}: особый тип некорректен.`);
+      }
 
-    if (blockTypeId && !blockIds.has(blockTypeId)) {
-      errors.push(`Объект ${index + 1}: блок не найден.`);
-    }
-
-    validateIntegerField(state, `objectRowStart_${index}`, `Объект ${index + 1} с ряда`, errors, { min: 0 });
-    validateIntegerField(state, `objectRowEnd_${index}`, `Объект ${index + 1} по ряд`, errors, { min: 0 });
-    validateIntegerField(state, `objectItemCount_${index}`, `Объект ${index + 1} кол-во`, errors, { min: 1 });
-
-    if (fromRow > toRow) {
-      errors.push(`Объект ${index + 1}: начало не может быть больше конца.`);
-    }
-
-    if (Number.isFinite(toRow) && Number.isInteger(toRow) && mineHeight > 0 && toRow >= mineHeight) {
-      errors.push(`Объект ${index + 1}: ряд выходит за высоту рудника.`);
+      if (special === "vein" && !veinIds.has(veinTypeId)) {
+        errors.push(`${label}: выбери жилу.`);
+      }
     }
   }
 }
@@ -3100,17 +2820,20 @@ function applyMineTemplateForm(content: ContentBundle, selectedId: string, state
   const displayNameKey = stringField(current, "displayNameKey") || `mine.${id}.name`;
   const nextMineTemplate: ContentRecord = {
     ...current,
+    cellMap: createCellMapFromForm(state, content),
     depthMeters: toInteger(state.depthMeters),
-    difficulty: toNumber(state.difficulty),
+    difficultyEnd: toNumber(state.difficultyEnd),
+    difficultyStart: toNumber(state.difficultyStart),
     displayNameKey,
     height: toInteger(state.height),
     id,
-    seedMode: formValue(state, "seedMode"),
     sortOrder: toInteger(state.sortOrder),
-    strata: createStrataFromForm(state, content),
-    guaranteedObjects: createGuaranteedObjectsFromForm(state),
     width: toInteger(state.width)
   };
+  Reflect.deleteProperty(nextMineTemplate, "difficulty");
+  Reflect.deleteProperty(nextMineTemplate, "guaranteedObjects");
+  Reflect.deleteProperty(nextMineTemplate, "seedMode");
+  Reflect.deleteProperty(nextMineTemplate, "strata");
 
   setOptionalField(nextMineTemplate, "completionVeinTypeId", formValue(state, "completionVeinTypeId"));
   setOptionalField(nextMineTemplate, "completionRewardChestTypeId", formValue(state, "completionRewardChestTypeId"));
@@ -3252,66 +2975,39 @@ function createRewardTableFromForm(state: EntityFormState, prefix: string): Arra
   return rows;
 }
 
-function createStrataFromForm(state: EntityFormState, content: ContentBundle): Array<{
-  blockWeights: Record<string, number>;
-  fromRow: number;
-  id: string;
-  toRow: number;
-}> {
-  const count = formCount(state, "strataCount", 1);
-  const strata = [];
+function createCellMapFromForm(state: EntityFormState, content: ContentBundle): ContentRecord[] {
+  const height = Math.max(1, toInteger(state.height));
+  const width = Math.max(1, toInteger(state.width));
+  const cells: ContentRecord[] = [];
 
-  for (let index = 0; index < count; index += 1) {
-    const blockWeights: Record<string, number> = {};
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const hpMultiplier = toNumber(state[mineCellField("HpMultiplier", row, col)]);
+      const special = formValue(state, mineCellField("Special", row, col));
+      const veinTypeId = formValue(state, mineCellField("VeinTypeId", row, col));
+      const cell: ContentRecord = {
+        blockTypeId: formValue(state, mineCellField("Block", row, col)) || firstBlockTypeId(content),
+        col,
+        row
+      };
 
-    for (const blockType of content.blockTypes) {
-      const blockId = stringField(blockType, "id");
-      const weight = toNumber(state[`strataWeight_${index}_${blockId}`]);
-
-      if (weight > 0) {
-        blockWeights[blockId] = weight;
+      if (hpMultiplier > 0) {
+        cell.hpMultiplier = hpMultiplier;
       }
-    }
 
-    strata.push({
-      blockWeights,
-      fromRow: toInteger(state[`strataFromRow_${index}`]),
-      id: formValue(state, `strataId_${index}`).trim(),
-      toRow: toInteger(state[`strataToRow_${index}`])
-    });
-  }
+      if (special) {
+        cell.special = special;
+      }
 
-  return strata;
-}
+      if (special === "vein" && veinTypeId) {
+        cell.veinTypeId = veinTypeId;
+      }
 
-function createGuaranteedObjectsFromForm(state: EntityFormState): ContentRecord[] {
-  const count = formCount(state, "objectCount", 0);
-  const objects: ContentRecord[] = [];
-
-  for (let index = 0; index < count; index += 1) {
-    const type = formValue(state, `objectType_${index}`) || "vein";
-    const blockTypeId = formValue(state, `objectBlockTypeId_${index}`);
-    const baseObject: ContentRecord = {
-      count: toInteger(state[`objectItemCount_${index}`]),
-      rowRange: [toInteger(state[`objectRowStart_${index}`]), toInteger(state[`objectRowEnd_${index}`])],
-      type
-    };
-
-    if (type === "vein") {
-      objects.push({
-        ...baseObject,
-        ...(blockTypeId ? { blockTypeId } : {}),
-        veinTypeId: formValue(state, `objectVeinTypeId_${index}`)
-      });
-    } else {
-      objects.push({
-        ...baseObject,
-        blockTypeId
-      });
+      cells.push(cell);
     }
   }
 
-  return objects;
+  return cells;
 }
 
 function setOptionalField(record: ContentRecord, key: string, value: string) {
@@ -3451,44 +3147,6 @@ function removeIndexedFormRow(
   }
 
   return next;
-}
-
-function removeStrataRow(state: EntityFormState, content: ContentBundle, index: number, count: number): EntityFormState {
-  const suffixes = ["Id", "FromRow", "ToRow"];
-  const next: EntityFormState = {
-    strataCount: String(Math.max(0, count - 1))
-  };
-
-  for (let rowIndex = index; rowIndex < count - 1; rowIndex += 1) {
-    next[`strataId_${rowIndex}`] = formValue(state, `strataId_${rowIndex + 1}`);
-    next[`strataFromRow_${rowIndex}`] = formValue(state, `strataFromRow_${rowIndex + 1}`);
-    next[`strataToRow_${rowIndex}`] = formValue(state, `strataToRow_${rowIndex + 1}`);
-
-    for (const blockType of content.blockTypes) {
-      const blockId = stringField(blockType, "id");
-      next[`strataWeight_${rowIndex}_${blockId}`] = formValue(state, `strataWeight_${rowIndex + 1}_${blockId}`);
-    }
-  }
-
-  for (const suffix of suffixes) {
-    next[`strata${suffix}_${count - 1}`] = "";
-  }
-
-  for (const blockType of content.blockTypes) {
-    next[`strataWeight_${count - 1}_${stringField(blockType, "id")}`] = "";
-  }
-
-  return next;
-}
-
-function removeGuaranteedObjectRow(state: EntityFormState, index: number, count: number): EntityFormState {
-  return removeIndexedFormRow(
-    state,
-    "object",
-    index,
-    ["Type", "BlockTypeId", "VeinTypeId", "RowStart", "RowEnd", "ItemCount"],
-    count
-  );
 }
 
 function findEffect(effects: ContentRecord[], type: string): ContentRecord {

@@ -72,18 +72,18 @@ describe("content schemas", () => {
     expect(result.errors).toContain("blockTypes.dirt.rewardTable references missing resource missing_resource");
   });
 
-  it("rejects missing block references in mine strata", () => {
+  it("rejects missing block references in mine cell map", () => {
     const broken = structuredClone(starterContentBundle);
-    const firstStratum = broken.mineTemplates[0]?.strata[0];
+    const firstCell = broken.mineTemplates[0]?.cellMap[0];
 
-    if (firstStratum) {
-      firstStratum.blockWeights.missing_block = 1;
+    if (firstCell) {
+      firstCell.blockTypeId = "missing_block";
     }
 
     const result = validateContentBundle(broken);
 
     expect(result.ok).toBe(false);
-    expect(result.errors).toContain("mineTemplates.old_well_01.strata.top_soil references missing block missing_block");
+    expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing block missing_block");
   });
 
   it("rejects missing resource references in reward chests", () => {
@@ -124,24 +124,19 @@ describe("content schemas", () => {
     expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion vein type missing_vein");
   });
 
-  it("rejects missing vein references in guaranteed mine objects", () => {
+  it("rejects missing vein references in mine cell map", () => {
     const broken = structuredClone(starterContentBundle);
-    const mineTemplate = broken.mineTemplates[0];
+    const firstCell = broken.mineTemplates[0]?.cellMap[0];
 
-    if (mineTemplate) {
-      mineTemplate.guaranteedObjects.push({
-        type: "vein",
-        veinTypeId: "missing_vein",
-        blockTypeId: "copper_ore",
-        rowRange: [6, 9],
-        count: 1
-      });
+    if (firstCell) {
+      firstCell.special = "vein";
+      firstCell.veinTypeId = "missing_vein";
     }
 
     const result = validateContentBundle(broken);
 
     expect(result.ok).toBe(false);
-    expect(result.errors).toContain("mineTemplates.old_well_01.guaranteedObjects.vein references missing vein type missing_vein");
+    expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing vein type missing_vein");
   });
 
   it("rejects built mine configs with missing production resources", () => {

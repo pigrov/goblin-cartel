@@ -11,8 +11,11 @@ import {
 } from "./mineProgressionClientState";
 
 const firstMine = {
+  cellMap: [],
   depthMeters: 60,
   difficulty: 1,
+  difficultyEnd: 1,
+  difficultyStart: 1,
   displayNameKey: "mine.first.name",
   guaranteedObjects: [],
   height: 12,

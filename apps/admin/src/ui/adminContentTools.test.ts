@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   addDraftBlockTypeTemplate,
+  addDraftMineTemplate,
   addDraftRewardChestTypeTemplate,
   adminContentVersionPath,
   adminSectionPath,
-  createEvenMineStrataPatch,
   createMineVisualRows,
+  getMineVisualCell,
   readAdminRoutePath
 } from "./App";
 
@@ -73,45 +74,71 @@ describe("admin draft templates", () => {
     });
     expect(result.content.localization?.ru?.["reward_chest.draft_reward_chest_01.name"]).toBe("Новый сундук");
   });
+
+  it("creates a clean 8x10 mine cell map template", () => {
+    const result = addDraftMineTemplate({
+      ...baseContent,
+      mineTemplates: [
+        {
+          cellMap: [],
+          completionRewardChestTypeId: "wooden_completion_chest",
+          completionVeinTypeId: "gold_vein",
+          depthMeters: 20,
+          difficultyEnd: 3,
+          difficultyStart: 2,
+          displayNameKey: "mine.old.name",
+          guaranteedObjects: [],
+          height: 20,
+          id: "old_mine",
+          seedMode: "playerBased",
+          sortOrder: 10,
+          strata: [],
+          width: 12
+        }
+      ]
+    });
+    const createdMine = result.content.mineTemplates.at(-1);
+    const createdCellMap = Array.isArray(createdMine?.cellMap) ? createdMine.cellMap : [];
+
+    expect(result.entityKind).toBe("mineTemplates");
+    expect(result.entityId).toBe("draft_mine_02");
+    expect(createdMine).toMatchObject({
+      depthMeters: 10,
+      difficultyEnd: 1.8,
+      difficultyStart: 1,
+      height: 10,
+      id: "draft_mine_02",
+      width: 8
+    });
+    expect(createdCellMap).toHaveLength(80);
+    expect(createdCellMap[0]).toMatchObject({ blockTypeId: "stone_block", col: 0, row: 0 });
+    expect(result.content.localization?.ru?.["mine.draft_mine_02.name"]).toBe("Новый рудник");
+  });
 });
 
 describe("admin mine visual editor helpers", () => {
-  it("spreads strata across the full mine height", () => {
-    expect(createEvenMineStrataPatch({ height: "10", strataCount: "3" })).toEqual({
-      strataFromRow_0: "0",
-      strataFromRow_1: "3",
-      strataFromRow_2: "6",
-      strataToRow_0: "2",
-      strataToRow_1: "5",
-      strataToRow_2: "9"
+  it("builds row previews from editable cells", () => {
+    const rows = createMineVisualRows(baseContent, {
+      cellBlock_0_1: "gold_block",
+      cellHpMultiplier_0_1: "1.5",
+      cellSpecial_1_2: "vein",
+      cellVeinTypeId_1_2: "gold_vein",
+      height: "2",
+      width: "3"
     });
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.cells).toHaveLength(3);
+    expect(rows[0]?.cells[0]).toMatchObject({ blockTypeId: "stone_block", col: 0, row: 0 });
+    expect(rows[0]?.cells[1]).toMatchObject({ blockTypeId: "gold_block", hpMultiplier: "1.5" });
+    expect(rows[1]?.cells[2]).toMatchObject({ blockTypeId: "stone_block", special: "vein", veinTypeId: "gold_vein" });
   });
 
-  it("builds row previews from strata weights and guaranteed objects", () => {
-    const rows = createMineVisualRows(baseContent, {
-      height: "4",
-      objectBlockTypeId_0: "",
-      objectCount: "1",
-      objectItemCount_0: "1",
-      objectRowEnd_0: "3",
-      objectRowStart_0: "3",
-      objectType_0: "vein",
-      objectVeinTypeId_0: "gold_vein",
-      strataCount: "2",
-      strataFromRow_0: "0",
-      strataFromRow_1: "2",
-      strataId_0: "top",
-      strataId_1: "deep",
-      strataToRow_0: "1",
-      strataToRow_1: "3",
-      strataWeight_0_gold_block: "0",
-      strataWeight_0_stone_block: "10",
-      strataWeight_1_gold_block: "9",
-      strataWeight_1_stone_block: "1"
+  it("uses the first block as a fallback for clean cells", () => {
+    expect(getMineVisualCell({ height: "1", width: "1" }, 0, 0, baseContent)).toMatchObject({
+      blockTypeId: "stone_block",
+      col: 0,
+      row: 0
     });
-
-    expect(rows[0]).toMatchObject({ dominantBlockId: "stone_block", row: 0, stratumId: "top" });
-    expect(rows[3]).toMatchObject({ dominantBlockId: "gold_block", row: 3, stratumId: "deep" });
-    expect(rows[3]?.objectMarkers[0]).toMatchObject({ shortLabel: "Ж", type: "vein" });
   });
 });

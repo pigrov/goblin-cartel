@@ -22,9 +22,9 @@ export function createRuntimeContentBundle(content: ContentBundle): ContentBundl
     return contentWithDefaults;
   }
 
-  const strata = resizeStrata(mineTemplate.strata, targetRows);
+  const cellMap = resizeCellMap(mineTemplate.cellMap, mineTemplate.width, targetRows);
 
-  if (strata.length === 0) {
+  if (cellMap.length === 0) {
     return contentWithDefaults;
   }
 
@@ -36,7 +36,7 @@ export function createRuntimeContentBundle(content: ContentBundle): ContentBundl
         depthMeters: targetDepthMeters,
         height: targetRows,
         id: `${mineTemplate.id}_${debugRows ? "debug" : "test"}_${targetRows}`,
-        strata
+        cellMap
       },
       ...contentWithDefaults.mineTemplates.slice(1)
     ]
@@ -239,18 +239,33 @@ function sortMineTemplates(mineTemplates: ContentBundle["mineTemplates"]): Conte
   });
 }
 
-function resizeStrata(strata: ContentBundle["mineTemplates"][number]["strata"], targetRows: number) {
-  return strata
-    .map((stratum, index) => {
-      const fromRow = Math.floor((index * targetRows) / strata.length);
-      const nextFromRow = Math.floor(((index + 1) * targetRows) / strata.length);
-      const toRow = index === strata.length - 1 ? targetRows - 1 : nextFromRow - 1;
+function resizeCellMap(
+  cellMap: ContentBundle["mineTemplates"][number]["cellMap"],
+  width: number,
+  targetRows: number
+): ContentBundle["mineTemplates"][number]["cellMap"] {
+  if (cellMap.length === 0) {
+    return [];
+  }
 
+  const sourceHeight = Math.max(...cellMap.map((cell) => cell.row)) + 1;
+  const sourceByKey = new Map(cellMap.map((cell) => [`${cell.row}:${cell.col}`, cell]));
+  const fallbackCell = cellMap[0];
+
+  if (!fallbackCell) {
+    return [];
+  }
+
+  return Array.from({ length: targetRows }, (_, row) => {
+    const sourceRow = Math.min(row, sourceHeight - 1);
+
+    return Array.from({ length: width }, (_, col) => {
+      const sourceCell = sourceByKey.get(`${sourceRow}:${col}`) ?? fallbackCell;
       return {
-        ...stratum,
-        fromRow,
-        toRow: Math.max(fromRow, toRow)
+        ...sourceCell,
+        col,
+        row
       };
-    })
-    .filter((stratum) => stratum.fromRow < targetRows && stratum.fromRow <= stratum.toRow);
+    });
+  }).flat();
 }

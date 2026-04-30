@@ -137,7 +137,7 @@ export function createMiningSession(input: CreateMiningSessionInput): MiningSess
         const maxHp = calculateBlockHp({
           baseHp: blockType.baseHp,
           rowIndex: block.row,
-          mineDifficultyMultiplier
+          mineDifficultyMultiplier: mineDifficultyMultiplier * (block.hpMultiplier ?? 1)
         });
 
         return {

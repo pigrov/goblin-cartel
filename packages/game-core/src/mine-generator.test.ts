@@ -47,4 +47,32 @@ describe("mine generator", () => {
     expect(veins).toHaveLength(1);
     expect(veins[0]?.veinTypeId).toBe("copper_vein_small");
   });
+
+  it("uses authored cell maps and interpolates row difficulty", () => {
+    const mine = generateMine(
+      {
+        id: "painted_mine",
+        width: 2,
+        height: 2,
+        difficultyStart: 1,
+        difficultyEnd: 2,
+        cellMap: [
+          { row: 0, col: 0, blockTypeId: "dirt" },
+          { row: 0, col: 1, blockTypeId: "stone", hpMultiplier: 1.5 },
+          { row: 1, col: 0, blockTypeId: "copper_ore", special: "vein", veinTypeId: "copper_vein_small" },
+          { row: 1, col: 1, blockTypeId: "stone" }
+        ]
+      },
+      "player-3"
+    );
+
+    expect(mine.blocks[0]?.[0]).toMatchObject({ blockTypeId: "dirt", hpMultiplier: 1 });
+    expect(mine.blocks[0]?.[1]).toMatchObject({ blockTypeId: "stone", hpMultiplier: 1.5 });
+    expect(mine.blocks[1]?.[0]).toMatchObject({
+      blockTypeId: "copper_ore",
+      hpMultiplier: 2,
+      special: "vein",
+      veinTypeId: "copper_vein_small"
+    });
+  });
 });

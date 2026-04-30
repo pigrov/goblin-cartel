@@ -931,12 +931,18 @@
   background: var(--mine-cell-color);
   font-size: 11px;
   font-weight: 900;
+  cursor: pointer;
 }
 
 .content-mine-cell.special {
   border-color: rgb(255 232 176 / 70%);
   color: var(--gc-bg-deep);
   background: var(--gc-gold);
+}
+
+.content-mine-cell.active {
+  border-color: rgb(255 255 255 / 88%);
+  box-shadow: 0 0 0 2px rgb(255 255 255 / 18%);
 }
 
 .content-mine-visual-legend span {
@@ -954,6 +960,15 @@
   border: 1px solid rgb(255 255 255 / 18%);
   border-radius: 3px;
   background: var(--mine-cell-color);
+}
+
+.content-mine-cell-details {
+  display: grid;
+  gap: 10px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  padding: 10px;
+  background: rgb(7 12 15 / 28%);
 }
 
 .content-weight-grid {

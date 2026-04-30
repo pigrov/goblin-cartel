@@ -74,7 +74,7 @@ describe("runtime content", () => {
     expect(runtimeContent.goblins.some((goblin) => goblin.id === "nokk_copper_quill")).toBe(true);
   });
 
-  it("normalizes older published mine content to the 60m runtime depth", () => {
+  it("normalizes older published mine content to the 10m runtime depth", () => {
     const content = structuredClone(starterContentBundle);
     const mine = content.mineTemplates[0];
 
@@ -84,39 +84,14 @@ describe("runtime content", () => {
 
     mine.height = 40;
     mine.depthMeters = 200;
-    mine.strata = [
-      {
-        id: "top_soil",
-        fromRow: 0,
-        toRow: 7,
-        blockWeights: {
-          dirt: 70,
-          stone: 25,
-          chest_wooden: 5
-        }
-      },
-      {
-        id: "stone_layer",
-        fromRow: 8,
-        toRow: 23,
-        blockWeights: {
-          dirt: 20,
-          stone: 60,
-          copper_ore: 15,
-          chest_wooden: 5
-        }
-      },
-      {
-        id: "copper_layer",
-        fromRow: 24,
-        toRow: 39,
-        blockWeights: {
-          stone: 55,
-          copper_ore: 40,
-          chest_wooden: 5
-        }
-      }
-    ];
+    mine.cellMap = Array.from({ length: 40 }, (_rowItem, row) =>
+      Array.from({ length: mine.width }, (_colItem, col) => ({
+        blockTypeId: row >= 8 ? "stone" : "dirt",
+        col,
+        hpMultiplier: row + 1,
+        row
+      }))
+    ).flat();
 
     const runtimeContent = createRuntimeContentBundle(content);
     const runtimeMine = runtimeContent.mineTemplates[0];
@@ -124,12 +99,8 @@ describe("runtime content", () => {
     expect(runtimeMine?.height).toBe(10);
     expect(runtimeMine?.depthMeters).toBe(10);
     expect(runtimeMine?.id).toBe("old_well_01_test_10");
-    expect(runtimeMine?.strata.map((stratum) => [stratum.fromRow, stratum.toRow])).toEqual([
-      [0, 2],
-      [3, 5],
-      [6, 9]
-    ]);
-    expect(runtimeMine?.strata.at(-1)?.toRow).toBe(9);
+    expect(runtimeMine?.cellMap).toHaveLength(mine.width * 10);
+    expect(runtimeMine?.cellMap.at(-1)).toMatchObject({ hpMultiplier: 10, row: 9 });
     expect(contentVersionWithRuntimeSuffix("0.0.4", runtimeContent)).toBe("0.0.4:test-10");
   });
 });

@@ -163,6 +163,15 @@ export const guaranteedObjectSchema = z.discriminatedUnion("type", [
   })
 ]);
 
+export const mineCellSchema = z.object({
+  row: z.number().int().nonnegative(),
+  col: z.number().int().nonnegative(),
+  blockTypeId: z.string().min(1),
+  hpMultiplier: z.number().positive().optional(),
+  special: z.enum(["vein", "chest"]).optional(),
+  veinTypeId: z.string().min(1).optional()
+});
+
 export const mineTemplateSchema = z.object({
   id: z.string().min(1),
   displayNameKey: z.string().min(1),
@@ -170,10 +179,13 @@ export const mineTemplateSchema = z.object({
   width: z.number().int().positive(),
   height: z.number().int().positive(),
   depthMeters: z.number().int().positive(),
-  difficulty: z.number().positive(),
-  seedMode: z.enum(["fixed", "random", "playerBased"]),
+  difficulty: z.number().positive().optional(),
+  difficultyStart: z.number().positive().default(1),
+  difficultyEnd: z.number().positive().default(1),
+  seedMode: z.enum(["fixed", "random", "playerBased"]).default("playerBased"),
   completionVeinTypeId: z.string().min(1).optional(),
   completionRewardChestTypeId: z.string().min(1).optional(),
+  cellMap: z.array(mineCellSchema).default([]),
   strata: z.array(
     z.object({
       id: z.string().min(1),
@@ -181,7 +193,7 @@ export const mineTemplateSchema = z.object({
       toRow: z.number().int().nonnegative(),
       blockWeights: z.record(z.string().min(1), z.number().positive())
     })
-  ),
+  ).default([]),
   guaranteedObjects: z.array(guaranteedObjectSchema).default([])
 });
 
@@ -222,10 +234,21 @@ export type BuiltMineTypeConfig = z.infer<typeof builtMineTypeSchema>;
 export type RewardChestTypeConfig = z.infer<typeof rewardChestTypeSchema>;
 export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type GuaranteedObjectConfig = z.infer<typeof guaranteedObjectSchema>;
+export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
 export type LocalizationConfig = z.infer<typeof localizationSchema>;
 export type ContentBundle = z.infer<typeof contentBundleSchema>;
+
+function createStarterMineCellMap(rows: string[][]): MineCellConfig[] {
+  return rows.flatMap((row, rowIndex) =>
+    row.map((blockTypeId, colIndex) => ({
+      blockTypeId,
+      col: colIndex,
+      row: rowIndex
+    }))
+  );
+}
 
 export interface ContentValidationResult {
   ok: boolean;
@@ -419,43 +442,24 @@ export const starterContentBundle: ContentBundle = {
       width: 8,
       height: 10,
       depthMeters: 10,
-      difficulty: 1,
+      difficultyStart: 1,
+      difficultyEnd: 1.8,
       seedMode: "playerBased",
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "wooden_completion_chest",
-      strata: [
-        {
-          id: "top_soil",
-          fromRow: 0,
-          toRow: 2,
-          blockWeights: {
-            dirt: 70,
-            stone: 25,
-            chest_wooden: 5
-          }
-        },
-        {
-          id: "stone_layer",
-          fromRow: 3,
-          toRow: 5,
-          blockWeights: {
-            dirt: 20,
-            stone: 60,
-            copper_ore: 15,
-            chest_wooden: 5
-          }
-        },
-        {
-          id: "copper_layer",
-          fromRow: 6,
-          toRow: 9,
-          blockWeights: {
-            stone: 55,
-            copper_ore: 40,
-            chest_wooden: 5
-          }
-        }
-      ],
+      cellMap: createStarterMineCellMap([
+        ["dirt", "dirt", "dirt", "stone", "dirt", "dirt", "stone", "dirt"],
+        ["dirt", "stone", "dirt", "dirt", "dirt", "stone", "dirt", "dirt"],
+        ["dirt", "dirt", "stone", "chest_wooden", "stone", "dirt", "dirt", "stone"],
+        ["stone", "dirt", "stone", "stone", "dirt", "stone", "copper_ore", "stone"],
+        ["stone", "stone", "dirt", "stone", "stone", "copper_ore", "stone", "dirt"],
+        ["dirt", "stone", "stone", "copper_ore", "stone", "stone", "dirt", "stone"],
+        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "chest_wooden"],
+        ["stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
+        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
+        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"]
+      ]),
+      strata: [],
       guaranteedObjects: []
     },
     {
@@ -465,43 +469,24 @@ export const starterContentBundle: ContentBundle = {
       width: 8,
       height: 10,
       depthMeters: 10,
-      difficulty: 1.18,
+      difficultyStart: 1.15,
+      difficultyEnd: 2.15,
       seedMode: "playerBased",
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
-      strata: [
-        {
-          id: "top_rubble",
-          fromRow: 0,
-          toRow: 2,
-          blockWeights: {
-            dirt: 45,
-            stone: 50,
-            chest_wooden: 5
-          }
-        },
-        {
-          id: "old_supports",
-          fromRow: 3,
-          toRow: 5,
-          blockWeights: {
-            dirt: 12,
-            stone: 66,
-            copper_ore: 17,
-            chest_wooden: 5
-          }
-        },
-        {
-          id: "deep_copper_cut",
-          fromRow: 6,
-          toRow: 9,
-          blockWeights: {
-            stone: 48,
-            copper_ore: 47,
-            chest_wooden: 5
-          }
-        }
-      ],
+      cellMap: createStarterMineCellMap([
+        ["dirt", "stone", "stone", "dirt", "stone", "dirt", "stone", "stone"],
+        ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone", "dirt"],
+        ["stone", "stone", "chest_wooden", "stone", "stone", "dirt", "stone", "stone"],
+        ["stone", "stone", "dirt", "stone", "copper_ore", "stone", "stone", "stone"],
+        ["stone", "copper_ore", "stone", "stone", "stone", "stone", "copper_ore", "stone"],
+        ["stone", "stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone"],
+        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
+        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"],
+        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
+        ["stone", "copper_ore", "stone", "chest_wooden", "copper_ore", "stone", "copper_ore", "stone"]
+      ]),
+      strata: [],
       guaranteedObjects: []
     }
   ],
@@ -860,37 +845,75 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
       errors.push(`mineTemplates.${mineTemplate.id} references missing completion vein type ${mineTemplate.completionVeinTypeId}`);
     }
 
-    for (const stratum of mineTemplate.strata) {
-      if (stratum.fromRow > stratum.toRow) {
-        errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} has fromRow greater than toRow`);
-      }
+    if (mineTemplate.cellMap.length > 0) {
+      const cellKeys = new Set<string>();
 
-      if (stratum.toRow >= mineTemplate.height) {
-        errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} exceeds mine height`);
-      }
+      for (const cell of mineTemplate.cellMap) {
+        const cellPath = `mineTemplates.${mineTemplate.id}.cellMap.${cell.row}:${cell.col}`;
+        const cellKey = `${cell.row}:${cell.col}`;
 
-      for (const blockTypeId of Object.keys(stratum.blockWeights)) {
-        if (!blockTypeIds.has(blockTypeId)) {
-          errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} references missing block ${blockTypeId}`);
+        if (cellKeys.has(cellKey)) {
+          errors.push(`${cellPath} is duplicated`);
+        }
+        cellKeys.add(cellKey);
+
+        if (cell.row >= mineTemplate.height || cell.col >= mineTemplate.width) {
+          errors.push(`${cellPath} exceeds mine dimensions`);
+        }
+
+        if (!blockTypeIds.has(cell.blockTypeId)) {
+          errors.push(`${cellPath} references missing block ${cell.blockTypeId}`);
+        }
+
+        if (cell.special === "vein" && (!cell.veinTypeId || !veinTypeIds.has(cell.veinTypeId))) {
+          errors.push(`${cellPath} references missing vein type ${cell.veinTypeId ?? ""}`.trim());
         }
       }
-    }
 
-    for (const object of mineTemplate.guaranteedObjects) {
-      if (object.rowRange[0] > object.rowRange[1]) {
-        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} has invalid rowRange`);
+      for (let row = 0; row < mineTemplate.height; row += 1) {
+        for (let col = 0; col < mineTemplate.width; col += 1) {
+          if (!cellKeys.has(`${row}:${col}`)) {
+            errors.push(`mineTemplates.${mineTemplate.id}.cellMap is missing cell ${row}:${col}`);
+          }
+        }
+      }
+    } else {
+      if (mineTemplate.strata.length === 0) {
+        errors.push(`mineTemplates.${mineTemplate.id} must define cellMap or legacy strata`);
       }
 
-      if (object.rowRange[1] >= mineTemplate.height) {
-        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} exceeds mine height`);
+      for (const stratum of mineTemplate.strata) {
+        if (stratum.fromRow > stratum.toRow) {
+          errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} has fromRow greater than toRow`);
+        }
+
+        if (stratum.toRow >= mineTemplate.height) {
+          errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} exceeds mine height`);
+        }
+
+        for (const blockTypeId of Object.keys(stratum.blockWeights)) {
+          if (!blockTypeIds.has(blockTypeId)) {
+            errors.push(`mineTemplates.${mineTemplate.id}.strata.${stratum.id} references missing block ${blockTypeId}`);
+          }
+        }
       }
 
-      if (object.blockTypeId && !blockTypeIds.has(object.blockTypeId)) {
-        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} references missing block ${object.blockTypeId}`);
-      }
+      for (const object of mineTemplate.guaranteedObjects) {
+        if (object.rowRange[0] > object.rowRange[1]) {
+          errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} has invalid rowRange`);
+        }
 
-      if (object.type === "vein" && !veinTypeIds.has(object.veinTypeId)) {
-        errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.vein references missing vein type ${object.veinTypeId}`);
+        if (object.rowRange[1] >= mineTemplate.height) {
+          errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} exceeds mine height`);
+        }
+
+        if (object.blockTypeId && !blockTypeIds.has(object.blockTypeId)) {
+          errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.${object.type} references missing block ${object.blockTypeId}`);
+        }
+
+        if (object.type === "vein" && !veinTypeIds.has(object.veinTypeId)) {
+          errors.push(`mineTemplates.${mineTemplate.id}.guaranteedObjects.vein references missing vein type ${object.veinTypeId}`);
+        }
       }
     }
   }

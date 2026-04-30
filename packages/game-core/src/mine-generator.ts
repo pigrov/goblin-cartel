@@ -4,8 +4,21 @@ export interface MineTemplate {
   height: number;
   depthMeters?: number;
   completionVeinTypeId?: string;
-  strata: MineStratum[];
+  difficulty?: number;
+  difficultyStart?: number;
+  difficultyEnd?: number;
+  cellMap?: MineCellTemplate[];
+  strata?: MineStratum[];
   guaranteedObjects?: GuaranteedObject[];
+}
+
+export interface MineCellTemplate {
+  row: number;
+  col: number;
+  blockTypeId: string;
+  hpMultiplier?: number;
+  special?: GuaranteedObject["type"];
+  veinTypeId?: string;
 }
 
 export interface MineStratum {
@@ -27,6 +40,7 @@ export interface GeneratedBlock {
   row: number;
   col: number;
   blockTypeId: string;
+  hpMultiplier?: number;
   special?: GuaranteedObject["type"];
   veinTypeId?: string;
 }
@@ -45,18 +59,9 @@ export function generateMine(template: MineTemplate, seed: string): GeneratedMin
   validateTemplate(template);
 
   const random = createSeededRandom(`${template.id}:${seed}`);
-  const blocks = Array.from({ length: template.height }, (_, row) =>
-    Array.from({ length: template.width }, (_, col): GeneratedBlock => {
-      const stratum = findStratum(template, row);
-      return {
-        row,
-        col,
-        blockTypeId: pickWeighted(stratum.blockWeights, random)
-      };
-    })
-  );
+  const blocks = template.cellMap?.length ? generateMineFromCellMap(template) : generateMineFromStrata(template, random);
 
-  for (const object of template.guaranteedObjects ?? []) {
+  for (const object of template.cellMap?.length ? [] : template.guaranteedObjects ?? []) {
     placeGuaranteedObject(blocks, object, random);
   }
 
@@ -76,17 +81,65 @@ function validateTemplate(template: MineTemplate): void {
     throw new Error("Mine dimensions must be positive");
   }
 
-  if (template.strata.length === 0) {
-    throw new Error("Mine template must have at least one stratum");
+  if (!template.cellMap?.length && !template.strata?.length) {
+    throw new Error("Mine template must have cellMap or strata");
   }
 }
 
+function generateMineFromCellMap(template: MineTemplate): GeneratedBlock[][] {
+  const cellsByKey = new Map((template.cellMap ?? []).map((cell) => [`${cell.row}:${cell.col}`, cell]));
+
+  return Array.from({ length: template.height }, (_, row) =>
+    Array.from({ length: template.width }, (_, col): GeneratedBlock => {
+      const cell = cellsByKey.get(`${row}:${col}`);
+
+      if (!cell) {
+        throw new Error(`No cell configured for row ${row} col ${col}`);
+      }
+
+      return {
+        row,
+        col,
+        blockTypeId: cell.blockTypeId,
+        hpMultiplier: cell.hpMultiplier ?? interpolateDifficulty(template, row),
+        special: cell.special,
+        veinTypeId: cell.veinTypeId
+      };
+    })
+  );
+}
+
+function generateMineFromStrata(template: MineTemplate, random: () => number): GeneratedBlock[][] {
+  return Array.from({ length: template.height }, (_, row) =>
+    Array.from({ length: template.width }, (_, col): GeneratedBlock => {
+      const stratum = findStratum(template, row);
+      return {
+        row,
+        col,
+        blockTypeId: pickWeighted(stratum.blockWeights, random)
+      };
+    })
+  );
+}
+
 function findStratum(template: MineTemplate, row: number): MineStratum {
-  const stratum = template.strata.find((item) => row >= item.fromRow && row <= item.toRow);
+  const stratum = template.strata?.find((item) => row >= item.fromRow && row <= item.toRow);
   if (!stratum) {
     throw new Error(`No stratum covers row ${row}`);
   }
   return stratum;
+}
+
+function interpolateDifficulty(template: MineTemplate, row: number): number {
+  const start = template.difficultyStart ?? template.difficulty ?? 1;
+  const end = template.difficultyEnd ?? template.difficulty ?? start;
+
+  if (template.height <= 1) {
+    return start;
+  }
+
+  const progress = Math.min(1, Math.max(0, row / (template.height - 1)));
+  return Math.round((start + (end - start) * progress) * 1000) / 1000;
 }
 
 function pickWeighted(weights: Record<string, number>, random: () => number): string {
