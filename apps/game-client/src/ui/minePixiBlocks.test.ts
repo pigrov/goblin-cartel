@@ -8,16 +8,16 @@ describe("mine Pixi blocks", () => {
     expect(blockColor("copper_ore", undefined)).toBe(0xa35f38);
     expect(blockColor("iron_ore", undefined)).toBe(0x8f98a3);
     expect(blockColor("gold_ore", undefined)).toBe(0xd49a35);
-    expect(blockColor("wooden_chest", undefined)).toBe(0xb77b35);
+    expect(blockColor("gold_cache", undefined)).toBe(0xd49a35);
   });
 
   it("includes special behavior in render signature token", () => {
     const blockType = {
-      id: "wooden_chest",
-      specialBehavior: "chest"
+      id: "blast_stone",
+      specialBehavior: "explosion"
     } as BlockTypeConfig;
 
-    expect(blockTypeVisualToken(blockType)).toBe("wooden_chest:chest");
+    expect(blockTypeVisualToken(blockType)).toBe("blast_stone:explosion");
     expect(blockTypeVisualToken(undefined)).toBe("missing");
   });
 });

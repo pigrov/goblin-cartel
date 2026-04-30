@@ -63,3 +63,4 @@
 - `0058_mine_editor_cell_width_and_hp` - made the admin mine grid match game cave width, moved brush selection to legend buttons, prevented initial wrong-cell flicker, and removed hidden depth HP scaling.
 - `0059_content_versions_read_only` - made published and archived content versions read-only in UI and backend, blocking save, validate, and republish actions.
 - `0060_mine_editor_cell_chests_iron` - cleaned old production content versions, added mine row depth/difficulty labels, cell edit modal with exact HP, reward-chest cells, and iron content.
+- `0061_cell_map_legacy_cleanup` - removed legacy mine strata/seed/guaranteed-object support, made cell maps the only mine model, renamed the old wooden chest block to gold cache, and hid raw JSON behind an advanced toggle.

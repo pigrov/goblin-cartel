@@ -43,6 +43,7 @@ describe("content schemas", () => {
     });
     expect(starterContentBundle.resources.some((resource) => resource.id === "iron")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "iron_ore")).toBe(true);
+    expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "gold_cache")).toBe(true);
     expect(starterContentBundle.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
   });
 
@@ -127,21 +128,6 @@ describe("content schemas", () => {
     expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion vein type missing_vein");
   });
 
-  it("rejects missing vein references in mine cell map", () => {
-    const broken = structuredClone(starterContentBundle);
-    const firstCell = broken.mineTemplates[0]?.cellMap[0];
-
-    if (firstCell) {
-      firstCell.special = "vein";
-      firstCell.veinTypeId = "missing_vein";
-    }
-
-    const result = validateContentBundle(broken);
-
-    expect(result.ok).toBe(false);
-    expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing vein type missing_vein");
-  });
-
   it("rejects missing reward chest references in mine cell map", () => {
     const broken = structuredClone(starterContentBundle);
     const firstCell = broken.mineTemplates[0]?.cellMap[0];
@@ -155,6 +141,30 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing reward chest type missing_chest");
+  });
+
+  it("rejects legacy mine templates without authored cell maps", () => {
+    const broken = structuredClone(starterContentBundle) as unknown as {
+      mineTemplates: Array<Record<string, unknown>>;
+    };
+    const mineTemplate = broken.mineTemplates[0];
+
+    if (mineTemplate) {
+      Reflect.deleteProperty(mineTemplate, "cellMap");
+      mineTemplate.strata = [
+        {
+          id: "legacy_top",
+          fromRow: 0,
+          toRow: 9,
+          blockWeights: { dirt: 1 }
+        }
+      ];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContainEqual(expect.stringContaining("mineTemplates.0.cellMap"));
   });
 
   it("rejects built mine configs with missing production resources", () => {

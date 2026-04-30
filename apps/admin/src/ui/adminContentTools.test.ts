@@ -87,12 +87,9 @@ describe("admin draft templates", () => {
           difficultyEnd: 3,
           difficultyStart: 2,
           displayNameKey: "mine.old.name",
-          guaranteedObjects: [],
           height: 20,
           id: "old_mine",
-          seedMode: "playerBased",
           sortOrder: 10,
-          strata: [],
           width: 12
         }
       ]

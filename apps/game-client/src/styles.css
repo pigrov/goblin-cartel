@@ -1700,8 +1700,8 @@ body,
   background: linear-gradient(135deg, #655943, #d49a35 56%, #68471b);
 }
 
-.mine-block.chest-wooden {
-  background: linear-gradient(135deg, #6e4524, #b77b35 54%, #3d2918);
+.mine-block.gold-cache {
+  background: linear-gradient(135deg, #655943, #d49a35 56%, #68471b);
 }
 
 .mine-block.destroyed {

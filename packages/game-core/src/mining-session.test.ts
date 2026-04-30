@@ -18,15 +18,11 @@ const template: MineTemplate = {
   id: "old_well_01",
   width: 2,
   height: 2,
-  strata: [
-    {
-      id: "top",
-      fromRow: 0,
-      toRow: 1,
-      blockWeights: {
-        dirt: 1
-      }
-    }
+  cellMap: [
+    { row: 0, col: 0, blockTypeId: "dirt" },
+    { row: 0, col: 1, blockTypeId: "dirt" },
+    { row: 1, col: 0, blockTypeId: "dirt" },
+    { row: 1, col: 1, blockTypeId: "dirt" }
   ]
 };
 
@@ -109,50 +105,6 @@ describe("mining session", () => {
     expect(destroyed.blocks[0]?.[0]?.destroyed).toBe(true);
     expect(destroyed.resources).toEqual({ stone: 2 });
     expect(ignored.resources).toEqual({ stone: 2 });
-  });
-
-  it("records found veins when vein blocks are destroyed", () => {
-    const mine = generateMine(
-      {
-        ...template,
-        guaranteedObjects: [
-          {
-            type: "vein",
-            veinTypeId: "copper_vein_small",
-            blockTypeId: "dirt",
-            rowRange: [0, 0],
-            count: 1
-          }
-        ]
-      },
-      "player-1"
-    );
-    const session = createMiningSession({ mine, blockTypes });
-    const veinBlock = session.blocks.flat().find((block) => block.special === "vein");
-
-    if (!veinBlock) {
-      throw new Error("Missing generated vein block");
-    }
-
-    const destroyed = hitMineBlock(session, blockTypes, {
-      row: veinBlock.row,
-      col: veinBlock.col,
-      damage: 10,
-      random: () => 0
-    });
-    const save = exportMiningSessionSave(destroyed);
-    const restored = restoreMiningSession(createMiningSession({ mine, blockTypes }), save);
-
-    expect(destroyed.lastFoundVein).toMatchObject({
-      mineTemplateId: "old_well_01",
-      seed: "player-1",
-      row: veinBlock.row,
-      col: veinBlock.col,
-      veinTypeId: "copper_vein_small"
-    });
-    expect(destroyed.foundVeins).toEqual([destroyed.lastFoundVein]);
-    expect(save.foundVeins).toEqual(destroyed.foundVeins);
-    expect(restored.foundVeins).toEqual(destroyed.foundVeins);
   });
 
   it("records completion veins only after the whole mine is cleared", () => {

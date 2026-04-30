@@ -76,7 +76,7 @@ describe("minePixiRenderState", () => {
     expect(createMinePixiBlockRenderSignature({
       active: false,
       block,
-      blockTypeToken: "stone:chest",
+      blockTypeToken: "stone:explosion",
       exposed: true,
       platformRow: false,
       size: 40,
@@ -86,7 +86,7 @@ describe("minePixiRenderState", () => {
 
     expect(createMinePixiBlockRenderSignature({
       active: false,
-      block: { ...block, special: "vein", veinTypeId: "copper_vein_small" },
+      block: { ...block, rewardChestTypeId: "wooden_completion_chest", special: "reward_chest" },
       blockTypeToken: "stone:",
       exposed: true,
       platformRow: false,

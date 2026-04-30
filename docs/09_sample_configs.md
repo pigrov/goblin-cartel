@@ -101,62 +101,24 @@
       "id": "old_well_01",
       "displayNameKey": "mine.old_well.name",
       "width": 8,
-      "height": 12,
-      "depthMeters": 60,
-      "difficulty": 1,
-      "seedMode": "playerBased",
-      "unlockRequirements": [],
-      "strata": [
+      "height": 10,
+      "depthMeters": 10,
+      "difficultyStart": 1,
+      "difficultyEnd": 1.8,
+      "completionVeinTypeId": "gold_vein_small",
+      "completionRewardChestTypeId": "wooden_completion_chest",
+      "cellMap": [
+        { "row": 0, "col": 0, "blockTypeId": "dirt" },
+        { "row": 0, "col": 1, "blockTypeId": "dirt" },
+        { "row": 0, "col": 2, "blockTypeId": "stone" },
         {
-          "id": "top_soil",
-          "fromRow": 0,
-          "toRow": 3,
-          "blockWeights": {
-            "dirt": 70,
-            "stone": 25,
-            "gold": 5
-          }
-        },
-        {
-          "id": "stone_layer",
-          "fromRow": 4,
-          "toRow": 7,
-          "blockWeights": {
-            "dirt": 20,
-            "stone": 60,
-            "copper_ore": 15,
-            "gold": 5
-          }
-        },
-        {
-          "id": "copper_layer",
-          "fromRow": 8,
-          "toRow": 11,
-          "blockWeights": {
-            "stone": 55,
-            "copper_ore": 35,
-            "chest_wooden": 5,
-            "gold": 5
-          }
+          "row": 2,
+          "col": 3,
+          "blockTypeId": "gold_cache",
+          "hp": 55,
+          "special": "reward_chest",
+          "rewardChestTypeId": "wooden_completion_chest"
         }
-      ],
-      "guaranteedObjects": [
-        {
-          "type": "vein",
-          "veinTypeId": "copper_vein_small",
-          "rowRange": [8, 11],
-          "count": 1
-        },
-        {
-          "type": "chest",
-          "blockTypeId": "chest_wooden",
-          "rowRange": [5, 10],
-          "count": 1
-        }
-      ],
-      "completionRewards": [
-        { "resourceId": "gold", "amount": 500 },
-        { "resourceId": "stone", "amount": 100 }
       ]
     }
   ]

@@ -1562,7 +1562,7 @@ function createSession(
   const session = createMiningSession({
     mine: generateMine(mineTemplate, mineSeed),
     blockTypes: content.blockTypes,
-    mineDifficultyMultiplier: (mineTemplate.cellMap?.length ?? 0) > 0 ? 1 : mineTemplate.difficulty ?? mineTemplate.difficultyStart
+    mineDifficultyMultiplier: 1
   });
 
   return {

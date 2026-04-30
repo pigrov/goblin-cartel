@@ -11,19 +11,17 @@ import {
 } from "./mineProgressionClientState";
 
 const firstMine = {
-  cellMap: [],
+  cellMap: [
+    { row: 0, col: 0, blockTypeId: "stone" }
+  ],
   depthMeters: 60,
-  difficulty: 1,
   difficultyEnd: 1,
   difficultyStart: 1,
   displayNameKey: "mine.first.name",
-  guaranteedObjects: [],
-  height: 12,
+  height: 1,
   id: "first_mine",
-  seedMode: "playerBased",
   sortOrder: 10,
-  strata: [],
-  width: 8
+  width: 1
 } satisfies MineTemplateConfig;
 
 const secondMine = {

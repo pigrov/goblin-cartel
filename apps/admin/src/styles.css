@@ -597,6 +597,11 @@
   font-weight: 700;
 }
 
+.content-template-actions button.active {
+  border-color: var(--gc-accent);
+  background: rgb(242 184 75 / 14%);
+}
+
 .content-entity-kpis,
 .content-entity-preview {
   display: grid;
