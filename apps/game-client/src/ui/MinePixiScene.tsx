@@ -1,27 +1,13 @@
-import type { Application } from "pixi.js";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
 import {
   createMinePixiLayout,
   createVisibleRowRange,
-  type MinePixiLayout,
-  type MinePixiViewport,
-  type MinePixiVisibleRowRange
+  type MinePixiViewport
 } from "./minePixiLayout";
+import { type MinePixiHitEffect } from "./minePixiEffects";
 import {
-  type AnimatedHitEffect,
-  type MinePixiHitEffect
-} from "./minePixiEffects";
-import type { MinePixiLiftRail } from "./minePixiBackground";
-import { type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
-import {
-  createMinePixiApp,
-  type MinePixiAppHandle,
-  type MinePixiSceneLayers
-} from "./minePixiApp";
-import {
-  type MinePixiAnimatedItem,
   type MinePixiDragState,
   type MinePixiPlatformGoblin
 } from "./minePixiPlatform";
@@ -33,8 +19,6 @@ import {
   renderMinePixiPlatform,
   renderMinePixiSurface
 } from "./minePixiRenderPasses";
-import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
-import { runMinePixiTickerFrame, type PixiDevStats } from "./minePixiTicker";
 import {
   bindMinePixiViewport,
   defaultMinePixiViewport,
@@ -43,10 +27,9 @@ import {
 } from "./minePixiViewport";
 import {
   bindMinePixiDragPlacement,
-  bindMinePixiPointerInput,
-  type MinePixiTouchPanState,
-  type PixiDevHitTest
+  bindMinePixiPointerInput
 } from "./minePixiInput";
+import { useMinePixiSceneRuntime } from "./useMinePixiSceneRuntime";
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
 
@@ -74,46 +57,9 @@ interface MinePixiSceneProps {
   session: MiningSession;
 }
 
-type AnimatedItem = MinePixiAnimatedItem;
-
 type DragState = MinePixiDragState;
 
 export function MinePixiScene(props: MinePixiSceneProps) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const appRef = useRef<Application | null>(null);
-  const animatedBlockImpactsRef = useRef<Map<number, MinePixiAnimatedBlockImpact>>(new Map());
-  const animatedHitEffectsRef = useRef<AnimatedHitEffect[]>([]);
-  const blockNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
-  const depthMarkerNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
-  const hitEffectNodesRef = useRef<Map<string, MinePixiRenderedNode>>(new Map());
-  const liftRailRef = useRef<MinePixiLiftRail | null>(null);
-  const layersRef = useRef<MinePixiSceneLayers | null>(null);
-  const devOverlayEnabledRef = useRef(props.devOverlayEnabled);
-  const devHitTestLastUpdatedAtRef = useRef(0);
-  const devStatsLastUpdatedAtRef = useRef(0);
-  const touchPanBlockTapUntilRef = useRef(0);
-  const touchPanStateRef = useRef<MinePixiTouchPanState | null>(null);
-  const layoutRef = useRef<MinePixiLayout | null>(null);
-  const animatedGoblinsRef = useRef<AnimatedItem[]>([]);
-  const activeCellRef = useRef(props.activeCell);
-  const currentPlatformRowRef = useRef(props.currentPlatformRow);
-  const exposedCellKeysRef = useRef(props.exposedCellKeys);
-  const onBlockHitRef = useRef(props.onBlockHit);
-  const onPlaceGoblinRef = useRef(props.onPlaceGoblin);
-  const platformCellKeysRef = useRef(props.platformCellKeys);
-  const sessionBlocksRef = useRef(props.session.blocks);
-  const platformRef = useRef<AnimatedItem | null>(null);
-  const platformDropAnimatingRef = useRef(false);
-  const platformAnimationStartedAtRef = useRef(0);
-  const totalCellCountRef = useRef(props.session.mine.width * props.session.mine.height);
-  const visibleRowRangeRef = useRef<MinePixiVisibleRowRange>({ endRow: 0, startRow: 0 });
-  const previousPlatformDropSignalRef = useRef({
-    animating: false,
-    row: props.currentPlatformRow
-  });
-  const [devHitTest, setDevHitTest] = useState<PixiDevHitTest | null>(null);
-  const [devStats, setDevStats] = useState<PixiDevStats | null>(null);
-  const [readyTick, setReadyTick] = useState(0);
   const [sceneViewport, setSceneViewport] = useState<MinePixiViewport>(defaultMinePixiViewport);
   const [viewportWidth, setViewportWidth] = useState(minMinePixiViewportWidth);
   const [dragState, setDragState] = useState<DragState | null>(null);
@@ -126,132 +72,21 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     () => createVisibleRowRange(layout, sceneViewport),
     [layout, sceneViewport]
   );
+  const runtime = useMinePixiSceneRuntime({
+    activeCell: props.activeCell,
+    currentPlatformRow: props.currentPlatformRow,
+    devOverlayEnabled: props.devOverlayEnabled,
+    exposedCellKeys: props.exposedCellKeys,
+    onBlockHit: props.onBlockHit,
+    onPlaceGoblin: props.onPlaceGoblin,
+    platformCellKeys: props.platformCellKeys,
+    platformDropAnimating: props.platformDropAnimating,
+    session: props.session,
+    visibleRowRange
+  });
 
   useEffect(() => {
-    devOverlayEnabledRef.current = props.devOverlayEnabled;
-
-    if (!props.devOverlayEnabled) {
-      setDevHitTest(null);
-      setDevStats(null);
-    }
-  }, [props.devOverlayEnabled]);
-
-  useEffect(() => {
-    visibleRowRangeRef.current = visibleRowRange;
-  }, [visibleRowRange]);
-
-  useEffect(() => {
-    totalCellCountRef.current = props.session.mine.width * props.session.mine.height;
-  }, [props.session.mine.height, props.session.mine.width]);
-
-  useEffect(() => {
-    platformDropAnimatingRef.current = props.platformDropAnimating;
-  }, [props.platformDropAnimating]);
-
-  useEffect(() => {
-    const previous = previousPlatformDropSignalRef.current;
-
-    if (props.platformDropAnimating && (!previous.animating || previous.row !== props.currentPlatformRow)) {
-      platformAnimationStartedAtRef.current = performance.now();
-    }
-
-    previousPlatformDropSignalRef.current = {
-      animating: props.platformDropAnimating,
-      row: props.currentPlatformRow
-    };
-  }, [props.currentPlatformRow, props.platformDropAnimating]);
-
-  useEffect(() => {
-    currentPlatformRowRef.current = props.currentPlatformRow;
-  }, [props.currentPlatformRow]);
-
-  useEffect(() => {
-    activeCellRef.current = props.activeCell;
-  }, [props.activeCell]);
-
-  useEffect(() => {
-    onBlockHitRef.current = props.onBlockHit;
-  }, [props.onBlockHit]);
-
-  useEffect(() => {
-    exposedCellKeysRef.current = props.exposedCellKeys;
-  }, [props.exposedCellKeys]);
-
-  useEffect(() => {
-    onPlaceGoblinRef.current = props.onPlaceGoblin;
-  }, [props.onPlaceGoblin]);
-
-  useEffect(() => {
-    platformCellKeysRef.current = props.platformCellKeys;
-  }, [props.platformCellKeys]);
-
-  useEffect(() => {
-    sessionBlocksRef.current = props.session.blocks;
-  }, [props.session.blocks]);
-
-  useEffect(() => {
-    const host = hostRef.current;
-
-    if (!host) {
-      return;
-    }
-
-    let cancelled = false;
-    let handle: MinePixiAppHandle | null = null;
-
-    void createMinePixiApp({
-      host,
-      onFrame: (app) => {
-        runMinePixiTickerFrame({
-          animatedBlockImpacts: animatedBlockImpactsRef.current,
-          animatedGoblins: animatedGoblinsRef.current,
-          animatedHitEffects: animatedHitEffectsRef.current,
-          app,
-          blockNodes: blockNodesRef.current,
-          devOverlayEnabledRef,
-          devStatsLastUpdatedAtRef,
-          host: hostRef.current,
-          layout: layoutRef.current,
-          liftRail: liftRailRef.current,
-          now: performance.now(),
-          platform: platformRef.current,
-          platformAnimationStartedAt: platformAnimationStartedAtRef.current,
-          platformDropAnimating: platformDropAnimatingRef.current,
-          setDevStats,
-          totalCells: totalCellCountRef.current,
-          visibleRowRange: visibleRowRangeRef.current
-        });
-      }
-    }).then((pixi) => {
-      if (cancelled) {
-        pixi.destroy();
-        return;
-      }
-
-      handle = pixi;
-      appRef.current = pixi.app;
-      layersRef.current = pixi.layers;
-      setReadyTick((current) => current + 1);
-    });
-
-    return () => {
-      cancelled = true;
-      appRef.current = null;
-      layersRef.current = null;
-      animatedBlockImpactsRef.current.clear();
-      animatedGoblinsRef.current = [];
-      animatedHitEffectsRef.current = [];
-      blockNodesRef.current.clear();
-      depthMarkerNodesRef.current.clear();
-      hitEffectNodesRef.current.clear();
-      liftRailRef.current = null;
-      platformRef.current = null;
-      handle?.destroy();
-    };
-  }, []);
-
-  useEffect(() => {
-    const host = hostRef.current;
+    const host = runtime.hostRef.current;
 
     if (!host) {
       return;
@@ -265,55 +100,55 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, []);
 
   useEffect(() => {
-    const host = hostRef.current;
+    const host = runtime.hostRef.current;
 
     if (!host) {
       return;
     }
 
     return bindMinePixiPointerInput({
-      activeCellRef,
-      appRef,
-      currentPlatformRowRef,
-      devHitTestLastUpdatedAtRef,
-      devOverlayEnabledRef,
-      exposedCellKeysRef,
+      activeCellRef: runtime.activeCellRef,
+      appRef: runtime.appRef,
+      currentPlatformRowRef: runtime.currentPlatformRowRef,
+      devHitTestLastUpdatedAtRef: runtime.devHitTestLastUpdatedAtRef,
+      devOverlayEnabledRef: runtime.devOverlayEnabledRef,
+      exposedCellKeysRef: runtime.exposedCellKeysRef,
       host,
-      layoutRef,
-      onBlockHitRef,
-      platformCellKeysRef,
-      sessionBlocksRef,
-      setDevHitTest,
-      touchPanBlockTapUntilRef,
-      touchPanStateRef
+      layoutRef: runtime.layoutRef,
+      onBlockHitRef: runtime.onBlockHitRef,
+      platformCellKeysRef: runtime.platformCellKeysRef,
+      sessionBlocksRef: runtime.sessionBlocksRef,
+      setDevHitTest: runtime.setDevHitTest,
+      touchPanBlockTapUntilRef: runtime.touchPanBlockTapUntilRef,
+      touchPanStateRef: runtime.touchPanStateRef
     });
-  }, [readyTick]);
+  }, [runtime.readyTick]);
 
   useEffect(() => {
     return bindMinePixiDragPlacement({
-      appRef,
-      currentPlatformRowRef,
+      appRef: runtime.appRef,
+      currentPlatformRowRef: runtime.currentPlatformRowRef,
       dragState,
-      layoutRef,
-      onPlaceGoblinRef,
-      platformCellKeysRef,
+      layoutRef: runtime.layoutRef,
+      onPlaceGoblinRef: runtime.onPlaceGoblinRef,
+      platformCellKeysRef: runtime.platformCellKeysRef,
       setDragState
     });
   }, [dragState?.goblinId]);
 
   useEffect(() => {
-    const app = appRef.current;
+    const app = runtime.appRef.current;
 
     if (!app || viewportWidth <= 0) {
       return;
     }
 
-    layoutRef.current = layout;
+    runtime.layoutRef.current = layout;
     resizeMinePixiRenderer(app, layout);
-  }, [layout, readyTick, viewportWidth]);
+  }, [layout, runtime.readyTick, viewportWidth]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
@@ -322,14 +157,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     renderMinePixiBackground({
       layers,
       layout,
-      liftRailRef,
-      platformAnimationStartedAtRef,
-      platformDropAnimatingRef
+      liftRailRef: runtime.liftRailRef,
+      platformAnimationStartedAtRef: runtime.platformAnimationStartedAtRef,
+      platformDropAnimatingRef: runtime.platformDropAnimatingRef
     });
-  }, [layout, readyTick]);
+  }, [layout, runtime.readyTick]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
@@ -340,10 +175,10 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       layers,
       layout
     });
-  }, [layout, props.currentPlatformRow, readyTick]);
+  }, [layout, props.currentPlatformRow, runtime.readyTick]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
@@ -351,11 +186,11 @@ export function MinePixiScene(props: MinePixiSceneProps) {
 
     renderMinePixiMineAndDepth({
       activeCell: props.activeCell,
-      blockNodes: blockNodesRef.current,
+      blockNodes: runtime.blockNodesRef.current,
       blockTypeById: props.blockTypeById,
       currentPlatformRow: props.currentPlatformRow,
       depthMarkerLabel: props.depthMarkerLabel,
-      depthMarkerNodes: depthMarkerNodesRef.current,
+      depthMarkerNodes: runtime.depthMarkerNodesRef.current,
       exposedCellKeys: props.exposedCellKeys,
       layers,
       layout,
@@ -370,49 +205,49 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     props.depthMarkerLabel,
     props.exposedCellKeys,
     props.session.blocks,
-    readyTick,
+    runtime.readyTick,
     visibleRowRange
   ]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
     }
 
     renderMinePixiHitEffects({
-      animatedBlockImpactsRef,
-      animatedHitEffectsRef,
+      animatedBlockImpactsRef: runtime.animatedBlockImpactsRef,
+      animatedHitEffectsRef: runtime.animatedHitEffectsRef,
       blockTypeById: props.blockTypeById,
-      hitEffectNodes: hitEffectNodesRef.current,
+      hitEffectNodes: runtime.hitEffectNodesRef.current,
       hitEffects: props.hitEffects,
       layers,
       layout,
       sessionBlocks: props.session.blocks,
       visibleRowRange
     });
-  }, [layout, props.hitEffects, readyTick, visibleRowRange]);
+  }, [layout, props.blockTypeById, props.hitEffects, props.session.blocks, runtime.readyTick, visibleRowRange]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
     }
 
     renderMinePixiPlatform({
-      animatedGoblinsRef,
+      animatedGoblinsRef: runtime.animatedGoblinsRef,
       blocks: props.session.blocks,
       currentPlatformRow: props.currentPlatformRow,
       goblins: props.goblins,
       layers,
       layout,
       mineWidth: props.session.mine.width,
-      platformAnimationStartedAtRef,
+      platformAnimationStartedAtRef: runtime.platformAnimationStartedAtRef,
       platformCellKeys: props.platformCellKeys,
-      platformDropAnimatingRef,
-      platformRef,
+      platformDropAnimatingRef: runtime.platformDropAnimatingRef,
+      platformRef: runtime.platformRef,
       setDragState
     });
   }, [
@@ -422,11 +257,12 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     props.platformCellKeys,
     props.platformDropAnimating,
     props.session.blocks,
-    readyTick
+    props.session.mine.width,
+    runtime.readyTick
   ]);
 
   useEffect(() => {
-    const layers = layersRef.current;
+    const layers = runtime.layersRef.current;
 
     if (!layers) {
       return;
@@ -438,21 +274,21 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       layers,
       layout
     });
-  }, [dragState, layout, props.goblins, readyTick]);
+  }, [dragState, layout, props.goblins, runtime.readyTick]);
 
   return (
-    <section className="pixi-playfield" ref={hostRef} aria-label="Игровая область">
-      {readyTick === 0 ? <span className="pixi-loading">Loading...</span> : null}
-      {props.devOverlayEnabled && devStats ? (
+    <section className="pixi-playfield" ref={runtime.hostRef} aria-label="Игровая область">
+      {runtime.readyTick === 0 ? <span className="pixi-loading">Loading...</span> : null}
+      {props.devOverlayEnabled && runtime.devStats ? (
         <div className="pixi-dev-overlay" aria-hidden="true">
-          <span>FPS {devStats.fps}</span>
-          <span>Rows {devStats.visibleRows}</span>
-          <span>Scroll {devStats.scrollRow}</span>
-          <span>Cells {devStats.renderedCells}/{devStats.totalCells}</span>
-          <span>Hit {devHitTest?.cell ?? "-"}</span>
-          <span>{devHitTest?.state ?? "idle"}</span>
-          <span>XY {devHitTest?.point ?? "-"}</span>
-          <span>Sel {devHitTest?.selected ?? "-"}</span>
+          <span>FPS {runtime.devStats.fps}</span>
+          <span>Rows {runtime.devStats.visibleRows}</span>
+          <span>Scroll {runtime.devStats.scrollRow}</span>
+          <span>Cells {runtime.devStats.renderedCells}/{runtime.devStats.totalCells}</span>
+          <span>Hit {runtime.devHitTest?.cell ?? "-"}</span>
+          <span>{runtime.devHitTest?.state ?? "idle"}</span>
+          <span>XY {runtime.devHitTest?.point ?? "-"}</span>
+          <span>Sel {runtime.devHitTest?.selected ?? "-"}</span>
         </div>
       ) : null}
     </section>

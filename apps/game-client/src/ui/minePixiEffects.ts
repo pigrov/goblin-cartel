@@ -2,6 +2,7 @@ import { Container, Graphics, Text } from "pixi.js";
 
 const damageLabelRise = 56;
 const rewardLabelRise = 68;
+export const destroyedHitEffectDurationMs = 1960;
 
 export type MinePixiHitEffectVariant = "boss" | "goblin" | "critical";
 
@@ -97,7 +98,7 @@ export function drawHitEffect(
   const particles: AnimatedHitParticle[] = [];
   const palette = hitEffectPalette(effect.variant, destroyed);
   const particleCount = destroyed ? 16 : effect.variant === "critical" ? 14 : effect.variant === "boss" ? 11 : 8;
-  const duration = destroyed ? 1960 : effect.variant === "critical" ? 720 : 620;
+  const duration = destroyed ? destroyedHitEffectDurationMs : effect.variant === "critical" ? 720 : 620;
   const flashScale = effect.variant === "critical" ? 1.18 : effect.variant === "goblin" ? 0.82 : 1;
   const damageLabel = drawDamageLabel(effect, size);
   const damageLabelBaseY = -size * (effect.variant === "critical" ? 0.72 : 0.54);

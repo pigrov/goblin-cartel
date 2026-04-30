@@ -41,3 +41,4 @@
 - `0036_pixi_drag_input_lift_rail` - moved Pixi drag placement into input handling, shifted the lift left, and animated rail height with platform descent.
 - `0037_pixi_app_lifecycle_modal_layer` - extracted Pixi app/layers lifecycle and lifted modals above the boss energy overlay.
 - `0038_pixi_viewport_render_passes` - extracted Pixi viewport binding, renderer resize, and scene render passes from the React scene component.
+- `0039_pixi_runtime_hook_delayed_rewards` - moved Pixi runtime refs/ticker into a hook and delayed visible resource rewards until the hit animation completes.

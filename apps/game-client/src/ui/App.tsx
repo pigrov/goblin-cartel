@@ -33,6 +33,7 @@ import {
 import { Bot, Coins, Gem, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
+import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 
 const mineSeed = "local-player-001";
@@ -40,8 +41,11 @@ const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
 const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyTickMs = 500;
+const bossEnergyCounterStepMs = 24;
 const offlineFinalHitDelayMs = 900;
 const hitEffectLifetimeMs = 2400;
+const resourceRewardSettleDelayMs = destroyedHitEffectDurationMs;
+const resourceFlashMs = 620;
 const resourceTooltipLifetimeMs = 3000;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
@@ -140,6 +144,27 @@ interface ResourceTooltip {
   value: number;
 }
 
+function useSteppedIntegerValue(target: number, stepMs: number): number {
+  const normalizedTarget = Number.isFinite(target) ? Math.max(0, Math.floor(target)) : 0;
+  const [value, setValue] = useState(normalizedTarget);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setValue((current) => {
+        if (current === normalizedTarget) {
+          return current;
+        }
+
+        return current < normalizedTarget ? current + 1 : current - 1;
+      });
+    }, stepMs);
+
+    return () => window.clearInterval(intervalId);
+  }, [normalizedTarget, stepMs]);
+
+  return value;
+}
+
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: initialContentBundle,
@@ -166,8 +191,12 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pixiDevOverlayEnabled, setPixiDevOverlayEnabled] = useState(false);
   const [resourceTooltip, setResourceTooltip] = useState<ResourceTooltip | null>(null);
+  const [visibleResourceAmounts, setVisibleResourceAmounts] = useState<Record<string, number>>(() => ({ ...session.resources }));
+  const [flashingResourceIds, setFlashingResourceIds] = useState<ReadonlySet<string>>(() => new Set());
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const previousPlatformRowRef = useRef(0);
+  const resourceDisplayGenerationRef = useRef(0);
+  const resourceDisplayTimersRef = useRef<number[]>([]);
   const tooltipSequenceRef = useRef(0);
 
   useEffect(() => {
@@ -205,6 +234,7 @@ export function App() {
             ...nextContentState
           });
           setSession(restoredMining.session);
+          syncVisibleResourceAmounts(restoredMining.session.resources);
           setRoster(nextRoster);
           setActiveCell(restoredMining.activeCell);
           setPlatformRow(restoredMining.platformRow);
@@ -227,6 +257,7 @@ export function App() {
             message: error instanceof Error ? error.message : "Стартовый локальный контент"
           });
           setSession(restoredMining.session);
+          syncVisibleResourceAmounts(restoredMining.session.resources);
           setRoster(nextRoster);
           setActiveCell(restoredMining.activeCell);
           setPlatformRow(restoredMining.platformRow);
@@ -308,6 +339,10 @@ export function App() {
     return () => window.clearTimeout(timeoutId);
   }, [resourceTooltip]);
 
+  useEffect(() => {
+    return () => clearResourceDisplayTimers();
+  }, []);
+
   const blockTypeById = useMemo(
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
@@ -358,7 +393,8 @@ export function App() {
     [goblinPlacements, hiredGoblins, labels, session, workerByColumn]
   );
   const visibleBossEnergy = useMemo(() => regenerateBossEnergy(bossEnergy, bossEnergyConfig, clockNow), [bossEnergy, clockNow]);
-  const bossEnergyPercent = bossEnergyConfig.maxEnergy > 0 ? (visibleBossEnergy.currentEnergy / bossEnergyConfig.maxEnergy) * 100 : 0;
+  const displayedBossEnergy = useSteppedIntegerValue(Math.floor(visibleBossEnergy.currentEnergy), bossEnergyCounterStepMs);
+  const bossEnergyPercent = bossEnergyConfig.maxEnergy > 0 ? (displayedBossEnergy / bossEnergyConfig.maxEnergy) * 100 : 0;
   const bossSecondsUntilReady = useMemo(
     () => getBossEnergySecondsUntilReady(bossEnergy, bossEnergyConfig, clockNow),
     [bossEnergy, clockNow]
@@ -534,9 +570,91 @@ export function App() {
     const rewardDrops = rewardDropsFromMap(rewards, contentState.content, labels);
 
     setHitEffects((current) => [...current.slice(-16), { damage, id, rewardDrops, row: cell.row, col: cell.col, variant }]);
+    scheduleResourceRewardDisplay(rewards);
     window.setTimeout(() => {
       setHitEffects((current) => current.filter((effect) => effect.id !== id));
     }, hitEffectLifetimeMs);
+  }
+
+  function clearResourceDisplayTimers() {
+    for (const timeoutId of resourceDisplayTimersRef.current) {
+      window.clearTimeout(timeoutId);
+    }
+
+    resourceDisplayTimersRef.current = [];
+  }
+
+  function syncVisibleResourceAmounts(resources: Record<string, number>) {
+    resourceDisplayGenerationRef.current += 1;
+    clearResourceDisplayTimers();
+    setVisibleResourceAmounts({ ...resources });
+    setFlashingResourceIds(new Set());
+  }
+
+  function scheduleResourceRewardDisplay(rewards: Record<string, number>) {
+    const rewardEntries = Object.entries(rewards).filter(([, amount]) => amount > 0);
+
+    if (rewardEntries.length === 0) {
+      return;
+    }
+
+    const generation = resourceDisplayGenerationRef.current;
+    const timeoutId = window.setTimeout(() => {
+      resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== timeoutId);
+
+      if (resourceDisplayGenerationRef.current !== generation) {
+        return;
+      }
+
+      setVisibleResourceAmounts((current) => mergeResourceMaps(current, rewards));
+      flashRewardResourceChips(rewardEntries.map(([resourceId]) => resourceId));
+    }, resourceRewardSettleDelayMs);
+
+    resourceDisplayTimersRef.current.push(timeoutId);
+  }
+
+  function flashRewardResourceChips(resourceIds: string[]) {
+    const uniqueResourceIds = Array.from(new Set(resourceIds));
+
+    setFlashingResourceIds((current) => {
+      const next = new Set(current);
+
+      for (const resourceId of uniqueResourceIds) {
+        next.delete(resourceId);
+      }
+
+      return next;
+    });
+
+    const startTimeoutId = window.setTimeout(() => {
+      resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== startTimeoutId);
+      setFlashingResourceIds((current) => {
+        const next = new Set(current);
+
+        for (const resourceId of uniqueResourceIds) {
+          next.add(resourceId);
+        }
+
+        return next;
+      });
+
+      const endTimeoutId = window.setTimeout(() => {
+        resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== endTimeoutId);
+        setFlashingResourceIds((current) => {
+          const next = new Set(current);
+
+          for (const resourceId of uniqueResourceIds) {
+            next.delete(resourceId);
+          }
+
+          return next;
+        });
+      }, resourceFlashMs);
+
+      resourceDisplayTimersRef.current.push(endTimeoutId);
+    }, 0);
+
+    resourceDisplayTimersRef.current.push(startTimeoutId);
   }
 
   function handleBlockHit(block: MiningBlockState) {
@@ -586,6 +704,7 @@ export function App() {
     setPlatformRow(nextPlatformRow);
     setGoblinPlacements(nextGoblinPlacements);
     setBossEnergy(nextBossEnergy);
+    syncVisibleResourceAmounts(nextSession.resources);
     setClockNow(resetAt);
     setOfflineSummary(null);
     setPendingOfflineFinalHit(null);
@@ -625,6 +744,7 @@ export function App() {
 
     setRoster(result.roster);
     setGoblinPlacements((current) => placeGoblinInFirstFreeColumn(session, current, goblin.id, currentPlatformRow));
+    syncVisibleResourceAmounts(result.resources);
     setSession((current) => ({
       ...current,
       resources: result.resources,
@@ -639,10 +759,11 @@ export function App() {
         <header className="resource-bar">
           <div className="resource-list" style={{ gridTemplateColumns: `repeat(${Math.max(1, displayedResources.length)}, minmax(0, 1fr))` }}>
             {displayedResources.map((resource) => {
-              const value = session.resources[resource.id] ?? 0;
+              const value = visibleResourceAmounts[resource.id] ?? 0;
 
               return (
                 <ResourceChip
+                  flashing={flashingResourceIds.has(resource.id)}
                   key={resource.id}
                   labels={labels}
                   onClick={() => showResourceTooltip(resource, value)}
@@ -708,7 +829,7 @@ export function App() {
             <span className="boss-energy-main">
               <span>Энергия босса</span>
               <strong>
-                {formatNumber(visibleBossEnergy.currentEnergy)}/{bossEnergyConfig.maxEnergy}
+                {formatInteger(displayedBossEnergy)}/{bossEnergyConfig.maxEnergy}
               </strong>
             </span>
             <span className="boss-energy-stats">
@@ -772,7 +893,7 @@ export function App() {
                 </button>
               </header>
               <div className="boss-stat-grid">
-                <BossStat label="Энергия" value={`${formatNumber(visibleBossEnergy.currentEnergy)}/${bossEnergyConfig.maxEnergy}`} />
+                <BossStat label="Энергия" value={`${formatInteger(displayedBossEnergy)}/${bossEnergyConfig.maxEnergy}`} />
                 <BossStat label="Расход" value={`${bossEnergyConfig.energyPerHit}/удар`} />
                 <BossStat label="Урон" value={`${bossEnergyConfig.damagePerTap}/тап`} />
                 <BossStat label="Реген" value={`+${bossEnergyConfig.regenPerSecond}/сек`} />
@@ -1028,6 +1149,7 @@ function createRestoredGoblinRoster(content: ContentBundle, contentVersion: stri
 }
 
 function ResourceChip(props: {
+  flashing: boolean;
   labels: Record<string, string>;
   onClick: () => void;
   resource: ResourceConfig;
@@ -1038,7 +1160,7 @@ function ResourceChip(props: {
   return (
     <button
       aria-label={`${label}: ${formatNumber(props.value)}`}
-      className={`resource-chip ${resourceClassName(props.resource.id)}`}
+      className={`resource-chip ${resourceClassName(props.resource.id)}${props.flashing ? " flash" : ""}`}
       onClick={props.onClick}
       title={label}
       type="button"
@@ -1241,6 +1363,10 @@ function messageForHireFailure(reason: string): string {
 
 function formatNumber(value: number): string {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function formatInteger(value: number): string {
+  return Number.isFinite(value) ? String(Math.max(0, Math.floor(value))) : "0";
 }
 
 function formatPercent(value: number): string {
