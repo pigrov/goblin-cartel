@@ -33,6 +33,7 @@ import {
 import { Bot, Coins, Gem, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
+import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
@@ -44,8 +45,6 @@ const hitEffectLifetimeMs = 2400;
 const resourceTooltipLifetimeMs = 3000;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
-const runtimeTestMineRows = 40;
-const runtimeMineMetersPerRow = 5;
 let hitEffectSequence = 0;
 
 type GameSection = "mine" | "goblins";
@@ -808,77 +807,6 @@ export function App() {
       </section>
     </main>
   );
-}
-
-function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
-  const debugRows = readDebugMineRows();
-  const targetRows = debugRows ?? runtimeTestMineRows;
-  const targetDepthMeters = targetRows * runtimeMineMetersPerRow;
-  const mineTemplate = content.mineTemplates[0];
-
-  if (!mineTemplate) {
-    return content;
-  }
-
-  const currentDepthMeters = mineTemplate.depthMeters ?? mineTemplate.height;
-  const shouldUseRuntimeMine =
-    Boolean(debugRows) || mineTemplate.height < targetRows || currentDepthMeters < targetDepthMeters;
-
-  if (!shouldUseRuntimeMine) {
-    return content;
-  }
-
-  const lastStratum = mineTemplate.strata.at(-1);
-
-  if (!lastStratum) {
-    return content;
-  }
-
-  return {
-    ...content,
-    mineTemplates: [
-      {
-        ...mineTemplate,
-        depthMeters: Math.max(currentDepthMeters, targetDepthMeters),
-        height: targetRows,
-        id: `${mineTemplate.id}_${debugRows ? "debug" : "test"}_${targetRows}`,
-        strata: [
-          ...mineTemplate.strata.slice(0, -1),
-          {
-            ...lastStratum,
-            toRow: targetRows - 1
-          }
-        ]
-      },
-      ...content.mineTemplates.slice(1)
-    ]
-  };
-}
-
-function contentVersionWithRuntimeSuffix(version: string, content: ContentBundle): string {
-  const debugRows = readDebugMineRows();
-  const mineTemplate = content.mineTemplates[0];
-
-  if (debugRows) {
-    return `${version}:debug-${debugRows}`;
-  }
-
-  return mineTemplate?.id.endsWith(`_test_${runtimeTestMineRows}`) ? `${version}:test-${runtimeTestMineRows}` : version;
-}
-
-function readDebugMineRows(): number | null {
-  if (!import.meta.env.DEV || typeof window === "undefined") {
-    return null;
-  }
-
-  const raw = new URLSearchParams(window.location.search).get("debugMineRows");
-  const rows = raw ? Number(raw) : 0;
-
-  if (!Number.isInteger(rows) || rows < 50 || rows > 200) {
-    return null;
-  }
-
-  return rows;
 }
 
 function createSession(content: ContentBundle): MiningSession {
