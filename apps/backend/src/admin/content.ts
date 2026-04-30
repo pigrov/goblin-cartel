@@ -97,8 +97,8 @@ export interface ContentService {
       localization?: Record<string, string>;
     }
   ): Promise<ContentVersionDetail | ContentError | null>;
-  validateVersion(actorAdminUserId: string, id: string): Promise<ContentValidationResponse | null>;
-  publishVersion(actorAdminUserId: string, id: string): Promise<ContentPublishResponse | null>;
+  validateVersion(actorAdminUserId: string, id: string): Promise<ContentValidationResponse | ContentError | null>;
+  publishVersion(actorAdminUserId: string, id: string): Promise<ContentPublishResponse | ContentError | null>;
   getCurrentPublishedContent(): Promise<ContentVersionDetail | null>;
 }
 
@@ -291,6 +291,10 @@ export function createContentService(options: { store: ContentStore; now?: () =>
         return null;
       }
 
+      if (!isEditableContentVersionStatus(detail.version.status)) {
+        return { error: "version_not_editable" };
+      }
+
       const validation = validateContentBundle(detail.content);
       const updatedVersion = validation.ok
         ? await options.store.updateVersion({
@@ -322,6 +326,10 @@ export function createContentService(options: { store: ContentStore; now?: () =>
 
       if (!detail) {
         return null;
+      }
+
+      if (!isEditableContentVersionStatus(detail.version.status)) {
+        return { error: "version_not_editable" };
       }
 
       const validation = validateContentBundle(detail.content);
@@ -373,6 +381,10 @@ export function createContentService(options: { store: ContentStore; now?: () =>
       };
     }
   };
+}
+
+function isEditableContentVersionStatus(status: string): boolean {
+  return status === "draft" || status === "validated";
 }
 
 function toPublicVersion(record: ContentVersionRecord): PublicContentVersion {

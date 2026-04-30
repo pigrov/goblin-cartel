@@ -1105,16 +1105,20 @@ function ContentSection(props: {
               <Save size={17} />
               Save
             </button>
-            <button disabled={!props.selectedContentVersion || props.busy} onClick={props.onValidateContent} type="button">
+            <button disabled={!canEdit || props.busy} onClick={props.onValidateContent} type="button">
               <CheckCircle2 size={17} />
               Validate
             </button>
-            <button disabled={!props.selectedContentVersion || props.busy} onClick={props.onPublishContent} type="button">
+            <button disabled={!canEdit || props.busy} onClick={props.onPublishContent} type="button">
               <Send size={17} />
               Publish
             </button>
           </div>
       </div>
+
+        {props.selectedContentVersion && !canEdit ? (
+          <p className="content-tool-message">Эта версия доступна только для просмотра. Создай новый draft, чтобы менять контент.</p>
+        ) : null}
 
         <section className="gc-panel content-entity-tools">
           <header>

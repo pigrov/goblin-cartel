@@ -169,6 +169,11 @@ export async function registerContentRoutes(
       return reply.status(404).send({ error: "content_version_not_found" });
     }
 
+    if ("error" in result) {
+      const status = result.error === "version_not_editable" ? 409 : 400;
+      return reply.status(status).send(result);
+    }
+
     return result;
   });
 
@@ -189,6 +194,11 @@ export async function registerContentRoutes(
 
     if (!result) {
       return reply.status(404).send({ error: "content_version_not_found" });
+    }
+
+    if ("error" in result) {
+      const status = result.error === "version_not_editable" ? 409 : 400;
+      return reply.status(status).send(result);
     }
 
     if (!result.validation.ok) {

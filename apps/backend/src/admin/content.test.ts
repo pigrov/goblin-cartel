@@ -161,14 +161,41 @@ describe("content service", () => {
     });
 
     const validation = await service.validateVersion("admin-1", detail.version.id);
-    expect(validation?.validation).toEqual({ ok: true, errors: [] });
+    expect(validation && "validation" in validation ? validation.validation : null).toEqual({ ok: true, errors: [] });
 
     const publish = await service.publishVersion("admin-1", detail.version.id);
-    expect(publish?.version.status).toBe("published");
+    expect(publish && "version" in publish ? publish.version.status : null).toBe("published");
 
     const current = await service.getCurrentPublishedContent();
     expect(current?.version.version).toBe("0.1.0");
     expect(current?.content.mineTemplates[0]?.id).toBe("old_well_01");
+  });
+
+  it("keeps published and archived versions read-only", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const first = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const second = await service.createVersion("admin-1", {
+      version: "0.1.1"
+    });
+
+    expect(await service.publishVersion("admin-1", first.version.id)).toMatchObject({
+      version: {
+        status: "published"
+      }
+    });
+    expect(await service.publishVersion("admin-1", second.version.id)).toMatchObject({
+      version: {
+        status: "published"
+      }
+    });
+
+    expect(await service.validateVersion("admin-1", first.version.id)).toEqual({ error: "version_not_editable" });
+    expect(await service.publishVersion("admin-1", first.version.id)).toEqual({ error: "version_not_editable" });
+    expect(await service.validateVersion("admin-1", second.version.id)).toEqual({ error: "version_not_editable" });
+    expect(await service.publishVersion("admin-1", second.version.id)).toEqual({ error: "version_not_editable" });
   });
 
   it("restores mine template order when reading content entities", async () => {
