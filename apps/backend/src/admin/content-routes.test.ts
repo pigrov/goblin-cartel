@@ -65,6 +65,42 @@ describe("content routes", () => {
       }
     });
   });
+
+  it("updates one content entity for ready admin", async () => {
+    const server = Fastify({ logger: false });
+    await registerContentRoutes(server, createAuthService(readyUser), createContentService("0.1.0"));
+
+    const response = await server.inject({
+      method: "PUT",
+      url: "/admin/content/versions/00000000-0000-4000-8000-000000000001/entities/goblin/gryzz_crooked_tooth",
+      headers: {
+        authorization: "Bearer token"
+      },
+      payload: {
+        entity: {
+          ...starterContentBundle.goblins[0],
+          baseStats: {
+            ...starterContentBundle.goblins[0]?.baseStats,
+            strength: 12
+          }
+        },
+        localization: {
+          "goblin.gryzz.name": "Грызз Проверенный"
+        }
+      }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toMatchObject({
+      version: {
+        version: "0.1.0",
+        status: "draft"
+      },
+      content: {
+        goblins: expect.any(Array)
+      }
+    });
+  });
 });
 
 function createAuthService(user: PublicAdminUser | null): AdminAuthService {
@@ -144,6 +180,12 @@ function createContentService(version: string | null): ContentService {
       };
     },
     async replaceContent() {
+      return {
+        version: publicVersion,
+        content: starterContentBundle
+      };
+    },
+    async updateEntity() {
       return {
         version: publicVersion,
         content: starterContentBundle

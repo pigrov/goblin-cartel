@@ -13,6 +13,17 @@ const contentPayloadSchema = z.object({
   content: z.unknown()
 });
 
+const contentEntityParamsSchema = z.object({
+  id: z.string().uuid(),
+  entityType: z.enum(["goblin", "mineTemplate", "builtMineType"]),
+  entityId: z.string().min(1)
+});
+
+const contentEntityPayloadSchema = z.object({
+  entity: z.unknown(),
+  localization: z.record(z.string().min(1), z.string().min(1)).optional()
+});
+
 export async function registerContentRoutes(
   server: FastifyInstance,
   authService: AdminAuthService,
@@ -93,6 +104,39 @@ export async function registerContentRoutes(
     }
 
     const result = await contentService.replaceContent(user.id, params.data.id, payload.data.content);
+
+    if (!result) {
+      return reply.status(404).send({ error: "content_version_not_found" });
+    }
+
+    if ("error" in result) {
+      const status = result.error === "version_not_editable" ? 409 : 400;
+      return reply.status(status).send(result);
+    }
+
+    return result;
+  });
+
+  server.put("/admin/content/versions/:id/entities/:entityType/:entityId", async (request, reply) => {
+    const user = await requireReadyAdminUser(request, reply, authService);
+
+    if (!user) {
+      return undefined;
+    }
+
+    const params = contentEntityParamsSchema.safeParse(request.params);
+    const payload = contentEntityPayloadSchema.safeParse(request.body);
+
+    if (!params.success || !payload.success) {
+      return reply.status(400).send({ error: "invalid_payload" });
+    }
+
+    const result = await contentService.updateEntity(user.id, params.data.id, {
+      entity: payload.data.entity,
+      entityId: params.data.entityId,
+      entityType: params.data.entityType,
+      localization: payload.data.localization
+    });
 
     if (!result) {
       return reply.status(404).send({ error: "content_version_not_found" });

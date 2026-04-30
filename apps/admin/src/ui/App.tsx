@@ -46,6 +46,7 @@ type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "
 type CredentialEnvironment = "production" | "staging" | "development";
 type AdminSection = "dashboard" | "content" | "credentials";
 type ContentEntityKind = "goblins" | "mineTemplates" | "builtMineTypes";
+type ContentEntityApiKind = "goblin" | "mineTemplate" | "builtMineType";
 type EntityFormState = Record<string, string>;
 
 interface ContentVersion {
@@ -75,6 +76,14 @@ interface ContentBundle {
 interface FormValidation {
   errors: string[];
   ok: boolean;
+}
+
+interface EntityDraftUpdate {
+  entity: ContentRecord;
+  entityId: string;
+  entityType: ContentEntityApiKind;
+  localization: Record<string, string>;
+  message: string;
 }
 
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
@@ -437,6 +446,42 @@ export function App() {
     }
   }
 
+  async function handleSaveContentEntity(update: EntityDraftUpdate) {
+    if (!sessionToken || !selectedContentVersion) {
+      return;
+    }
+
+    setBusy(true);
+    setContentMessage(null);
+    setContentErrors([]);
+
+    try {
+      const response = await apiRequest<{ version: ContentVersion; content: ContentBundle }>(
+        `/admin/content/versions/${selectedContentVersion.id}/entities/${update.entityType}/${encodeURIComponent(update.entityId)}`,
+        {
+          method: "PUT",
+          token: sessionToken,
+          body: {
+            entity: update.entity,
+            localization: update.localization
+          }
+        }
+      );
+      setSelectedContentVersion(response.version);
+      setContentVersions((current) => replaceContentVersion(current, response.version));
+      setContentJson(JSON.stringify(response.content, null, 2));
+      setContentMessage(update.message);
+    } catch (error) {
+      if (error instanceof ApiRequestError) {
+        setContentErrors(error.validationErrors);
+      }
+      setContentMessage(error instanceof Error ? error.message : "Не удалось сохранить сущность.");
+      throw error;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function handleValidateContent() {
     if (!sessionToken || !selectedContentVersion) {
       return;
@@ -747,6 +792,7 @@ export function App() {
             onCreateContentVersion={handleCreateContentVersion}
             onPublishContent={handlePublishContent}
             onSaveContent={handleSaveContent}
+            onSaveContentEntity={handleSaveContentEntity}
             onSelectContentVersion={loadContentVersion}
             onValidateContent={handleValidateContent}
             selectedContentVersion={selectedContentVersion}
@@ -801,6 +847,7 @@ function ContentSection(props: {
   onCreateContentVersion: (event: FormEvent<HTMLFormElement>) => void;
   onPublishContent: () => void;
   onSaveContent: () => void;
+  onSaveContentEntity: (update: EntityDraftUpdate) => Promise<void>;
   onSelectContentVersion: (id: string) => void;
   onValidateContent: () => void;
   selectedContentVersion: ContentVersion | null;
@@ -847,9 +894,15 @@ function ContentSection(props: {
     }
   }
 
-  function handleApplyEntityEdit(result: { content: ContentBundle; message: string }) {
-    props.onContentJsonChange(JSON.stringify(result.content, null, 2));
-    setDraftToolMessage(result.message);
+  async function handleSaveEntityEdit(update: EntityDraftUpdate) {
+    setDraftToolMessage(null);
+
+    try {
+      await props.onSaveContentEntity(update);
+      setDraftToolMessage(update.message);
+    } catch (error) {
+      setDraftToolMessage(error instanceof Error ? error.message : "Не удалось сохранить сущность.");
+    }
   }
 
   return (
@@ -929,7 +982,7 @@ function ContentSection(props: {
           <header>
             <div>
               <strong>Сущности контента</strong>
-              <span>{contentPreview ? "Быстрые шаблоны попадут в текущий JSON draft" : "JSON пока не разобран"}</span>
+              <span>{contentPreview ? "Формы сохраняют draft через серверную проверку" : "JSON пока не разобран"}</span>
             </div>
             <div className="content-template-actions">
               <button
@@ -970,10 +1023,11 @@ function ContentSection(props: {
 
           {contentPreview ? (
             <ContentEntityEditor
+              busy={props.busy}
               canEdit={canEdit && Boolean(props.selectedContentVersion)}
               content={contentPreview}
               kind={entityEditorKind}
-              onApply={handleApplyEntityEdit}
+              onApply={handleSaveEntityEdit}
               onKindChange={setEntityEditorKind}
               onSelectedIdChange={setSelectedEntityId}
               selectedId={selectedEntityId}
@@ -1010,10 +1064,11 @@ function ContentSection(props: {
 }
 
 function ContentEntityEditor(props: {
+  busy: boolean;
   canEdit: boolean;
   content: ContentBundle;
   kind: ContentEntityKind;
-  onApply: (result: { content: ContentBundle; message: string }) => void;
+  onApply: (update: EntityDraftUpdate) => void | Promise<void>;
   onKindChange: (kind: ContentEntityKind) => void;
   onSelectedIdChange: (id: string) => void;
   selectedId: string;
@@ -1047,7 +1102,7 @@ function ContentEntityEditor(props: {
       return;
     }
 
-    props.onApply(applyEntityForm(props.content, props.kind, props.selectedId, formState));
+    void props.onApply(applyEntityForm(props.content, props.kind, props.selectedId, formState));
   }
 
   return (
@@ -1100,8 +1155,9 @@ function ContentEntityEditor(props: {
             </div>
           ) : null}
 
-          <button disabled={!props.canEdit || !selectedEntity || !validation.ok} type="submit">
-            Применить в JSON
+          <button disabled={!props.canEdit || props.busy || !selectedEntity || !validation.ok} type="submit">
+            {props.busy ? <Loader2 className="spin" size={16} /> : null}
+            Сохранить draft
           </button>
         </form>
       </div>
@@ -1763,7 +1819,7 @@ function applyEntityForm(
   kind: ContentEntityKind,
   selectedId: string,
   state: EntityFormState
-): { content: ContentBundle; message: string } {
+): EntityDraftUpdate {
   if (kind === "goblins") {
     return applyGoblinForm(content, selectedId, state);
   }
@@ -1775,7 +1831,7 @@ function applyEntityForm(
   return applyBuiltMineTypeForm(content, selectedId, state);
 }
 
-function applyGoblinForm(content: ContentBundle, selectedId: string, state: EntityFormState): { content: ContentBundle; message: string } {
+function applyGoblinForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
   const current = content.goblins.find((item) => stringField(item, "id") === selectedId);
 
   if (!current) {
@@ -1822,21 +1878,20 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
   }
 
   return {
-    content: {
-      ...content,
-      goblins: replaceEntity(content.goblins, selectedId, nextGoblin),
-      localization: addRuLocalization(content.localization, {
-        [abilityDescriptionKey]: formValue(state, "abilityDescription").trim(),
-        [abilityNameKey]: formValue(state, "abilityTitle").trim(),
-        [descriptionKey]: formValue(state, "description").trim(),
-        [nameKey]: formValue(state, "title").trim()
-      })
+    entity: nextGoblin,
+    entityId: selectedId,
+    entityType: "goblin",
+    localization: {
+      [abilityDescriptionKey]: formValue(state, "abilityDescription").trim(),
+      [abilityNameKey]: formValue(state, "abilityTitle").trim(),
+      [descriptionKey]: formValue(state, "description").trim(),
+      [nameKey]: formValue(state, "title").trim()
     },
-    message: `Гоблин ${id} обновлен в draft JSON.`
+    message: `Гоблин ${id} сохранен как draft.`
   };
 }
 
-function applyMineTemplateForm(content: ContentBundle, selectedId: string, state: EntityFormState): { content: ContentBundle; message: string } {
+function applyMineTemplateForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
   const current = content.mineTemplates.find((item) => stringField(item, "id") === selectedId);
 
   if (!current) {
@@ -1861,18 +1916,17 @@ function applyMineTemplateForm(content: ContentBundle, selectedId: string, state
   setOptionalField(nextMineTemplate, "completionRewardChestTypeId", formValue(state, "completionRewardChestTypeId"));
 
   return {
-    content: {
-      ...content,
-      mineTemplates: replaceEntity(content.mineTemplates, selectedId, nextMineTemplate),
-      localization: addRuLocalization(content.localization, {
-        [displayNameKey]: formValue(state, "title").trim()
-      })
+    entity: nextMineTemplate,
+    entityId: selectedId,
+    entityType: "mineTemplate",
+    localization: {
+      [displayNameKey]: formValue(state, "title").trim()
     },
-    message: `Рудник ${id} обновлен в draft JSON.`
+    message: `Рудник ${id} сохранен как draft.`
   };
 }
 
-function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, state: EntityFormState): { content: ContentBundle; message: string } {
+function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
   const builtMineTypes = content.builtMineTypes ?? [];
   const current = builtMineTypes.find((item) => stringField(item, "id") === selectedId);
 
@@ -1896,14 +1950,13 @@ function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, stat
   };
 
   return {
-    content: {
-      ...content,
-      builtMineTypes: replaceEntity(builtMineTypes, selectedId, nextBuiltMineType),
-      localization: addRuLocalization(content.localization, {
-        [nameKey]: formValue(state, "title").trim()
-      })
+    entity: nextBuiltMineType,
+    entityId: selectedId,
+    entityType: "builtMineType",
+    localization: {
+      [nameKey]: formValue(state, "title").trim()
     },
-    message: `Тип шахты ${id} обновлен в draft JSON.`
+    message: `Тип шахты ${id} сохранен как draft.`
   };
 }
 
@@ -1954,10 +2007,6 @@ function createBuildCostFromForm(current: ContentRecord, state: EntityFormState)
     amount: toInteger(String(item.amount)),
     resourceId: String(item.resourceId)
   }))];
-}
-
-function replaceEntity(items: ContentRecord[], selectedId: string, nextEntity: ContentRecord): ContentRecord[] {
-  return items.map((item) => (stringField(item, "id") === selectedId ? nextEntity : item));
 }
 
 function setOptionalField(record: ContentRecord, key: string, value: string) {
@@ -2269,10 +2318,23 @@ async function apiRequest<T = unknown>(
   const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    throw new Error(messageForApiError((payload as { error?: string }).error));
+    const errorPayload = payload as { error?: string; validation?: { errors?: string[] } };
+    throw new ApiRequestError(
+      messageForApiError(errorPayload.error),
+      Array.isArray(errorPayload.validation?.errors) ? errorPayload.validation.errors : []
+    );
   }
 
   return payload as T;
+}
+
+class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    readonly validationErrors: string[] = []
+  ) {
+    super(message);
+  }
 }
 
 function messageForApiError(error?: string): string {

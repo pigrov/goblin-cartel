@@ -16,6 +16,7 @@ export type ContentEntityType =
   | "mineTemplate"
   | "goblin"
   | "localization";
+export type EditableContentEntityType = "goblin" | "mineTemplate" | "builtMineType";
 
 export interface ContentVersionRecord {
   id: string;
@@ -86,6 +87,16 @@ export interface ContentService {
   ): Promise<ContentVersionDetail>;
   getVersion(actorAdminUserId: string, id: string): Promise<ContentVersionDetail | null>;
   replaceContent(actorAdminUserId: string, id: string, content: unknown): Promise<ContentVersionDetail | ContentError | null>;
+  updateEntity(
+    actorAdminUserId: string,
+    id: string,
+    input: {
+      entityType: EditableContentEntityType;
+      entityId: string;
+      entity: unknown;
+      localization?: Record<string, string>;
+    }
+  ): Promise<ContentVersionDetail | ContentError | null>;
   validateVersion(actorAdminUserId: string, id: string): Promise<ContentValidationResponse | null>;
   publishVersion(actorAdminUserId: string, id: string): Promise<ContentPublishResponse | null>;
   getCurrentPublishedContent(): Promise<ContentVersionDetail | null>;
@@ -201,6 +212,70 @@ export function createContentService(options: { store: ContentStore; now?: () =>
         targetType: "content_version",
         targetId: id,
         metadata: { version: updatedVersion.version }
+      });
+
+      return {
+        version: toPublicVersion(updatedVersion),
+        content: parsed.data
+      };
+    },
+
+    async updateEntity(actorAdminUserId, id, input) {
+      const version = await options.store.findVersionById(id);
+
+      if (!version) {
+        return null;
+      }
+
+      if (version.status !== "draft" && version.status !== "validated") {
+        return { error: "version_not_editable" };
+      }
+
+      const detail = await getVersionDetail(options.store, id);
+
+      if (!detail) {
+        return null;
+      }
+
+      const nextContent = upsertEditableContentEntity(detail.content, input);
+      const parsed = contentBundleSchema.safeParse(nextContent);
+
+      if (!parsed.success) {
+        return {
+          error: "invalid_content",
+          validation: {
+            ok: false,
+            errors: parsed.error.issues.map((issue) => `${issue.path.join(".") || "content"}: ${issue.message}`)
+          }
+        };
+      }
+
+      const validation = validateContentBundle(parsed.data);
+
+      if (!validation.ok) {
+        return {
+          error: "invalid_content",
+          validation
+        };
+      }
+
+      await options.store.replaceEntities(id, parsed.data);
+      const updatedVersion = await options.store.updateVersion({
+        id,
+        status: "draft",
+        updatedAt: now()
+      });
+
+      await options.store.writeAuditLog({
+        actorAdminUserId,
+        action: "admin.content.entity.update",
+        targetType: "content_entity",
+        targetId: `${input.entityType}:${input.entityId}`,
+        metadata: {
+          entityId: input.entityId,
+          entityType: input.entityType,
+          version: updatedVersion.version
+        }
       });
 
       return {
@@ -343,6 +418,81 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     localization
   } as ContentBundle;
+}
+
+function upsertEditableContentEntity(
+  content: ContentBundle,
+  input: {
+    entityType: EditableContentEntityType;
+    entityId: string;
+    entity: unknown;
+    localization?: Record<string, string>;
+  }
+): ContentBundle {
+  const entity = isRecord(input.entity) ? input.entity : {};
+  const normalizedEntity = {
+    ...entity,
+    id: input.entityId
+  };
+  const nextLocalization = input.localization
+    ? {
+        ...content.localization,
+        ru: {
+          ...(content.localization.ru ?? {}),
+          ...input.localization
+        }
+      }
+    : content.localization;
+
+  return {
+    ...content,
+    localization: nextLocalization,
+    [collectionNameForEntityType(input.entityType)]: upsertById(
+      collectionForEntityType(content, input.entityType),
+      input.entityId,
+      normalizedEntity
+    )
+  };
+}
+
+function collectionForEntityType(content: ContentBundle, entityType: EditableContentEntityType): Array<Record<string, unknown>> {
+  switch (entityType) {
+    case "builtMineType":
+      return content.builtMineTypes;
+    case "mineTemplate":
+      return content.mineTemplates;
+    default:
+      return content.goblins;
+  }
+}
+
+function collectionNameForEntityType(entityType: EditableContentEntityType): "builtMineTypes" | "goblins" | "mineTemplates" {
+  switch (entityType) {
+    case "builtMineType":
+      return "builtMineTypes";
+    case "mineTemplate":
+      return "mineTemplates";
+    default:
+      return "goblins";
+  }
+}
+
+function upsertById(
+  items: Array<Record<string, unknown>>,
+  id: string,
+  nextEntity: Record<string, unknown>
+): Array<Record<string, unknown>> {
+  const existingIndex = items.findIndex((item) => item.id === id);
+
+  if (existingIndex === -1) {
+    return [...items, nextEntity];
+  }
+
+  return items.map((item, index) => (index === existingIndex ? nextEntity : item));
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function sortContentItems<T extends { id: string; sortOrder?: number }>(

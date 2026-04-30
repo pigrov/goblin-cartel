@@ -55,3 +55,4 @@
 - `0050_built_mine_auto_collectors` - added collector goblin assignment and automatic built-mine income collection, including offline restore handling.
 - `0051_collector_specializations_admin_content_tools` - added collector specializations/effective mine bonuses, a collector picker modal, and first admin content template tools.
 - `0052_admin_entity_forms` - added admin entity forms for editing goblins, mine templates, and built mine types before applying changes to draft JSON.
+- `0053_admin_entity_server_save` - added backend entity-save for admin content forms with server-side validation, audit logging, and draft refresh in the admin UI.

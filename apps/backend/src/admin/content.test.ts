@@ -209,4 +209,94 @@ describe("content service", () => {
       error: "invalid_content"
     });
   });
+
+  it("updates one content entity with server validation and audit log", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({
+      store,
+      now: () => new Date("2026-04-29T12:00:00.000Z")
+    });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const goblin = structuredClone(starterContentBundle.goblins[0]);
+
+    if (!goblin) {
+      throw new Error("Missing starter goblin");
+    }
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "goblin",
+      entityId: goblin.id,
+      entity: {
+        ...goblin,
+        baseStats: {
+          ...goblin.baseStats,
+          strength: 11
+        }
+      },
+      localization: {
+        [goblin.nameKey]: "Грызз Проверенный"
+      }
+    });
+
+    expect(result).toMatchObject({
+      content: {
+        localization: {
+          ru: {
+            [goblin.nameKey]: "Грызз Проверенный"
+          }
+        }
+      },
+      version: {
+        status: "draft",
+        updatedAt: "2026-04-29T12:00:00.000Z"
+      }
+    });
+    expect(result && "content" in result ? result.content.goblins[0]?.baseStats.strength : null).toBe(11);
+    expect(store.auditLogs.at(-1)).toMatchObject({
+      action: "admin.content.entity.update",
+      targetId: `goblin:${goblin.id}`,
+      metadata: {
+        entityId: goblin.id,
+        entityType: "goblin",
+        version: "0.1.0"
+      }
+    });
+  });
+
+  it("rejects single entity updates that break content references", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const builtMineType = structuredClone(starterContentBundle.builtMineTypes[0]);
+
+    if (!builtMineType) {
+      throw new Error("Missing starter built mine type");
+    }
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "builtMineType",
+      entityId: builtMineType.id,
+      entity: {
+        ...builtMineType,
+        productionResourceId: "missing_resource"
+      },
+      localization: {
+        [builtMineType.nameKey]: "Сломанная шахта"
+      }
+    });
+
+    expect(result).toMatchObject({
+      error: "invalid_content",
+      validation: {
+        ok: false,
+        errors: expect.arrayContaining([
+          `builtMineTypes.${builtMineType.id} references missing production resource missing_resource`
+        ])
+      }
+    });
+  });
 });

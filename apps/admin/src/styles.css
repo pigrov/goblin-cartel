@@ -684,6 +684,10 @@
 }
 
 .content-entity-form > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   border-color: var(--gc-border-strong);
   color: var(--gc-bg-deep);
   background: var(--gc-gold);
