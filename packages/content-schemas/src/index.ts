@@ -167,8 +167,10 @@ export const mineCellSchema = z.object({
   row: z.number().int().nonnegative(),
   col: z.number().int().nonnegative(),
   blockTypeId: z.string().min(1),
+  hp: z.number().positive().optional(),
   hpMultiplier: z.number().positive().optional(),
-  special: z.enum(["vein", "chest"]).optional(),
+  rewardChestTypeId: z.string().min(1).optional(),
+  special: z.enum(["vein", "chest", "reward_chest"]).optional(),
   veinTypeId: z.string().min(1).optional()
 });
 
@@ -282,12 +284,20 @@ export const starterContentBundle: ContentBundle = {
       sortOrder: 30
     },
     {
+      id: "iron",
+      nameKey: "resource.iron.name",
+      iconAssetId: "icon_iron_v1",
+      rarity: "common",
+      storageType: "global",
+      sortOrder: 35
+    },
+    {
       id: "boss_energy",
       nameKey: "resource.boss_energy.name",
       iconAssetId: "icon_boss_energy_v1",
       rarity: "rare",
       storageType: "temporary",
-      sortOrder: 40
+      sortOrder: 50
     }
   ],
   blockTypes: [
@@ -337,6 +347,22 @@ export const starterContentBundle: ContentBundle = {
       specialBehavior: "none"
     },
     {
+      id: "iron_ore",
+      nameKey: "block.iron_ore.name",
+      baseHp: 180,
+      tags: ["rock", "ore", "iron"],
+      visualStateAssets: {
+        intact: "block_iron_ore_intact_v1",
+        cracked: "block_iron_ore_cracked_v1",
+        breaking: "block_iron_ore_breaking_v1"
+      },
+      rewardTable: [
+        { resourceId: "iron", min: 3, max: 9, chance: 1 },
+        { resourceId: "gold", min: 8, max: 18, chance: 0.08 }
+      ],
+      specialBehavior: "none"
+    },
+    {
       id: "chest_wooden",
       nameKey: "block.chest_wooden.name",
       baseHp: 40,
@@ -367,6 +393,13 @@ export const starterContentBundle: ContentBundle = {
       resourceId: "copper_ore",
       rarity: "common",
       assetId: "vein_copper_small_v1"
+    },
+    {
+      id: "iron_vein_small",
+      nameKey: "vein.iron_small.name",
+      resourceId: "iron",
+      rarity: "rare",
+      assetId: "vein_iron_small_v1"
     }
   ],
   builtMineTypes: [
@@ -397,6 +430,21 @@ export const starterContentBundle: ContentBundle = {
       ],
       buildTimeSec: 60,
       assetId: "built_mine_copper_small_v1"
+    },
+    {
+      id: "small_iron_mine",
+      nameKey: "built_mine.small_iron.name",
+      sourceVeinType: "iron_vein_small",
+      productionResourceId: "iron",
+      baseProductionPerHour: 90,
+      baseCapacity: 240,
+      buildCost: [
+        { resourceId: "gold", amount: 900 },
+        { resourceId: "stone", amount: 220 },
+        { resourceId: "copper_ore", amount: 80 }
+      ],
+      buildTimeSec: 90,
+      assetId: "built_mine_iron_small_v1"
     }
   ],
   rewardChestTypes: [
@@ -418,7 +466,8 @@ export const starterContentBundle: ContentBundle = {
       rewardTable: [
         { resourceId: "gold", min: 160, max: 260, chance: 1 },
         { resourceId: "stone", min: 90, max: 160, chance: 1 },
-        { resourceId: "copper_ore", min: 35, max: 80, chance: 1 }
+        { resourceId: "copper_ore", min: 35, max: 80, chance: 1 },
+        { resourceId: "iron", min: 12, max: 28, chance: 0.35 }
       ],
       assetId: "reward_chest_iron_v1"
     },
@@ -429,7 +478,8 @@ export const starterContentBundle: ContentBundle = {
       rewardTable: [
         { resourceId: "gold", min: 280, max: 440, chance: 1 },
         { resourceId: "stone", min: 160, max: 260, chance: 1 },
-        { resourceId: "copper_ore", min: 90, max: 150, chance: 1 }
+        { resourceId: "copper_ore", min: 90, max: 150, chance: 1 },
+        { resourceId: "iron", min: 35, max: 90, chance: 0.75 }
       ],
       assetId: "reward_chest_steel_v1"
     }
@@ -479,12 +529,12 @@ export const starterContentBundle: ContentBundle = {
         ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone", "dirt"],
         ["stone", "stone", "chest_wooden", "stone", "stone", "dirt", "stone", "stone"],
         ["stone", "stone", "dirt", "stone", "copper_ore", "stone", "stone", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "stone", "stone", "copper_ore", "stone"],
-        ["stone", "stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone"],
-        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"],
-        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
-        ["stone", "copper_ore", "stone", "chest_wooden", "copper_ore", "stone", "copper_ore", "stone"]
+        ["stone", "copper_ore", "stone", "stone", "stone", "iron_ore", "copper_ore", "stone"],
+        ["stone", "stone", "iron_ore", "copper_ore", "stone", "dirt", "stone", "stone"],
+        ["copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone"],
+        ["stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone", "stone", "copper_ore"],
+        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
+        ["stone", "copper_ore", "stone", "chest_wooden", "copper_ore", "stone", "iron_ore", "stone"]
       ]),
       strata: [],
       guaranteedObjects: []
@@ -741,18 +791,22 @@ export const starterContentBundle: ContentBundle = {
     ru: {
       "resource.gold.name": "Золото",
       "resource.stone.name": "Камень",
-      "resource.copper_ore.name": "Медная руда",
+      "resource.copper_ore.name": "Медь",
+      "resource.iron.name": "Железо",
       "resource.boss_energy.name": "Энергия босса",
       "block.dirt.name": "Земля",
       "block.stone.name": "Камень",
-      "block.copper_ore.name": "Медная руда",
-      "block.chest_wooden.name": "Деревянный сундук",
+      "block.copper_ore.name": "Медь",
+      "block.iron_ore.name": "Железо",
+      "block.chest_wooden.name": "Золото",
       "mine.old_well.name": "Старый колодец",
       "mine.abandoned_crosscut.name": "Заброшенный штрек",
       "vein.gold_small.name": "Золотая жила",
       "vein.copper_small.name": "Медная жила",
+      "vein.iron_small.name": "Железная жила",
       "built_mine.small_gold.name": "Малая золотая шахта",
       "built_mine.small_copper.name": "Малая медная шахта",
+      "built_mine.small_iron.name": "Малая железная шахта",
       "reward_chest.wooden.name": "Деревянный сундук",
       "reward_chest.iron.name": "Железный сундук",
       "reward_chest.steel.name": "Стальной сундук",
@@ -867,6 +921,10 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
 
         if (cell.special === "vein" && (!cell.veinTypeId || !veinTypeIds.has(cell.veinTypeId))) {
           errors.push(`${cellPath} references missing vein type ${cell.veinTypeId ?? ""}`.trim());
+        }
+
+        if (cell.special === "reward_chest" && (!cell.rewardChestTypeId || !rewardChestTypeIds.has(cell.rewardChestTypeId))) {
+          errors.push(`${cellPath} references missing reward chest type ${cell.rewardChestTypeId ?? ""}`.trim());
         }
       }
 

@@ -120,9 +120,9 @@ describe("admin mine visual editor helpers", () => {
   it("builds row previews from editable cells", () => {
     const rows = createMineVisualRows(baseContent, {
       cellBlock_0_1: "gold_block",
-      cellHpMultiplier_0_1: "1.5",
-      cellSpecial_1_2: "vein",
-      cellVeinTypeId_1_2: "gold_vein",
+      cellHp_0_1: "75",
+      cellRewardChestTypeId_1_2: "wooden_completion_chest",
+      cellSpecial_1_2: "reward_chest",
       height: "2",
       width: "3"
     });
@@ -130,8 +130,12 @@ describe("admin mine visual editor helpers", () => {
     expect(rows).toHaveLength(2);
     expect(rows[0]?.cells).toHaveLength(3);
     expect(rows[0]?.cells[0]).toMatchObject({ blockTypeId: "stone_block", col: 0, row: 0 });
-    expect(rows[0]?.cells[1]).toMatchObject({ blockTypeId: "gold_block", hpMultiplier: "1.5" });
-    expect(rows[1]?.cells[2]).toMatchObject({ blockTypeId: "stone_block", special: "vein", veinTypeId: "gold_vein" });
+    expect(rows[0]?.cells[1]).toMatchObject({ blockTypeId: "gold_block", hp: "75" });
+    expect(rows[1]?.cells[2]).toMatchObject({
+      blockTypeId: "stone_block",
+      rewardChestTypeId: "wooden_completion_chest",
+      special: "reward_chest"
+    });
   });
 
   it("uses the first block as a fallback for clean cells", () => {

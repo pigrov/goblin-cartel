@@ -195,6 +195,7 @@ interface PendingRewardChest {
   id: string;
   mineTemplateId: string;
   rewards: Record<string, number> | null;
+  source: "mine_completion" | "cell";
 }
 
 interface ChestRewardFlyout extends RewardDrop {
@@ -258,6 +259,7 @@ export function App() {
   const pendingOfflineFinalHitRef = useRef(pendingOfflineFinalHit);
   const platformRowRef = useRef(platformRow);
   const previousPlatformRowRef = useRef(0);
+  const pendingRewardChestRef = useRef(pendingRewardChest);
   const rewardChestSummaryTimeoutRef = useRef<number | null>(null);
   const sessionRef = useRef(session);
   const spawnHitEffectRef = useRef<SpawnHitEffect>(() => undefined);
@@ -476,6 +478,10 @@ export function App() {
     return () => clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
   }, []);
 
+  useEffect(() => {
+    pendingRewardChestRef.current = pendingRewardChest;
+  }, [pendingRewardChest]);
+
   const blockTypeById = useMemo(
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
@@ -657,9 +663,11 @@ export function App() {
             damage: worker.damagePerSecond
           });
           const targetDestroyed = Boolean(next.blocks[target.row]?.[target.col]?.destroyed);
+          const destroyedBlock = targetDestroyed ? next.blocks[target.row]?.[target.col] : undefined;
 
           spawnHitEffectRef.current(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
           notifyFoundVein(next.lastFoundVein);
+          openCellRewardChestIfNeeded(destroyedBlock);
 
           if (targetDestroyed && cellKey(worker.targetCell) === cellKey(currentSelectedCell)) {
             nextActiveCell = findExposedCellForPreferred(next, worker.targetCell);
@@ -699,6 +707,7 @@ export function App() {
 
         spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
         notifyFoundVein(next.lastFoundVein);
+        openCellRewardChestIfNeeded(next.blocks[target.row]?.[target.col]);
 
         setActiveCell(findExposedCellForPreferred(next, pendingOfflineFinalHit));
         setOfflineSummary((currentSummary) =>
@@ -808,8 +817,10 @@ export function App() {
         damage: attack.damage
       });
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
+      const destroyedBlock = targetDestroyed ? next.blocks[block.row]?.[block.col] : undefined;
       spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage, targetDestroyed ? next.lastRewards : undefined);
       notifyFoundVein(next.lastFoundVein);
+      openCellRewardChestIfNeeded(destroyedBlock);
       setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);
       setPlatformRow((current) => findPlatformRow(next, current));
       return next;
@@ -914,13 +925,37 @@ export function App() {
       return false;
     }
 
-    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
-    setPendingRewardChest(rewardChest);
-    setRewardChestStage("closed");
-    setChestRewardFlyouts([]);
+    queueRewardChest(rewardChest);
     setMineCompletionNoticeOpen(false);
     setActiveSection("mine");
     return true;
+  }
+
+  function queueRewardChest(rewardChest: PendingRewardChest) {
+    clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
+    pendingRewardChestRef.current = rewardChest;
+    setPendingRewardChest(rewardChest);
+    setRewardChestStage("closed");
+    setChestRewardFlyouts([]);
+  }
+
+  function openCellRewardChestIfNeeded(block: MiningBlockState | undefined) {
+    if (!block || block.special !== "reward_chest" || !block.rewardChestTypeId || pendingRewardChestRef.current) {
+      return;
+    }
+
+    if (!findRewardChestType(contentState.content, block.rewardChestTypeId)) {
+      return;
+    }
+
+    const currentSession = sessionRef.current;
+    queueRewardChest({
+      chestTypeId: block.rewardChestTypeId,
+      id: `${currentSession.mine.templateId}:${currentSession.mine.seed}:${block.row}:${block.col}:${block.rewardChestTypeId}`,
+      mineTemplateId: currentSession.mine.templateId,
+      rewards: null,
+      source: "cell"
+    });
   }
 
   function handleOpenRewardChest() {
@@ -941,13 +976,18 @@ export function App() {
       random: Math.random
     });
     const rewards = openedChest.rewards;
-    const nextSeenNoticeIds = markMineCompletionNoticeSeen(mineCompletionNoticeSeenIds, pendingRewardChest.mineTemplateId);
+    const nextSeenNoticeIds =
+      pendingRewardChest.source === "mine_completion"
+        ? markMineCompletionNoticeSeen(mineCompletionNoticeSeenIds, pendingRewardChest.mineTemplateId)
+        : mineCompletionNoticeSeenIds;
 
     clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
     setPendingRewardChest({ ...pendingRewardChest, rewards });
     setRewardChestStage("opening");
     setChestRewardFlyouts(createChestRewardFlyouts(rewards, contentState.content, labels));
-    setMineCompletionNoticeSeenIds(nextSeenNoticeIds);
+    if (pendingRewardChest.source === "mine_completion") {
+      setMineCompletionNoticeSeenIds(nextSeenNoticeIds);
+    }
     setSession((current) => ({
       ...current,
       lastRewards: {},
@@ -961,15 +1001,20 @@ export function App() {
   }
 
   function handleContinueRewardChest() {
-    if (rewardChestStage !== "summary") {
+    const completedChest = pendingRewardChest;
+
+    if (rewardChestStage !== "summary" || !completedChest) {
       return;
     }
 
     clearRewardChestSummaryTimer(rewardChestSummaryTimeoutRef);
     setPendingRewardChest(null);
+    pendingRewardChestRef.current = null;
     setRewardChestStage("closed");
     setChestRewardFlyouts([]);
-    handleStartNextMine();
+    if (completedChest.source === "mine_completion") {
+      handleStartNextMine();
+    }
   }
 
   function handleDismissMineCompletionNotice() {
@@ -1398,6 +1443,7 @@ export function App() {
             onContinue={handleContinueRewardChest}
             onOpen={handleOpenRewardChest}
             rewards={pendingRewardChest.rewards ?? {}}
+            source={pendingRewardChest.source}
             stage={rewardChestStage}
           />
         ) : null}
@@ -1822,6 +1868,10 @@ function ResourceIcon(props: { resourceId: string; size: number }) {
     return <Gem size={props.size} />;
   }
 
+  if (props.resourceId.includes("iron")) {
+    return <Pickaxe size={props.size} />;
+  }
+
   if (props.resourceId.includes("energy")) {
     return <Zap size={props.size} />;
   }
@@ -1839,6 +1889,7 @@ function RewardChestScreen(props: {
   onContinue: () => void;
   onOpen: () => void;
   rewards: Record<string, number>;
+  source: PendingRewardChest["source"];
   stage: RewardChestStage;
 }) {
   const chestName = labelFromNameKey(props.chestType.nameKey, props.chestType.id, props.labels);
@@ -1853,9 +1904,15 @@ function RewardChestScreen(props: {
         <span />
       </div>
       <header className="reward-chest-header">
-        <p>Рудник освоен</p>
-        <strong>{props.currentMineTitle}</strong>
-        <span>{props.nextMineTitle ? `Дальше: ${props.nextMineTitle}` : "Следующий рудник скоро"}</span>
+        <p>{props.source === "mine_completion" ? "Рудник освоен" : "Сундук найден"}</p>
+        <strong>{props.source === "mine_completion" ? props.currentMineTitle : chestName}</strong>
+        <span>
+          {props.source === "mine_completion"
+            ? props.nextMineTitle
+              ? `Дальше: ${props.nextMineTitle}`
+              : "Следующий рудник скоро"
+            : props.currentMineTitle}
+        </span>
       </header>
 
       <div className="reward-chest-stage" aria-live="polite">
@@ -2336,7 +2393,8 @@ function createMineCompletionRewardChest(content: ContentBundle, mineTemplateId:
     chestTypeId,
     id: `${mineTemplateId}:${chestTypeId}`,
     mineTemplateId,
-    rewards: null
+    rewards: null,
+    source: "mine_completion"
   };
 }
 
@@ -2383,6 +2441,10 @@ function resourceClassName(resourceId: string): string {
 
   if (resourceId.includes("copper")) {
     return "copper";
+  }
+
+  if (resourceId.includes("iron")) {
+    return "iron";
   }
 
   if (resourceId.includes("energy")) {

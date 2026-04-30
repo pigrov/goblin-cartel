@@ -62,3 +62,4 @@
 - `0057_mine_cell_map_paint_editor` - replaced mine strata editing with an admin paint-grid cell map, added cell-level HP multipliers, and kept strata as legacy generator fallback.
 - `0058_mine_editor_cell_width_and_hp` - made the admin mine grid match game cave width, moved brush selection to legend buttons, prevented initial wrong-cell flicker, and removed hidden depth HP scaling.
 - `0059_content_versions_read_only` - made published and archived content versions read-only in UI and backend, blocking save, validate, and republish actions.
+- `0060_mine_editor_cell_chests_iron` - cleaned old production content versions, added mine row depth/difficulty labels, cell edit modal with exact HP, reward-chest cells, and iron content.

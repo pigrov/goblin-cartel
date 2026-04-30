@@ -77,17 +77,23 @@ function readDebugMineRows(): number | null {
 }
 
 function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
+  const resources = mergeStarterItems(content.resources ?? [], starterContentBundle.resources);
+  const blockTypes = mergeStarterItems(content.blockTypes ?? [], starterContentBundle.blockTypes);
   const veinTypes = mergeStarterItems(content.veinTypes ?? [], starterContentBundle.veinTypes);
   const builtMineTypes = mergeStarterItems(content.builtMineTypes ?? [], starterContentBundle.builtMineTypes);
   const rewardChestTypes = mergeStarterItems(content.rewardChestTypes ?? [], starterContentBundle.rewardChestTypes);
   const goblins = mergeStarterGoblins(content.goblins ?? [], starterContentBundle.goblins);
+  const localization = mergeStarterLocalization(content.localization, starterContentBundle.localization);
   let changed = false;
 
   if (
+    resources !== content.resources ||
+    blockTypes !== content.blockTypes ||
     veinTypes !== content.veinTypes ||
     builtMineTypes !== content.builtMineTypes ||
     rewardChestTypes !== content.rewardChestTypes ||
-    goblins !== content.goblins
+    goblins !== content.goblins ||
+    localization !== content.localization
   ) {
     changed = true;
   }
@@ -144,10 +150,13 @@ function withStarterRuntimeDefaults(content: ContentBundle): ContentBundle {
   return changed
     ? {
         ...content,
+        blockTypes,
         builtMineTypes,
         goblins,
+        localization,
         mineTemplates,
         rewardChestTypes,
+        resources,
         veinTypes
       }
     : content;
@@ -157,6 +166,44 @@ function mergeStarterItems<T extends { id: string }>(items: T[], starterItems: r
   const itemIds = new Set(items.map((item) => item.id));
   const missingStarterItems = starterItems.filter((starterItem) => !itemIds.has(starterItem.id));
   return missingStarterItems.length > 0 ? [...items, ...missingStarterItems] : items;
+}
+
+function mergeStarterLocalization(
+  localization: ContentBundle["localization"],
+  starterLocalization: ContentBundle["localization"]
+): ContentBundle["localization"] {
+  const starterRu = starterLocalization.ru ?? {};
+  const currentRu = localization.ru ?? {};
+  const forcedRu: Record<string, string> = {
+    "block.chest_wooden.name": starterRu["block.chest_wooden.name"] ?? "Золото",
+    "block.copper_ore.name": starterRu["block.copper_ore.name"] ?? "Медь",
+    "resource.copper_ore.name": starterRu["resource.copper_ore.name"] ?? "Медь"
+  };
+  const nextRu = {
+    ...starterRu,
+    ...currentRu,
+    ...forcedRu
+  };
+
+  if (shallowRecordEqual(currentRu, nextRu)) {
+    return localization;
+  }
+
+  return {
+    ...localization,
+    ru: nextRu
+  };
+}
+
+function shallowRecordEqual(left: Record<string, string>, right: Record<string, string>): boolean {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
 }
 
 function mergeStarterGoblins(goblins: GoblinConfig[], starterGoblins: readonly GoblinConfig[]): GoblinConfig[] {

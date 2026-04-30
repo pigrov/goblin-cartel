@@ -41,6 +41,9 @@ describe("content schemas", () => {
       ok: true,
       errors: []
     });
+    expect(starterContentBundle.resources.some((resource) => resource.id === "iron")).toBe(true);
+    expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "iron_ore")).toBe(true);
+    expect(starterContentBundle.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
   });
 
   it("accepts a valid goblin config", () => {
@@ -137,6 +140,21 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing vein type missing_vein");
+  });
+
+  it("rejects missing reward chest references in mine cell map", () => {
+    const broken = structuredClone(starterContentBundle);
+    const firstCell = broken.mineTemplates[0]?.cellMap[0];
+
+    if (firstCell) {
+      firstCell.special = "reward_chest";
+      firstCell.rewardChestTypeId = "missing_chest";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("mineTemplates.old_well_01.cellMap.0:0 references missing reward chest type missing_chest");
   });
 
   it("rejects built mine configs with missing production resources", () => {

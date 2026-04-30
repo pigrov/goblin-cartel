@@ -12,12 +12,16 @@ export interface MineTemplate {
   guaranteedObjects?: GuaranteedObject[];
 }
 
+export type MineCellSpecial = "vein" | "chest" | "reward_chest";
+
 export interface MineCellTemplate {
   row: number;
   col: number;
   blockTypeId: string;
+  hp?: number;
   hpMultiplier?: number;
-  special?: GuaranteedObject["type"];
+  rewardChestTypeId?: string;
+  special?: MineCellSpecial;
   veinTypeId?: string;
 }
 
@@ -40,8 +44,10 @@ export interface GeneratedBlock {
   row: number;
   col: number;
   blockTypeId: string;
+  hp?: number;
   hpMultiplier?: number;
-  special?: GuaranteedObject["type"];
+  rewardChestTypeId?: string;
+  special?: MineCellSpecial;
   veinTypeId?: string;
 }
 
@@ -101,7 +107,9 @@ function generateMineFromCellMap(template: MineTemplate): GeneratedBlock[][] {
         row,
         col,
         blockTypeId: cell.blockTypeId,
+        hp: cell.hp,
         hpMultiplier: cell.hpMultiplier ?? interpolateDifficulty(template, row),
+        rewardChestTypeId: cell.rewardChestTypeId,
         special: cell.special,
         veinTypeId: cell.veinTypeId
       };

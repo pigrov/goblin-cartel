@@ -58,7 +58,7 @@ describe("mine generator", () => {
         difficultyEnd: 2,
         cellMap: [
           { row: 0, col: 0, blockTypeId: "dirt" },
-          { row: 0, col: 1, blockTypeId: "stone", hpMultiplier: 1.5 },
+          { row: 0, col: 1, blockTypeId: "stone", hp: 77, hpMultiplier: 1.5, special: "reward_chest", rewardChestTypeId: "wooden_completion_chest" },
           { row: 1, col: 0, blockTypeId: "copper_ore", special: "vein", veinTypeId: "copper_vein_small" },
           { row: 1, col: 1, blockTypeId: "stone" }
         ]
@@ -67,7 +67,13 @@ describe("mine generator", () => {
     );
 
     expect(mine.blocks[0]?.[0]).toMatchObject({ blockTypeId: "dirt", hpMultiplier: 1 });
-    expect(mine.blocks[0]?.[1]).toMatchObject({ blockTypeId: "stone", hpMultiplier: 1.5 });
+    expect(mine.blocks[0]?.[1]).toMatchObject({
+      blockTypeId: "stone",
+      hp: 77,
+      hpMultiplier: 1.5,
+      rewardChestTypeId: "wooden_completion_chest",
+      special: "reward_chest"
+    });
     expect(mine.blocks[1]?.[0]).toMatchObject({
       blockTypeId: "copper_ore",
       hpMultiplier: 2,

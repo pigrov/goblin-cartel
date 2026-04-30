@@ -12,8 +12,9 @@ export interface MinePixiBlockRenderSnapshot {
   destroyed: boolean;
   hp: number;
   maxHp: number;
+  rewardChestTypeId?: string;
   row: number;
-  special?: "vein" | "chest";
+  special?: "vein" | "chest" | "reward_chest";
   veinTypeId?: string;
 }
 
@@ -37,6 +38,7 @@ export function createMinePixiBlockRenderSignature(options: MinePixiBlockRenderS
     options.block.destroyed ? 1 : 0,
     options.block.hp,
     options.block.maxHp,
+    options.block.rewardChestTypeId ?? "",
     options.block.special ?? "",
     options.block.veinTypeId ?? "",
     options.active ? 1 : 0,

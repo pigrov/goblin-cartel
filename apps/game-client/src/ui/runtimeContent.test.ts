@@ -13,8 +13,14 @@ describe("runtime content", () => {
     const mine = legacyContent.mineTemplates[0];
 
     legacyContent.veinTypes = legacyContent.veinTypes.filter((veinType) => veinType.id !== "gold_vein_small");
+    legacyContent.resources = legacyContent.resources.filter((resource) => resource.id !== "iron");
+    legacyContent.blockTypes = legacyContent.blockTypes.filter((blockType) => blockType.id !== "iron_ore");
     legacyContent.builtMineTypes = legacyContent.builtMineTypes.filter((builtMineType) => builtMineType.id !== "small_gold_mine");
     legacyContent.rewardChestTypes = [];
+    legacyContent.localization.ru = {
+      ...(legacyContent.localization.ru ?? {}),
+      "resource.copper_ore.name": "Медная руда"
+    };
 
     if (mine) {
       mine.guaranteedObjects = [
@@ -32,9 +38,12 @@ describe("runtime content", () => {
 
     const runtimeContent = createRuntimeContentBundle(legacyContent);
 
+    expect(runtimeContent.resources.map((resource) => resource.id)).toContain("iron");
+    expect(runtimeContent.blockTypes.map((blockType) => blockType.id)).toContain("iron_ore");
     expect(runtimeContent.veinTypes.map((veinType) => veinType.id)).toContain("gold_vein_small");
     expect(runtimeContent.builtMineTypes.map((builtMineType) => builtMineType.id)).toContain("small_gold_mine");
     expect(runtimeContent.rewardChestTypes.map((chestType) => chestType.id)).toContain("wooden_completion_chest");
+    expect(runtimeContent.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
     expect(runtimeContent.mineTemplates[0]?.completionVeinTypeId).toBe("gold_vein_small");
     expect(runtimeContent.mineTemplates[0]?.completionRewardChestTypeId).toBe("wooden_completion_chest");
     expect(runtimeContent.mineTemplates[0]?.guaranteedObjects).toEqual([]);

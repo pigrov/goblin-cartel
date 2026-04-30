@@ -24,7 +24,8 @@ export interface MiningBlockState {
   hp: number;
   destroyed: boolean;
   tags: string[];
-  special?: "vein" | "chest";
+  rewardChestTypeId?: string;
+  special?: "vein" | "chest" | "reward_chest";
   specialBehavior: "none" | "explosion" | "chest";
   veinTypeId?: string;
 }
@@ -134,11 +135,14 @@ export function createMiningSession(input: CreateMiningSessionInput): MiningSess
           throw new Error(`Missing block type ${block.blockTypeId}`);
         }
 
-        const maxHp = calculateBlockHp({
-          baseHp: blockType.baseHp,
-          rowIndex: block.row,
-          mineDifficultyMultiplier: mineDifficultyMultiplier * (block.hpMultiplier ?? 1)
-        });
+        const maxHp =
+          typeof block.hp === "number" && Number.isFinite(block.hp) && block.hp > 0
+            ? Math.ceil(block.hp)
+            : calculateBlockHp({
+                baseHp: blockType.baseHp,
+                rowIndex: block.row,
+                mineDifficultyMultiplier: mineDifficultyMultiplier * (block.hpMultiplier ?? 1)
+              });
 
         return {
           row: block.row,
@@ -148,6 +152,7 @@ export function createMiningSession(input: CreateMiningSessionInput): MiningSess
           hp: maxHp,
           destroyed: false,
           tags: blockType.tags ?? [],
+          rewardChestTypeId: block.rewardChestTypeId,
           special: block.special,
           specialBehavior: blockType.specialBehavior ?? "none",
           veinTypeId: block.veinTypeId

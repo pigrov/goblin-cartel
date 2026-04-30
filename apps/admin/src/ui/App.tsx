@@ -96,7 +96,9 @@ interface DraftContentToolResult {
 interface MineVisualCell {
   blockTypeId: string;
   col: number;
+  hp: string;
   hpMultiplier: string;
+  rewardChestTypeId: string;
   row: number;
   special: string;
   veinTypeId: string;
@@ -1497,6 +1499,7 @@ function ContentTextField(props: {
   label: string;
   name: string;
   onChange: (name: string, value: string) => void;
+  placeholder?: string;
   type?: "number" | "text";
   value?: string;
 }) {
@@ -1506,6 +1509,7 @@ function ContentTextField(props: {
       <input
         disabled={props.disabled}
         onChange={(event) => props.onChange(props.name, event.target.value)}
+        placeholder={props.placeholder}
         type={props.type ?? "text"}
         value={props.value ?? ""}
       />
@@ -1696,6 +1700,12 @@ function ContentMineVisualEditor(props: {
   const mineHeight = visualRows.length;
   const mineCellSize = adminMineCellSize(mineWidth);
   const selectedCell = detailCell ? getMineVisualCell(props.formState, detailCell.row, detailCell.col, props.content) : null;
+  const selectedCellComputedHp =
+    detailCell && selectedCell
+      ? mineCellComputedHp(props.content, props.formState, selectedCell.blockTypeId, detailCell.row, selectedCell.hpMultiplier)
+      : null;
+  const selectedCellEffectiveHp =
+    selectedCell && selectedCellComputedHp !== null ? mineCellEffectiveHp(selectedCell, selectedCellComputedHp) : null;
   const ru = props.content.localization?.ru ?? {};
 
   function paintCell(row: number, col: number) {
@@ -1712,6 +1722,10 @@ function ContentMineVisualEditor(props: {
     props.updateFields(
       Object.fromEntries(Object.entries(values).map(([key, value]) => [`cell${key}_${detailCell.row}_${detailCell.col}`, value]))
     );
+  }
+
+  function closeDetailCell() {
+    setDetailCell(null);
   }
 
   return (
@@ -1734,9 +1748,10 @@ function ContentMineVisualEditor(props: {
 
           return (
             <div className="content-mine-visual-row" key={row.row} title={`Ряд ${row.row + 1} · сложность x${rowDifficulty}`}>
+              <span className="content-mine-row-label">{mineRowDepthMeters(props.formState, row.row)} м</span>
               {row.cells.map((cell) => {
                 const blockTitle = blockTitleById(props.content, cell.blockTypeId);
-                const marker = cell.special === "vein" ? "Ж" : cell.special === "chest" ? "С" : "";
+                const marker = cell.special === "vein" ? "Ж" : cell.special === "reward_chest" ? "С" : cell.special === "chest" ? "С" : "";
                 const isSelected = detailCell?.row === cell.row && detailCell.col === cell.col;
                 const cellStyle = { "--mine-cell-color": mineVisualBlockColor(cell.blockTypeId, cell.row + cell.col) } as CSSProperties;
 
@@ -1765,6 +1780,7 @@ function ContentMineVisualEditor(props: {
                   </button>
                 );
               })}
+              <span className="content-mine-row-difficulty">x{rowDifficulty}</span>
             </div>
           );
         })}
@@ -1792,52 +1808,70 @@ function ContentMineVisualEditor(props: {
       </div>
 
       {detailCell && selectedCell ? (
-        <section className="content-mine-cell-details">
-          <header>
-            <strong>
-              Клетка {detailCell.row + 1}:{detailCell.col + 1}
-            </strong>
-            <button onClick={() => setDetailCell(null)} type="button">
-              Закрыть
-            </button>
-          </header>
-          <div className="content-form-grid">
-            <ContentSelectField
-              label="Тип камня"
-              name="Block"
-              onChange={(_name, value) => updateDetailCell({ Block: value })}
-              options={blockTypeSelectOptions(props.content)}
-              value={selectedCell.blockTypeId}
-            />
-            <ContentTextField
-              label="Множитель прочности"
-              name="HpMultiplier"
-              onChange={(_name, value) => updateDetailCell({ HpMultiplier: value })}
-              type="number"
-              value={selectedCell.hpMultiplier}
-            />
-            <ContentSelectField
-              label="Особое"
-              name="Special"
-              onChange={(_name, value) => updateDetailCell({ Special: value })}
-              options={[
-                { value: "", label: "Нет" },
-                { value: "vein", label: "Жила" },
-                { value: "chest", label: "Сундук" }
-              ]}
-              value={selectedCell.special}
-            />
-            {selectedCell.special === "vein" ? (
+        <div className="content-modal-backdrop" onClick={closeDetailCell} role="presentation">
+          <section className="content-mine-cell-modal" aria-label="Параметры клетки" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <span>
+                  Клетка {detailCell.row + 1}:{detailCell.col + 1} · {mineRowDepthMeters(props.formState, detailCell.row)} м
+                </span>
+                <strong>{blockTitleById(props.content, selectedCell.blockTypeId)}</strong>
+              </div>
+              <button onClick={closeDetailCell} type="button">
+                Закрыть
+              </button>
+            </header>
+            <div className="content-mine-cell-hp">
+              <span>Текущее HP</span>
+              <strong>{selectedCellEffectiveHp ?? 0}</strong>
+              <small>
+                Авто: {selectedCellComputedHp ?? 0} HP · сложность x{mineRowDifficulty(props.formState, detailCell.row)}
+              </small>
+            </div>
+            <div className="content-form-grid">
               <ContentSelectField
-                label="Тип жилы"
-                name="VeinTypeId"
-                onChange={(_name, value) => updateDetailCell({ VeinTypeId: value })}
-                options={veinSelectOptions(props.content)}
-                value={selectedCell.veinTypeId}
+                label="Тип камня"
+                name="Block"
+                onChange={(_name, value) => updateDetailCell({ Block: value, Hp: "" })}
+                options={blockTypeSelectOptions(props.content)}
+                value={selectedCell.blockTypeId}
               />
-            ) : null}
-          </div>
-        </section>
+              <ContentTextField
+                label="Задать HP"
+                name="Hp"
+                onChange={(_name, value) => updateDetailCell({ Hp: value })}
+                placeholder={String(selectedCellComputedHp ?? "")}
+                type="number"
+                value={selectedCell.hp}
+              />
+              <ContentSelectField
+                label="Особое"
+                name="Special"
+                onChange={(_name, value) =>
+                  updateDetailCell({
+                    RewardChestTypeId: value === "reward_chest" ? selectedCell.rewardChestTypeId || firstRewardChestTypeId(props.content) : "",
+                    Special: value,
+                    VeinTypeId: ""
+                  })
+                }
+                options={[
+                  { value: "", label: "Нет" },
+                  { value: "reward_chest", label: "Дроп сундука" }
+                ]}
+                value={selectedCell.special}
+              />
+              {selectedCell.special === "reward_chest" ? (
+                <ContentSelectField
+                  label="Тип сундука"
+                  name="RewardChestTypeId"
+                  onChange={(_name, value) => updateDetailCell({ RewardChestTypeId: value })}
+                  options={rewardChestSelectOptions(props.content)}
+                  value={selectedCell.rewardChestTypeId || firstRewardChestTypeId(props.content)}
+                />
+              ) : null}
+            </div>
+          </section>
+        </div>
       ) : null}
     </section>
   );
@@ -1931,7 +1965,9 @@ export function getMineVisualCell(formState: EntityFormState, row: number, col: 
   return {
     blockTypeId: formValue(formState, mineCellField("Block", row, col)) || fallbackBlockId,
     col,
+    hp: formValue(formState, mineCellField("Hp", row, col)),
     hpMultiplier: formValue(formState, mineCellField("HpMultiplier", row, col)),
+    rewardChestTypeId: formValue(formState, mineCellField("RewardChestTypeId", row, col)),
     row,
     special: formValue(formState, mineCellField("Special", row, col)),
     veinTypeId: formValue(formState, mineCellField("VeinTypeId", row, col))
@@ -1944,6 +1980,16 @@ function mineCellField(suffix: string, row: number, col: number): string {
 
 function firstBlockTypeId(content: ContentBundle): string {
   return stringField(content.blockTypes[0] ?? {}, "id");
+}
+
+function firstRewardChestTypeId(content: ContentBundle): string {
+  return stringField((content.rewardChestTypes ?? [])[0] ?? {}, "id");
+}
+
+function mineRowDepthMeters(formState: EntityFormState, row: number): number {
+  const height = Math.max(1, toInteger(formState.height));
+  const depthMeters = Math.max(1, toInteger(formState.depthMeters));
+  return Math.max(1, Math.round(((row + 1) * depthMeters) / height));
 }
 
 function mineRowDifficulty(formState: EntityFormState, row: number): number {
@@ -1959,12 +2005,31 @@ function mineRowDifficulty(formState: EntityFormState, row: number): number {
   return Math.round((start + (end - start) * progress) * 1000) / 1000;
 }
 
+function mineCellComputedHp(
+  content: ContentBundle,
+  formState: EntityFormState,
+  blockTypeId: string,
+  row: number,
+  hpMultiplier: string = ""
+): number {
+  const blockType = content.blockTypes.find((item) => stringField(item, "id") === blockTypeId);
+  const baseHp = numberField(blockType ?? {}, "baseHp", 1);
+  const multiplier = toNumber(hpMultiplier) || mineRowDifficulty(formState, row);
+  return Math.ceil(baseHp * multiplier);
+}
+
+function mineCellEffectiveHp(cell: MineVisualCell, computedHp: number): number {
+  const hp = toNumber(cell.hp);
+  return hp > 0 ? Math.ceil(hp) : computedHp;
+}
+
 function adminMineCellSize(mineWidth: number): number {
   const phoneWidth = 430;
   const depthWidth = 34;
+  const difficultyWidth = 46;
   const gap = 4;
   const gridX = 4 + depthWidth + gap;
-  const usableGridWidth = phoneWidth - gridX - 10;
+  const usableGridWidth = phoneWidth - gridX - difficultyWidth - gap - 10;
 
   return Math.max(28, Math.floor((usableGridWidth - gap * (Math.max(1, mineWidth) - 1)) / Math.max(1, mineWidth)));
 }
@@ -2442,10 +2507,13 @@ function createCellMapFormState(entity: ContentRecord, content: ContentBundle, w
   for (let row = 0; row < height; row += 1) {
     for (let col = 0; col < width; col += 1) {
       const cell = cellsByKey.get(`${row}:${col}`) ?? {};
+      const hp = numberField(cell, "hp", 0);
       const hpMultiplier = numberField(cell, "hpMultiplier", 0);
 
       state[mineCellField("Block", row, col)] = stringField(cell, "blockTypeId") || fallbackBlockId;
+      state[mineCellField("Hp", row, col)] = hp > 0 ? numberString(hp) : "";
       state[mineCellField("HpMultiplier", row, col)] = hpMultiplier > 0 ? numberString(hpMultiplier) : "";
+      state[mineCellField("RewardChestTypeId", row, col)] = stringField(cell, "rewardChestTypeId");
       state[mineCellField("Special", row, col)] = stringField(cell, "special");
       state[mineCellField("VeinTypeId", row, col)] = stringField(cell, "veinTypeId");
     }
@@ -2666,6 +2734,7 @@ function validateCellMapRows(state: EntityFormState, content: ContentBundle, err
   const mineHeight = Math.max(0, toInteger(state.height));
   const mineWidth = Math.max(0, toInteger(state.width));
   const blockIds = blockTypeIdSet(content);
+  const rewardChestIds = rewardChestIdSet(content);
   const veinIds = veinIdSet(content);
 
   for (let row = 0; row < mineHeight; row += 1) {
@@ -2673,7 +2742,9 @@ function validateCellMapRows(state: EntityFormState, content: ContentBundle, err
       const label = `Клетка ${row + 1}:${col + 1}`;
       const cell = getMineVisualCell(state, row, col, content);
       const blockTypeId = cell.blockTypeId;
+      const hp = cell.hp;
       const hpMultiplier = cell.hpMultiplier;
+      const rewardChestTypeId = cell.rewardChestTypeId;
       const special = cell.special;
       const veinTypeId = cell.veinTypeId;
 
@@ -2685,12 +2756,20 @@ function validateCellMapRows(state: EntityFormState, content: ContentBundle, err
         validateNumberField(state, mineCellField("HpMultiplier", row, col), `${label} множитель прочности`, errors, { min: 0.01 });
       }
 
-      if (special && special !== "vein" && special !== "chest") {
+      if (hp.trim()) {
+        validateNumberField(state, mineCellField("Hp", row, col), `${label} HP`, errors, { min: 0.01 });
+      }
+
+      if (special && special !== "vein" && special !== "chest" && special !== "reward_chest") {
         errors.push(`${label}: особый тип некорректен.`);
       }
 
       if (special === "vein" && !veinIds.has(veinTypeId)) {
         errors.push(`${label}: выбери жилу.`);
+      }
+
+      if (special === "reward_chest" && !rewardChestIds.has(rewardChestTypeId)) {
+        errors.push(`${label}: выбери сундук.`);
       }
     }
   }
@@ -2991,7 +3070,9 @@ function createCellMapFromForm(state: EntityFormState, content: ContentBundle): 
 
   for (let row = 0; row < height; row += 1) {
     for (let col = 0; col < width; col += 1) {
+      const hp = toNumber(state[mineCellField("Hp", row, col)]);
       const hpMultiplier = toNumber(state[mineCellField("HpMultiplier", row, col)]);
+      const rewardChestTypeId = formValue(state, mineCellField("RewardChestTypeId", row, col));
       const special = formValue(state, mineCellField("Special", row, col));
       const veinTypeId = formValue(state, mineCellField("VeinTypeId", row, col));
       const cell: ContentRecord = {
@@ -2999,6 +3080,10 @@ function createCellMapFromForm(state: EntityFormState, content: ContentBundle): 
         col,
         row
       };
+
+      if (hp > 0) {
+        cell.hp = hp;
+      }
 
       if (hpMultiplier > 0) {
         cell.hpMultiplier = hpMultiplier;
@@ -3010,6 +3095,10 @@ function createCellMapFromForm(state: EntityFormState, content: ContentBundle): 
 
       if (special === "vein" && veinTypeId) {
         cell.veinTypeId = veinTypeId;
+      }
+
+      if (special === "reward_chest" && rewardChestTypeId) {
+        cell.rewardChestTypeId = rewardChestTypeId;
       }
 
       cells.push(cell);

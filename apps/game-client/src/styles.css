@@ -118,6 +118,14 @@ body,
   color: var(--gc-copper);
 }
 
+.resource-chip.iron svg {
+  color: var(--gc-iron);
+}
+
+.resource-chip.iron strong {
+  color: var(--gc-iron);
+}
+
 .resource-chip.energy svg {
   color: var(--gc-energy);
 }
@@ -165,6 +173,11 @@ body,
 .resource-tooltip.copper {
   border-color: rgb(192 122 61 / 58%);
   color: var(--gc-copper);
+}
+
+.resource-tooltip.iron {
+  border-color: rgb(156 163 173 / 58%);
+  color: var(--gc-iron);
 }
 
 .resource-tooltip.energy {
@@ -1161,6 +1174,10 @@ body,
   color: var(--gc-copper);
 }
 
+.mine-resource-pill.iron {
+  color: var(--gc-iron);
+}
+
 .mine-resource-pill.energy {
   color: var(--gc-energy);
 }
@@ -1457,6 +1474,10 @@ body,
 
 .built-mine-resource-icon.copper {
   color: var(--gc-copper);
+}
+
+.built-mine-resource-icon.iron {
+  color: var(--gc-iron);
 }
 
 .built-mine-resource-icon.energy {
@@ -2393,6 +2414,11 @@ body,
 .chest-reward-flyout.copper,
 .reward-chest-reward.copper {
   color: var(--gc-copper);
+}
+
+.chest-reward-flyout.iron,
+.reward-chest-reward.iron {
+  color: var(--gc-iron);
 }
 
 .chest-reward-flyout.energy,

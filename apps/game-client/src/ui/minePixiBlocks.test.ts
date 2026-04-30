@@ -6,6 +6,7 @@ describe("mine Pixi blocks", () => {
   it("maps known block types to stable colors", () => {
     expect(blockColor("stone", undefined)).toBe(0x62666d);
     expect(blockColor("copper_ore", undefined)).toBe(0xa35f38);
+    expect(blockColor("iron_ore", undefined)).toBe(0x8f98a3);
     expect(blockColor("gold_ore", undefined)).toBe(0xd49a35);
     expect(blockColor("wooden_chest", undefined)).toBe(0xb77b35);
   });

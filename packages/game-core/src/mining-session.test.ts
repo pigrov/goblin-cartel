@@ -53,6 +53,35 @@ describe("mining session", () => {
     });
   });
 
+  it("uses authored cell hp and reward chest markers", () => {
+    const mine = generateMine(
+      {
+        id: "authored_mine",
+        width: 1,
+        height: 1,
+        cellMap: [
+          {
+            row: 0,
+            col: 0,
+            blockTypeId: "dirt",
+            hp: 7,
+            rewardChestTypeId: "wooden_completion_chest",
+            special: "reward_chest"
+          }
+        ]
+      },
+      "player-1"
+    );
+    const session = createMiningSession({ mine, blockTypes });
+
+    expect(session.blocks[0]?.[0]).toMatchObject({
+      hp: 7,
+      maxHp: 7,
+      rewardChestTypeId: "wooden_completion_chest",
+      special: "reward_chest"
+    });
+  });
+
   it("applies damage and rewards once when block is destroyed", () => {
     const mine = generateMine(template, "player-1");
     const session = createMiningSession({ mine, blockTypes });

@@ -20,7 +20,13 @@ export function drawBlock(
   const container = new Container();
   const size = options.size;
   const hpPercent = normalizeBlockHpPercent(block.hp, block.maxHp);
-  const color = block.destroyed ? 0x15100c : block.special === "vein" ? veinBlockColor(block.blockTypeId, blockType) : blockColor(block.blockTypeId, blockType);
+  const color = block.destroyed
+    ? 0x15100c
+    : block.special === "vein"
+      ? veinBlockColor(block.blockTypeId, blockType)
+      : block.special === "reward_chest"
+        ? 0xc99445
+        : blockColor(block.blockTypeId, blockType);
   const crackedAlpha = block.destroyed ? 0 : blockDamageAlpha(hpPercent);
   const nearBreak = !block.destroyed && isNearBreakHpPercent(hpPercent);
 
@@ -41,6 +47,10 @@ export function drawBlock(
 
   if (!block.destroyed && block.special === "vein") {
     container.addChild(drawVeinOverlay(size, block.veinTypeId));
+  }
+
+  if (!block.destroyed && block.special === "reward_chest") {
+    container.addChild(drawRewardChestOverlay(size));
   }
 
   if (!block.destroyed && options.exposed) {
@@ -103,6 +113,10 @@ export function blockColor(blockTypeId: string, blockType: BlockTypeConfig | und
     return 0xa35f38;
   }
 
+  if (blockTypeId.includes("iron")) {
+    return 0x8f98a3;
+  }
+
   if (blockTypeId.includes("gold")) {
     return 0xd49a35;
   }
@@ -163,6 +177,26 @@ function drawVeinOverlay(size: number, veinTypeId: string | undefined): Containe
       .circle(size * 0.78, size * 0.76, Math.max(2, size * 0.05))
       .fill({ color: veinColor, alpha: 0.72 })
   );
+
+  return overlay;
+}
+
+function drawRewardChestOverlay(size: number): Container {
+  const overlay = new Container();
+
+  overlay.addChild(
+    new Graphics()
+      .roundRect(size * 0.18, size * 0.42, size * 0.64, size * 0.34, 4)
+      .fill({ color: 0x6f3d18, alpha: 0.92 })
+      .stroke({ color: 0xf2d27a, alpha: 0.86, width: 2 })
+  );
+  overlay.addChild(
+    new Graphics()
+      .roundRect(size * 0.24, size * 0.34, size * 0.52, size * 0.2, 4)
+      .fill({ color: 0x9a5925, alpha: 0.95 })
+      .stroke({ color: 0xf2d27a, alpha: 0.68, width: 1 })
+  );
+  overlay.addChild(new Graphics().rect(size * 0.47, size * 0.44, size * 0.08, size * 0.24).fill({ color: 0xf2d27a }));
 
   return overlay;
 }
@@ -237,8 +271,12 @@ function shortBlockLabel(blockType?: BlockTypeConfig): string {
     return "Cu";
   }
 
+  if (blockType.id === "iron_ore") {
+    return "Fe";
+  }
+
   if (blockType.specialBehavior === "chest") {
-    return "Box";
+    return "Au";
   }
 
   return blockType.id.slice(0, 2).toUpperCase();

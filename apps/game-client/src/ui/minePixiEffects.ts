@@ -456,6 +456,16 @@ function drawRewardIcon(resourceId: string, size: number): Graphics {
       .stroke({ color: 0xf0b179, alpha: 0.72, width: 1 });
   }
 
+  if (resourceId.includes("iron")) {
+    return icon
+      .roundRect(-size * 0.46, -size * 0.34, size * 0.92, size * 0.68, 3)
+      .fill({ color, alpha: 0.94 })
+      .stroke({ color: 0xe1e6ed, alpha: 0.64, width: 1 })
+      .moveTo(-size * 0.18, -size * 0.34)
+      .lineTo(size * 0.22, size * 0.34)
+      .stroke({ color: 0x6f7780, alpha: 0.58, width: 1 });
+  }
+
   if (resourceId.includes("stone")) {
     return icon
       .roundRect(-size * 0.5, -size * 0.36, size, size * 0.72, 2)
@@ -485,6 +495,10 @@ function resourceColor(resourceId: string): number {
 
   if (resourceId.includes("copper")) {
     return 0xc07a3d;
+  }
+
+  if (resourceId.includes("iron")) {
+    return 0x9ca3ad;
   }
 
   if (resourceId.includes("stone")) {
