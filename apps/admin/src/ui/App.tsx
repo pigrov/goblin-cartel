@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   UserPlus
 } from "lucide-react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 const sessionStorageKey = "goblin-cartel.admin.session-token";
 
@@ -92,6 +92,23 @@ interface DraftContentToolResult {
   entityKind?: ContentEntityKind;
   message: string;
 }
+
+interface MineVisualObjectMarker {
+  index: number;
+  label: string;
+  shortLabel: string;
+  type: string;
+}
+
+interface MineVisualRow {
+  dominantBlockId: string;
+  objectMarkers: MineVisualObjectMarker[];
+  row: number;
+  stratumId: string;
+  stratumIndex: number;
+}
+
+type MineVisualClickTool = "objectRow" | "strataEnd" | "strataStart";
 
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
   { value: "api_key", label: "API key" },
@@ -1436,6 +1453,7 @@ function renderEntityFields(
             value={formState.completionRewardChestTypeId}
           />
         </div>
+        <ContentMineVisualEditor content={content} formState={formState} updateFields={updateFields} />
         <ContentStrataRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
         <ContentGuaranteedObjectRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
       </>
@@ -1677,6 +1695,166 @@ function ContentRewardRows(props: {
   );
 }
 
+function ContentMineVisualEditor(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const [activeObjectIndex, setActiveObjectIndex] = useState(0);
+  const [activeStratumIndex, setActiveStratumIndex] = useState(0);
+  const [clickTool, setClickTool] = useState<MineVisualClickTool>("strataEnd");
+  const [selectedRow, setSelectedRow] = useState(0);
+  const visualRows = createMineVisualRows(props.content, props.formState);
+  const mineWidth = Math.max(1, toInteger(props.formState.width));
+  const displayWidth = Math.min(16, mineWidth);
+  const hiddenColumns = Math.max(0, mineWidth - displayWidth);
+  const stratumCount = formCount(props.formState, "strataCount", 1);
+  const objectCount = formCount(props.formState, "objectCount", 0);
+  const selectedStratumIndex = Math.min(activeStratumIndex, Math.max(0, stratumCount - 1));
+  const selectedObjectIndex = Math.min(activeObjectIndex, Math.max(0, objectCount - 1));
+  const ru = props.content.localization?.ru ?? {};
+
+  function handleRowClick(row: number) {
+    setSelectedRow(row);
+
+    if (clickTool === "strataStart") {
+      const currentEnd = toInteger(props.formState[`strataToRow_${selectedStratumIndex}`]);
+      props.updateFields({
+        [`strataFromRow_${selectedStratumIndex}`]: String(row),
+        ...(currentEnd < row ? { [`strataToRow_${selectedStratumIndex}`]: String(row) } : {})
+      });
+      return;
+    }
+
+    if (clickTool === "strataEnd") {
+      const currentStart = toInteger(props.formState[`strataFromRow_${selectedStratumIndex}`]);
+      props.updateFields({
+        ...(currentStart > row ? { [`strataFromRow_${selectedStratumIndex}`]: String(row) } : {}),
+        [`strataToRow_${selectedStratumIndex}`]: String(row)
+      });
+      return;
+    }
+
+    if (objectCount === 0) {
+      props.updateFields(createMineObjectAtRowPatch(props.content, props.formState, row));
+      setActiveObjectIndex(0);
+      return;
+    }
+
+    props.updateFields({
+      [`objectRowEnd_${selectedObjectIndex}`]: String(row),
+      [`objectRowStart_${selectedObjectIndex}`]: String(row)
+    });
+  }
+
+  function handleAddObject() {
+    props.updateFields(createMineObjectAtRowPatch(props.content, props.formState, selectedRow));
+    setActiveObjectIndex(objectCount);
+    setClickTool("objectRow");
+  }
+
+  return (
+    <section className="content-mine-visual-editor">
+      <header>
+        <div>
+          <strong>Визуальный редактор шахты</strong>
+          <span>
+            {mineWidth}x{visualRows.length} · ряд {selectedRow + 1}
+          </span>
+        </div>
+        <button onClick={() => props.updateFields(createEvenMineStrataPatch(props.formState))} type="button">
+          Разложить слои
+        </button>
+      </header>
+
+      <div className="content-mine-visual-controls">
+        <label>
+          Действие клика
+          <select onChange={(event) => setClickTool(event.target.value as MineVisualClickTool)} value={clickTool}>
+            <option value="strataStart">Начало слоя</option>
+            <option value="strataEnd">Конец слоя</option>
+            <option value="objectRow">Ряд объекта</option>
+          </select>
+        </label>
+        <label>
+          Слой
+          <select onChange={(event) => setActiveStratumIndex(Number(event.target.value))} value={selectedStratumIndex}>
+            {Array.from({ length: stratumCount }, (_, index) => (
+              <option key={index} value={index}>
+                {props.formState[`strataId_${index}`] || `stratum_${index + 1}`}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Объект
+          <select
+            disabled={objectCount === 0}
+            onChange={(event) => setActiveObjectIndex(Number(event.target.value))}
+            value={selectedObjectIndex}
+          >
+            {objectCount === 0 ? <option value={0}>Объектов нет</option> : null}
+            {Array.from({ length: objectCount }, (_, index) => (
+              <option key={index} value={index}>
+                {objectLabel(props.content, props.formState, index)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button onClick={handleAddObject} type="button">
+          Добавить объект
+        </button>
+      </div>
+
+      <div className="content-mine-visual-grid" style={{ "--mine-columns": displayWidth } as CSSProperties}>
+        {visualRows.map((row) => {
+          const blockTitle = blockTitleById(props.content, row.dominantBlockId);
+          const rowStyle = { "--mine-cell-color": mineVisualBlockColor(row.dominantBlockId, row.stratumIndex) } as CSSProperties;
+
+          return (
+            <button
+              className={row.row === selectedRow ? "content-mine-visual-row active" : "content-mine-visual-row"}
+              key={row.row}
+              onClick={() => handleRowClick(row.row)}
+              style={rowStyle}
+              title={`${row.row + 1}: ${row.stratumId || "без слоя"} · ${blockTitle}`}
+              type="button"
+            >
+              <span className="content-mine-row-label">{row.row + 1}</span>
+              {Array.from({ length: displayWidth }, (_, col) => {
+                const marker = row.objectMarkers[col];
+                return (
+                  <span className={marker ? "content-mine-cell special" : "content-mine-cell"} key={col} title={marker ? marker.label : blockTitle}>
+                    {marker ? marker.shortLabel : blockTitle.slice(0, 1)}
+                  </span>
+                );
+              })}
+              <span className="content-mine-row-meta">
+                {row.stratumId || "нет"}
+                {hiddenColumns > 0 ? ` +${hiddenColumns}` : ""}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="content-mine-visual-legend">
+        {props.content.blockTypes.map((blockType, index) => {
+          const blockId = stringField(blockType, "id");
+          const style = { "--mine-cell-color": mineVisualBlockColor(blockId, index) } as CSSProperties;
+
+          return (
+            <span key={blockId} style={style}>
+              <i />
+              {contentEntityTitle(blockType, ru)}
+            </span>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function ContentStrataRows(props: {
   content: ContentBundle;
   formState: EntityFormState;
@@ -1882,6 +2060,147 @@ function contentEntityCount(content: ContentBundle | null, key: keyof ContentBun
 
   const value = content[key];
   return Array.isArray(value) ? value.length : 0;
+}
+
+export function createMineVisualRows(content: ContentBundle, formState: EntityFormState): MineVisualRow[] {
+  const height = Math.max(1, Math.min(120, toInteger(formState.height)));
+
+  return Array.from({ length: height }, (_, row): MineVisualRow => {
+    const stratumIndex = findStratumIndexForRow(formState, row);
+    const stratumId = stratumIndex >= 0 ? formValue(formState, `strataId_${stratumIndex}`) : "";
+
+    return {
+      dominantBlockId: dominantBlockIdForStratum(content, formState, stratumIndex),
+      objectMarkers: objectMarkersForRow(content, formState, row),
+      row,
+      stratumId,
+      stratumIndex
+    };
+  });
+}
+
+export function createEvenMineStrataPatch(formState: EntityFormState): EntityFormState {
+  const height = Math.max(1, toInteger(formState.height));
+  const count = formCount(formState, "strataCount", 1);
+  const patch: EntityFormState = {};
+
+  for (let index = 0; index < count; index += 1) {
+    const fromRow = Math.min(height - 1, Math.floor((index * height) / count));
+    const toRow = Math.min(height - 1, Math.max(fromRow, Math.floor(((index + 1) * height) / count) - 1));
+    patch[`strataFromRow_${index}`] = String(fromRow);
+    patch[`strataToRow_${index}`] = String(toRow);
+  }
+
+  return patch;
+}
+
+function findStratumIndexForRow(formState: EntityFormState, row: number): number {
+  const count = formCount(formState, "strataCount", 1);
+
+  for (let index = 0; index < count; index += 1) {
+    const fromRow = toInteger(formState[`strataFromRow_${index}`]);
+    const toRow = toInteger(formState[`strataToRow_${index}`]);
+
+    if (row >= fromRow && row <= toRow) {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function dominantBlockIdForStratum(content: ContentBundle, formState: EntityFormState, stratumIndex: number): string {
+  let dominantBlockId = stringField(content.blockTypes[0] ?? {}, "id");
+  let dominantWeight = -1;
+
+  if (stratumIndex < 0) {
+    return dominantBlockId;
+  }
+
+  for (const blockType of content.blockTypes) {
+    const blockId = stringField(blockType, "id");
+    const weight = toNumber(formState[`strataWeight_${stratumIndex}_${blockId}`]);
+
+    if (weight > dominantWeight) {
+      dominantBlockId = blockId;
+      dominantWeight = weight;
+    }
+  }
+
+  return dominantBlockId;
+}
+
+function objectMarkersForRow(content: ContentBundle, formState: EntityFormState, row: number): MineVisualObjectMarker[] {
+  const count = formCount(formState, "objectCount", 0);
+  const markers: MineVisualObjectMarker[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const fromRow = toInteger(formState[`objectRowStart_${index}`]);
+    const toRow = toInteger(formState[`objectRowEnd_${index}`]);
+
+    if (row >= fromRow && row <= toRow) {
+      const type = formValue(formState, `objectType_${index}`) || "vein";
+      markers.push({
+        index,
+        label: objectLabel(content, formState, index),
+        shortLabel: type === "chest" ? "С" : "Ж",
+        type
+      });
+    }
+  }
+
+  return markers;
+}
+
+function createMineObjectAtRowPatch(content: ContentBundle, formState: EntityFormState, row: number): EntityFormState {
+  const count = formCount(formState, "objectCount", 0);
+
+  return {
+    [`objectBlockTypeId_${count}`]: "",
+    objectCount: String(count + 1),
+    [`objectItemCount_${count}`]: "1",
+    [`objectRowEnd_${count}`]: String(row),
+    [`objectRowStart_${count}`]: String(row),
+    [`objectType_${count}`]: "vein",
+    [`objectVeinTypeId_${count}`]: veinSelectOptions(content)[0]?.value ?? ""
+  };
+}
+
+function objectLabel(content: ContentBundle, formState: EntityFormState, index: number): string {
+  const type = formValue(formState, `objectType_${index}`) || "vein";
+  const rowStart = formValue(formState, `objectRowStart_${index}`) || "0";
+  const rowEnd = formValue(formState, `objectRowEnd_${index}`) || rowStart;
+
+  if (type === "chest") {
+    return `Сундук ${index + 1}: ${blockTitleById(content, formValue(formState, `objectBlockTypeId_${index}`))} · ${rowStart}-${rowEnd}`;
+  }
+
+  return `Жила ${index + 1}: ${veinTitleById(content, formValue(formState, `objectVeinTypeId_${index}`))} · ${rowStart}-${rowEnd}`;
+}
+
+function blockTitleById(content: ContentBundle, blockId: string): string {
+  const blockType = content.blockTypes.find((item) => stringField(item, "id") === blockId);
+  return blockType ? contentEntityTitle(blockType, content.localization?.ru ?? {}) : blockId || "Блок";
+}
+
+function veinTitleById(content: ContentBundle, veinId: string): string {
+  const veinType = (content.veinTypes ?? []).find((item) => stringField(item, "id") === veinId);
+  return veinType ? contentEntityTitle(veinType, content.localization?.ru ?? {}) : veinId || "Жила";
+}
+
+function mineVisualBlockColor(blockId: string, fallbackIndex: number): string {
+  const palette = ["#9a6b3b", "#6f7f8d", "#c19a48", "#7f9b62", "#b87254", "#668b9c", "#8d72a9", "#b4a15a"];
+
+  if (!blockId) {
+    return palette[Math.max(0, fallbackIndex) % palette.length] ?? "#9a6b3b";
+  }
+
+  let hash = 0;
+  for (let index = 0; index < blockId.length; index += 1) {
+    hash = (hash * 31 + blockId.charCodeAt(index)) >>> 0;
+  }
+
+  return palette[hash % palette.length] ?? "#9a6b3b";
 }
 
 export function addDraftBlockTypeTemplate(content: ContentBundle): DraftContentToolResult {
