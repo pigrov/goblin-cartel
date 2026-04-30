@@ -42,3 +42,4 @@
 - `0037_pixi_app_lifecycle_modal_layer` - extracted Pixi app/layers lifecycle and lifted modals above the boss energy overlay.
 - `0038_pixi_viewport_render_passes` - extracted Pixi viewport binding, renderer resize, and scene render passes from the React scene component.
 - `0039_pixi_runtime_hook_delayed_rewards` - moved Pixi runtime refs/ticker into a hook and delayed visible resource rewards until the hit animation completes.
+- `0040_resource_display_hook_energy_tick` - moved delayed visible resource rewards into a hook/controller with tests and made boss energy refill in steady integer ticks.

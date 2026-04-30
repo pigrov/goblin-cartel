@@ -35,13 +35,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
+import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
 const mineSeed = "local-player-001";
 const mineSaveStorageKey = "goblin-cartel.player.mine-save.v1";
 const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
-const bossEnergyTickMs = 500;
-const bossEnergyCounterStepMs = 24;
+const bossEnergyMinTickMs = 50;
 const offlineFinalHitDelayMs = 900;
 const hitEffectLifetimeMs = 2400;
 const resourceRewardSettleDelayMs = destroyedHitEffectDurationMs;
@@ -63,6 +63,7 @@ const bossEnergyConfig: BossEnergyConfig = {
   critChance: 0.12,
   critMultiplier: 2
 };
+const bossEnergyTickMs = Math.max(bossEnergyMinTickMs, Math.round(1000 / Math.max(1, bossEnergyConfig.regenPerSecond)));
 const initialContentBundle = createRuntimeContentBundle(starterContentBundle);
 
 interface ContentState {
@@ -144,27 +145,6 @@ interface ResourceTooltip {
   value: number;
 }
 
-function useSteppedIntegerValue(target: number, stepMs: number): number {
-  const normalizedTarget = Number.isFinite(target) ? Math.max(0, Math.floor(target)) : 0;
-  const [value, setValue] = useState(normalizedTarget);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setValue((current) => {
-        if (current === normalizedTarget) {
-          return current;
-        }
-
-        return current < normalizedTarget ? current + 1 : current - 1;
-      });
-    }, stepMs);
-
-    return () => window.clearInterval(intervalId);
-  }, [normalizedTarget, stepMs]);
-
-  return value;
-}
-
 export function App() {
   const [contentState, setContentState] = useState<ContentState>(() => ({
     content: initialContentBundle,
@@ -191,12 +171,18 @@ export function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [pixiDevOverlayEnabled, setPixiDevOverlayEnabled] = useState(false);
   const [resourceTooltip, setResourceTooltip] = useState<ResourceTooltip | null>(null);
-  const [visibleResourceAmounts, setVisibleResourceAmounts] = useState<Record<string, number>>(() => ({ ...session.resources }));
-  const [flashingResourceIds, setFlashingResourceIds] = useState<ReadonlySet<string>>(() => new Set());
+  const {
+    flashingResourceIds,
+    scheduleResourceRewardDisplay,
+    syncVisibleResourceAmounts,
+    visibleResourceAmounts
+  } = useDelayedResourceDisplay({
+    flashMs: resourceFlashMs,
+    initialResources: session.resources,
+    rewardSettleDelayMs: resourceRewardSettleDelayMs
+  });
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const previousPlatformRowRef = useRef(0);
-  const resourceDisplayGenerationRef = useRef(0);
-  const resourceDisplayTimersRef = useRef<number[]>([]);
   const tooltipSequenceRef = useRef(0);
 
   useEffect(() => {
@@ -339,10 +325,6 @@ export function App() {
     return () => window.clearTimeout(timeoutId);
   }, [resourceTooltip]);
 
-  useEffect(() => {
-    return () => clearResourceDisplayTimers();
-  }, []);
-
   const blockTypeById = useMemo(
     () => new Map(contentState.content.blockTypes.map((blockType) => [blockType.id, blockType])),
     [contentState.content.blockTypes]
@@ -393,7 +375,7 @@ export function App() {
     [goblinPlacements, hiredGoblins, labels, session, workerByColumn]
   );
   const visibleBossEnergy = useMemo(() => regenerateBossEnergy(bossEnergy, bossEnergyConfig, clockNow), [bossEnergy, clockNow]);
-  const displayedBossEnergy = useSteppedIntegerValue(Math.floor(visibleBossEnergy.currentEnergy), bossEnergyCounterStepMs);
+  const displayedBossEnergy = Math.floor(visibleBossEnergy.currentEnergy);
   const bossEnergyPercent = bossEnergyConfig.maxEnergy > 0 ? (displayedBossEnergy / bossEnergyConfig.maxEnergy) * 100 : 0;
   const bossSecondsUntilReady = useMemo(
     () => getBossEnergySecondsUntilReady(bossEnergy, bossEnergyConfig, clockNow),
@@ -574,87 +556,6 @@ export function App() {
     window.setTimeout(() => {
       setHitEffects((current) => current.filter((effect) => effect.id !== id));
     }, hitEffectLifetimeMs);
-  }
-
-  function clearResourceDisplayTimers() {
-    for (const timeoutId of resourceDisplayTimersRef.current) {
-      window.clearTimeout(timeoutId);
-    }
-
-    resourceDisplayTimersRef.current = [];
-  }
-
-  function syncVisibleResourceAmounts(resources: Record<string, number>) {
-    resourceDisplayGenerationRef.current += 1;
-    clearResourceDisplayTimers();
-    setVisibleResourceAmounts({ ...resources });
-    setFlashingResourceIds(new Set());
-  }
-
-  function scheduleResourceRewardDisplay(rewards: Record<string, number>) {
-    const rewardEntries = Object.entries(rewards).filter(([, amount]) => amount > 0);
-
-    if (rewardEntries.length === 0) {
-      return;
-    }
-
-    const generation = resourceDisplayGenerationRef.current;
-    const timeoutId = window.setTimeout(() => {
-      resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== timeoutId);
-
-      if (resourceDisplayGenerationRef.current !== generation) {
-        return;
-      }
-
-      setVisibleResourceAmounts((current) => mergeResourceMaps(current, rewards));
-      flashRewardResourceChips(rewardEntries.map(([resourceId]) => resourceId));
-    }, resourceRewardSettleDelayMs);
-
-    resourceDisplayTimersRef.current.push(timeoutId);
-  }
-
-  function flashRewardResourceChips(resourceIds: string[]) {
-    const uniqueResourceIds = Array.from(new Set(resourceIds));
-
-    setFlashingResourceIds((current) => {
-      const next = new Set(current);
-
-      for (const resourceId of uniqueResourceIds) {
-        next.delete(resourceId);
-      }
-
-      return next;
-    });
-
-    const startTimeoutId = window.setTimeout(() => {
-      resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== startTimeoutId);
-      setFlashingResourceIds((current) => {
-        const next = new Set(current);
-
-        for (const resourceId of uniqueResourceIds) {
-          next.add(resourceId);
-        }
-
-        return next;
-      });
-
-      const endTimeoutId = window.setTimeout(() => {
-        resourceDisplayTimersRef.current = resourceDisplayTimersRef.current.filter((item) => item !== endTimeoutId);
-        setFlashingResourceIds((current) => {
-          const next = new Set(current);
-
-          for (const resourceId of uniqueResourceIds) {
-            next.delete(resourceId);
-          }
-
-          return next;
-        });
-      }, resourceFlashMs);
-
-      resourceDisplayTimersRef.current.push(endTimeoutId);
-    }, 0);
-
-    resourceDisplayTimersRef.current.push(startTimeoutId);
   }
 
   function handleBlockHit(block: MiningBlockState) {
