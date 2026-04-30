@@ -57,3 +57,4 @@
 - `0052_admin_entity_forms` - added admin entity forms for editing goblins, mine templates, and built mine types before applying changes to draft JSON.
 - `0053_admin_entity_server_save` - added backend entity-save for admin content forms with server-side validation, audit logging, and draft refresh in the admin UI.
 - `0054_admin_nested_content_forms` - added nested admin forms for rewards, costs, mine strata, guaranteed objects, block types, reward chests, and compacted draft version creation.
+- `0055_admin_content_routes_templates` - moved Content version selection to `/admin/content`, added direct version routes, and added block/chest creation templates with admin unit tests.

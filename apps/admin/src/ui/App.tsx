@@ -86,6 +86,13 @@ interface EntityDraftUpdate {
   message: string;
 }
 
+interface DraftContentToolResult {
+  content: ContentBundle;
+  entityId?: string;
+  entityKind?: ContentEntityKind;
+  message: string;
+}
+
 const credentialTypes: Array<{ value: CredentialType; label: string }> = [
   { value: "api_key", label: "API key" },
   { value: "oauth", label: "OAuth" },
@@ -184,6 +191,7 @@ const cards = [
 ];
 
 export function App() {
+  const initialRoute = readAdminRoute();
   const [sessionToken, setSessionToken] = useState(() => localStorage.getItem(sessionStorageKey));
   const [user, setUser] = useState<AdminUser | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
@@ -191,7 +199,8 @@ export function App() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
-  const [activeSection, setActiveSection] = useState<AdminSection>("dashboard");
+  const [activeSection, setActiveSection] = useState<AdminSection>(initialRoute.section);
+  const [contentVersionSlug, setContentVersionSlug] = useState<string | null>(initialRoute.contentVersionSlug);
   const [contentVersions, setContentVersions] = useState<ContentVersion[]>([]);
   const [selectedContentVersion, setSelectedContentVersion] = useState<ContentVersion | null>(null);
   const [contentVersionName, setContentVersionName] = useState("");
@@ -209,6 +218,20 @@ export function App() {
   const [credentialMessage, setCredentialMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    function handlePopState() {
+      const route = readAdminRoute();
+      setActiveSection(route.section);
+      setContentVersionSlug(route.contentVersionSlug);
+    }
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -259,7 +282,15 @@ export function App() {
     }
 
     void loadContentVersions();
-  }, [activeSection, sessionToken, user]);
+  }, [activeSection, contentVersionSlug, sessionToken, user]);
+
+  useEffect(() => {
+    if (activeSection === "content" && !contentVersionSlug) {
+      setContentJson("");
+      setContentErrors([]);
+      setSelectedContentVersion(null);
+    }
+  }, [activeSection, contentVersionSlug]);
 
   async function handleAuthSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -360,8 +391,21 @@ export function App() {
       });
       setContentVersions(response.versions);
 
-      if (!selectedContentVersion && response.versions[0]) {
-        await loadContentVersion(response.versions[0].id);
+      if (contentVersionSlug) {
+        const versionFromRoute = response.versions.find(
+          (version) => version.version === contentVersionSlug || version.id === contentVersionSlug
+        );
+
+        if (versionFromRoute) {
+          if (selectedContentVersion?.id !== versionFromRoute.id || !contentJson) {
+            await loadContentVersion(versionFromRoute.id);
+          }
+        } else {
+          setContentJson("");
+          setContentErrors([]);
+          setSelectedContentVersion(null);
+          setContentMessage(`Версия ${contentVersionSlug} не найдена.`);
+        }
       }
     } catch (error) {
       setContentMessage(error instanceof Error ? error.message : "Не удалось загрузить версии контента.");
@@ -422,6 +466,7 @@ export function App() {
       setContentVersionName("");
       setContentNotes("");
       setContentMessage("Draft-версия создана со стартовым контентом.");
+      navigateToContentVersion(response.version);
     } catch (error) {
       setContentMessage(error instanceof Error ? error.message : "Не удалось создать версию.");
     } finally {
@@ -628,6 +673,36 @@ export function App() {
     setUser(null);
   }
 
+  function navigateToSection(section: AdminSection) {
+    const nextPath = adminSectionPath(section);
+    window.history.pushState(null, "", nextPath);
+    setActiveSection(section);
+    setContentVersionSlug(null);
+  }
+
+  function navigateToContentList() {
+    window.history.pushState(null, "", adminSectionPath("content"));
+    setActiveSection("content");
+    setContentVersionSlug(null);
+  }
+
+  function navigateToContentVersion(version: ContentVersion) {
+    window.history.pushState(null, "", adminContentVersionPath(version.version));
+    setActiveSection("content");
+    setContentVersionSlug(version.version);
+  }
+
+  function handleSelectContentVersion(id: string) {
+    const version = contentVersions.find((item) => item.id === id);
+
+    if (version) {
+      navigateToContentVersion(version);
+      return;
+    }
+
+    void loadContentVersion(id);
+  }
+
   if (loadingSession) {
     return (
       <main className="auth-page">
@@ -759,21 +834,21 @@ export function App() {
         <nav>
           <button
             className={activeSection === "dashboard" ? "active" : ""}
-            onClick={() => setActiveSection("dashboard")}
+            onClick={() => navigateToSection("dashboard")}
             type="button"
           >
             Dashboard
           </button>
           <button
             className={activeSection === "content" ? "active" : ""}
-            onClick={() => setActiveSection("content")}
+            onClick={() => navigateToSection("content")}
             type="button"
           >
             Content
           </button>
           <button
             className={activeSection === "credentials" ? "active" : ""}
-            onClick={() => setActiveSection("credentials")}
+            onClick={() => navigateToSection("credentials")}
             type="button"
           >
             Credentials
@@ -810,10 +885,11 @@ export function App() {
             onContentNotesChange={setContentNotes}
             onContentVersionNameChange={setContentVersionName}
             onCreateContentVersion={handleCreateContentVersion}
+            onOpenContentList={navigateToContentList}
             onPublishContent={handlePublishContent}
             onSaveContent={handleSaveContent}
             onSaveContentEntity={handleSaveContentEntity}
-            onSelectContentVersion={loadContentVersion}
+            onSelectContentVersion={handleSelectContentVersion}
             onValidateContent={handleValidateContent}
             selectedContentVersion={selectedContentVersion}
           />
@@ -865,6 +941,7 @@ function ContentSection(props: {
   onContentNotesChange: (value: string) => void;
   onContentVersionNameChange: (value: string) => void;
   onCreateContentVersion: (event: FormEvent<HTMLFormElement>) => void;
+  onOpenContentList: () => void;
   onPublishContent: () => void;
   onSaveContent: () => void;
   onSaveContentEntity: (update: EntityDraftUpdate) => Promise<void>;
@@ -875,12 +952,10 @@ function ContentSection(props: {
   const [draftToolMessage, setDraftToolMessage] = useState<string | null>(null);
   const [entityEditorKind, setEntityEditorKind] = useState<ContentEntityKind>("goblins");
   const [selectedEntityId, setSelectedEntityId] = useState("");
-  const [showCreateVersion, setShowCreateVersion] = useState(false);
   const contentPreview = useMemo(() => parseContentPreview(props.contentJson), [props.contentJson]);
   const canEdit =
     props.selectedContentVersion?.status === "draft" || props.selectedContentVersion?.status === "validated";
   const selectedEntityItems = contentPreview ? getContentEntityItems(contentPreview, entityEditorKind) : [];
-  const shouldShowCreateVersion = showCreateVersion || (!props.contentLoading && props.contentVersions.length === 0);
 
   useEffect(() => {
     if (selectedEntityItems.length === 0) {
@@ -897,7 +972,7 @@ function ContentSection(props: {
     }
   }, [selectedEntityId, selectedEntityItems]);
 
-  function applyDraftTool(builder: (content: ContentBundle) => { content: ContentBundle; message: string }) {
+  function applyDraftTool(builder: (content: ContentBundle) => DraftContentToolResult) {
     if (!canEdit || !props.selectedContentVersion) {
       return;
     }
@@ -910,6 +985,12 @@ function ContentSection(props: {
     try {
       const result = builder(contentPreview);
       props.onContentJsonChange(JSON.stringify(result.content, null, 2));
+      if (result.entityKind) {
+        setEntityEditorKind(result.entityKind);
+      }
+      if (result.entityId) {
+        setSelectedEntityId(result.entityId);
+      }
       setDraftToolMessage(result.message);
     } catch (error) {
       setDraftToolMessage(error instanceof Error ? error.message : "Не удалось создать шаблон.");
@@ -927,44 +1008,53 @@ function ContentSection(props: {
     }
   }
 
-  return (
-    <section className="content-layout">
-      <aside className="content-side">
-        <section className="gc-panel content-create">
-          <button className="content-create-toggle" onClick={() => setShowCreateVersion((current) => !current)} type="button">
-            <PlusCircle size={17} />
-            Новая версия
-          </button>
-          {shouldShowCreateVersion ? (
-            <form className="content-create-form" onSubmit={props.onCreateContentVersion}>
-              <label>
-                Version
-                <input
-                  onChange={(event) => props.onContentVersionNameChange(event.target.value)}
-                  placeholder="0.1.0"
-                  required
-                  type="text"
-                  value={props.contentVersionName}
-                />
-              </label>
-              <label>
-                Notes
-                <textarea
-                  onChange={(event) => props.onContentNotesChange(event.target.value)}
-                  rows={3}
-                  value={props.contentNotes}
-                />
-              </label>
-              <button className="primary-action" disabled={props.busy} type="submit">
-                {props.busy ? <Loader2 className="spin" size={18} /> : <FileJson size={18} />}
-                Создать draft
-              </button>
-            </form>
-          ) : null}
+  const createVersionForm = (
+    <form className="content-create-form" onSubmit={props.onCreateContentVersion}>
+      <label>
+        Version
+        <input
+          onChange={(event) => props.onContentVersionNameChange(event.target.value)}
+          placeholder="0.1.0"
+          required
+          type="text"
+          value={props.contentVersionName}
+        />
+      </label>
+      <label>
+        Notes
+        <textarea
+          onChange={(event) => props.onContentNotesChange(event.target.value)}
+          rows={3}
+          value={props.contentNotes}
+        />
+      </label>
+      <button className="primary-action" disabled={props.busy} type="submit">
+        {props.busy ? <Loader2 className="spin" size={18} /> : <FileJson size={18} />}
+        Создать draft
+      </button>
+    </form>
+  );
+
+  if (!props.selectedContentVersion) {
+    return (
+      <section className="content-home">
+        <section className="gc-panel content-create content-create-home">
+          <header>
+            <div>
+              <strong>Новая версия</strong>
+              <span>Создай draft или выбери уже существующую версию ниже.</span>
+            </div>
+          </header>
+          {createVersionForm}
         </section>
 
-        <section className="content-version-list">
-          {props.contentVersions.length === 0 ? (
+        <section className="content-version-home-list">
+          {props.contentLoading ? (
+            <article className="gc-panel content-empty">
+              <Loader2 className="spin" size={20} />
+              <span>Загружаем версии</span>
+            </article>
+          ) : props.contentVersions.length === 0 ? (
             <article className="gc-panel content-empty">
               <FileJson size={20} />
               <span>Версий пока нет</span>
@@ -972,25 +1062,41 @@ function ContentSection(props: {
           ) : (
             props.contentVersions.map((version) => (
               <button
-                className={props.selectedContentVersion?.id === version.id ? "content-version active" : "content-version"}
+                className="gc-panel content-version-card"
                 key={version.id}
                 onClick={() => props.onSelectContentVersion(version.id)}
                 type="button"
               >
-                <strong>{version.version}</strong>
-                <span>{version.status}</span>
+                <div>
+                  <strong>{version.version}</strong>
+                  <span>{version.notes || "Без заметки"}</span>
+                </div>
+                <div>
+                  <span>{version.status}</span>
+                  <small>{formatDateTime(version.updatedAt)}</small>
+                </div>
               </button>
             ))
           )}
         </section>
-      </aside>
 
-      <section className="content-editor">
-        <div className="gc-panel content-toolbar">
+        {props.contentMessage ? <p className="form-message">{props.contentMessage}</p> : null}
+      </section>
+    );
+  }
+
+  return (
+    <section className="content-editor content-editor-full">
+      <div className="gc-panel content-toolbar">
+        <div className="content-toolbar-title">
+          <button onClick={props.onOpenContentList} type="button">
+            Версии
+          </button>
           <div>
             <strong>{props.selectedContentVersion?.version ?? "Версия не выбрана"}</strong>
             <span>{props.selectedContentVersion ? formatDateTime(props.selectedContentVersion.updatedAt) : ""}</span>
           </div>
+        </div>
           <div className="content-actions">
             <button disabled={!canEdit || props.busy || props.contentLoading} onClick={props.onSaveContent} type="button">
               <Save size={17} />
@@ -1005,7 +1111,7 @@ function ContentSection(props: {
               Publish
             </button>
           </div>
-        </div>
+      </div>
 
         <section className="gc-panel content-entity-tools">
           <header>
@@ -1014,6 +1120,14 @@ function ContentSection(props: {
               <span>{contentPreview ? "Формы сохраняют draft через серверную проверку" : "JSON пока не разобран"}</span>
             </div>
             <div className="content-template-actions">
+              <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => applyDraftTool(addDraftBlockTypeTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Блок
+              </button>
               <button
                 disabled={!canEdit || !props.selectedContentVersion}
                 onClick={() => applyDraftTool(addDraftGoblinTemplate)}
@@ -1037,6 +1151,14 @@ function ContentSection(props: {
               >
                 <PlusCircle size={16} />
                 Тип шахты
+              </button>
+              <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => applyDraftTool(addDraftRewardChestTypeTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Сундук
               </button>
             </div>
           </header>
@@ -1087,7 +1209,6 @@ function ContentSection(props: {
             </div>
           </section>
         ) : null}
-      </section>
     </section>
   );
 }
@@ -1763,7 +1884,41 @@ function contentEntityCount(content: ContentBundle | null, key: keyof ContentBun
   return Array.isArray(value) ? value.length : 0;
 }
 
-function addDraftGoblinTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+export function addDraftBlockTypeTemplate(content: ContentBundle): DraftContentToolResult {
+  const id = uniqueContentId("draft_block", content.blockTypes);
+  const nameKey = `block.${id}.name`;
+  const resourceId = findResourceId(content, "stone");
+
+  return {
+    content: {
+      ...content,
+      blockTypes: [
+        ...content.blockTypes,
+        {
+          id,
+          nameKey,
+          baseHp: 80,
+          tags: ["draft"],
+          visualStateAssets: {
+            intact: `block_${id}_intact_v1`,
+            cracked: `block_${id}_cracked_v1`,
+            breaking: `block_${id}_breaking_v1`
+          },
+          rewardTable: [{ resourceId, min: 1, max: 3, chance: 1 }],
+          specialBehavior: "none"
+        }
+      ],
+      localization: addRuLocalization(content.localization, {
+        [nameKey]: "Новый блок"
+      })
+    },
+    entityId: id,
+    entityKind: "blockTypes",
+    message: `Добавлен шаблон блока ${id}. Проверь HP, ассеты и награды, затем сохрани draft.`
+  };
+}
+
+function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult {
   const id = uniqueContentId("collector_draft", content.goblins);
   const nameKey = `goblin.${id}.name`;
   const descriptionKey = `goblin.${id}.description`;
@@ -1813,11 +1968,13 @@ function addDraftGoblinTemplate(content: ContentBundle): { content: ContentBundl
         [abilityDescriptionKey]: "Открывает один слот автосбора и немного увеличивает вместимость шахты."
       })
     },
+    entityId: id,
+    entityKind: "goblins",
     message: `Добавлен шаблон гоблина ${id}. Сохрани и провалидируй draft перед публикацией.`
   };
 }
 
-function addDraftMineTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+function addDraftMineTemplate(content: ContentBundle): DraftContentToolResult {
   const source = content.mineTemplates[content.mineTemplates.length - 1];
 
   if (!source) {
@@ -1844,11 +2001,13 @@ function addDraftMineTemplate(content: ContentBundle): { content: ContentBundle;
         [displayNameKey]: "Новый рудник"
       })
     },
+    entityId: id,
+    entityKind: "mineTemplates",
     message: `Добавлен шаблон рудника ${id}. Проверь жилу, сундук и слои перед публикацией.`
   };
 }
 
-function addDraftBuiltMineTypeTemplate(content: ContentBundle): { content: ContentBundle; message: string } {
+function addDraftBuiltMineTypeTemplate(content: ContentBundle): DraftContentToolResult {
   const builtMineTypes = content.builtMineTypes ?? [];
   const source = builtMineTypes[builtMineTypes.length - 1];
 
@@ -1875,7 +2034,42 @@ function addDraftBuiltMineTypeTemplate(content: ContentBundle): { content: Conte
         [nameKey]: "Новая постоянная шахта"
       })
     },
+    entityId: id,
+    entityKind: "builtMineTypes",
     message: `Добавлен шаблон типа шахты ${id}. Проверь ресурс добычи, жилу и стоимость.`
+  };
+}
+
+export function addDraftRewardChestTypeTemplate(content: ContentBundle): DraftContentToolResult {
+  const rewardChestTypes = content.rewardChestTypes ?? [];
+  const id = uniqueContentId("draft_reward_chest", rewardChestTypes);
+  const nameKey = `reward_chest.${id}.name`;
+  const goldResourceId = findResourceId(content, "gold");
+  const stoneResourceId = findResourceId(content, "stone");
+
+  return {
+    content: {
+      ...content,
+      rewardChestTypes: [
+        ...rewardChestTypes,
+        {
+          id,
+          nameKey,
+          tier: "wooden",
+          rewardTable: [
+            { resourceId: goldResourceId, min: 25, max: 60, chance: 1 },
+            { resourceId: stoneResourceId, min: 10, max: 25, chance: 0.75 }
+          ],
+          assetId: `reward_chest_${id}_v1`
+        }
+      ],
+      localization: addRuLocalization(content.localization, {
+        [nameKey]: "Новый сундук"
+      })
+    },
+    entityId: id,
+    entityKind: "rewardChestTypes",
+    message: `Добавлен шаблон сундука ${id}. Проверь tier, ассет и таблицу наград, затем сохрани draft.`
   };
 }
 
@@ -3135,6 +3329,52 @@ function CredentialsSection(props: {
       </section>
     </section>
   );
+}
+
+function readAdminRoute(): { contentVersionSlug: string | null; section: AdminSection } {
+  return readAdminRoutePath(window.location.pathname);
+}
+
+export function readAdminRoutePath(path: string): { contentVersionSlug: string | null; section: AdminSection } {
+  const normalizedPath = path.endsWith("/") && path !== "/" ? path.slice(0, -1) : path;
+
+  if (normalizedPath === "/admin/content" || normalizedPath.startsWith("/admin/content/")) {
+    const contentVersionSlug = normalizedPath.startsWith("/admin/content/")
+      ? decodeURIComponent(normalizedPath.slice("/admin/content/".length))
+      : null;
+
+    return {
+      contentVersionSlug: contentVersionSlug || null,
+      section: "content"
+    };
+  }
+
+  if (normalizedPath === "/admin/credentials") {
+    return {
+      contentVersionSlug: null,
+      section: "credentials"
+    };
+  }
+
+  return {
+    contentVersionSlug: null,
+    section: "dashboard"
+  };
+}
+
+export function adminSectionPath(section: AdminSection): string {
+  switch (section) {
+    case "content":
+      return "/admin/content";
+    case "credentials":
+      return "/admin/credentials";
+    default:
+      return "/admin/";
+  }
+}
+
+export function adminContentVersionPath(version: string): string {
+  return `/admin/content/${encodeURIComponent(version)}`;
 }
 
 async function apiRequest<T = unknown>(
