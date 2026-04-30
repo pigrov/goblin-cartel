@@ -1,4 +1,4 @@
-import { Rectangle, type Application } from "pixi.js";
+import type { Application } from "pixi.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
@@ -13,25 +13,34 @@ import {
   type AnimatedHitEffect,
   type MinePixiHitEffect
 } from "./minePixiEffects";
-import { reconcileMineBlocks } from "./minePixiBlockReconciliation";
-import { drawSceneBackground, type MinePixiLiftRail } from "./minePixiBackground";
-import { reconcileDepthMarkers } from "./minePixiDepthMarkers";
-import { reconcileHitEffects, type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
+import type { MinePixiLiftRail } from "./minePixiBackground";
+import { type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import {
-  clearMinePixiLayer,
   createMinePixiApp,
   type MinePixiAppHandle,
   type MinePixiSceneLayers
 } from "./minePixiApp";
 import {
-  drawDragPreview,
-  drawPlatform,
   type MinePixiAnimatedItem,
-  type MinePixiDragState
+  type MinePixiDragState,
+  type MinePixiPlatformGoblin
 } from "./minePixiPlatform";
+import {
+  renderMinePixiBackground,
+  renderMinePixiDragPreview,
+  renderMinePixiHitEffects,
+  renderMinePixiMineAndDepth,
+  renderMinePixiPlatform,
+  renderMinePixiSurface
+} from "./minePixiRenderPasses";
 import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
-import { drawLiftCables, drawSurface } from "./minePixiSurface";
-import { currentPlatformDropOffset, runMinePixiTickerFrame, type PixiDevStats } from "./minePixiTicker";
+import { runMinePixiTickerFrame, type PixiDevStats } from "./minePixiTicker";
+import {
+  bindMinePixiViewport,
+  defaultMinePixiViewport,
+  minMinePixiViewportWidth,
+  resizeMinePixiRenderer
+} from "./minePixiViewport";
 import {
   bindMinePixiDragPlacement,
   bindMinePixiPointerInput,
@@ -41,11 +50,9 @@ import {
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
 
-export interface MinePixiGoblin {
+export interface MinePixiGoblin extends MinePixiPlatformGoblin {
   id: string;
   name: string;
-  col: number;
-  working: boolean;
 }
 
 interface MinePixiSceneProps {
@@ -70,12 +77,6 @@ interface MinePixiSceneProps {
 type AnimatedItem = MinePixiAnimatedItem;
 
 type DragState = MinePixiDragState;
-
-const minSceneWidth = 320;
-const defaultSceneViewport: MinePixiViewport = {
-  height: 0,
-  scrollTop: 0
-};
 
 export function MinePixiScene(props: MinePixiSceneProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
@@ -113,8 +114,8 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   const [devHitTest, setDevHitTest] = useState<PixiDevHitTest | null>(null);
   const [devStats, setDevStats] = useState<PixiDevStats | null>(null);
   const [readyTick, setReadyTick] = useState(0);
-  const [sceneViewport, setSceneViewport] = useState<MinePixiViewport>(defaultSceneViewport);
-  const [viewportWidth, setViewportWidth] = useState(minSceneWidth);
+  const [sceneViewport, setSceneViewport] = useState<MinePixiViewport>(defaultMinePixiViewport);
+  const [viewportWidth, setViewportWidth] = useState(minMinePixiViewportWidth);
   const [dragState, setDragState] = useState<DragState | null>(null);
 
   const layout = useMemo(
@@ -256,25 +257,11 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    function updateViewport() {
-      const nextWidth = Math.max(minSceneWidth, Math.floor(host?.clientWidth ?? minSceneWidth));
-      setViewportWidth(nextWidth);
-      setSceneViewport({
-        height: Math.max(0, Math.floor(host?.clientHeight ?? 0)),
-        scrollTop: Math.max(0, Math.floor(host?.scrollTop ?? 0))
-      });
-    }
-
-    updateViewport();
-
-    const observer = new ResizeObserver(updateViewport);
-    observer.observe(host);
-    host.addEventListener("scroll", updateViewport, { passive: true });
-
-    return () => {
-      observer.disconnect();
-      host.removeEventListener("scroll", updateViewport);
-    };
+    return bindMinePixiViewport({
+      host,
+      setSceneViewport,
+      setViewportWidth
+    });
   }, []);
 
   useEffect(() => {
@@ -322,10 +309,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     }
 
     layoutRef.current = layout;
-    app.renderer.resize(layout.width, layout.contentHeight);
-    app.canvas.style.width = `${layout.width}px`;
-    app.canvas.style.height = `${layout.contentHeight}px`;
-    app.stage.hitArea = new Rectangle(0, 0, layout.width, layout.contentHeight);
+    resizeMinePixiRenderer(app, layout);
   }, [layout, readyTick, viewportWidth]);
 
   useEffect(() => {
@@ -335,16 +319,13 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearMinePixiLayer(layers.background);
-    liftRailRef.current = drawSceneBackground(layers.background, layout);
-    liftRailRef.current.node.scale.y = Math.max(
-      0,
-      liftRailRef.current.baseHeight + currentPlatformDropOffset(
-        performance.now(),
-        platformDropAnimatingRef.current,
-        platformAnimationStartedAtRef.current
-      )
-    );
+    renderMinePixiBackground({
+      layers,
+      layout,
+      liftRailRef,
+      platformAnimationStartedAtRef,
+      platformDropAnimatingRef
+    });
   }, [layout, readyTick]);
 
   useEffect(() => {
@@ -354,9 +335,11 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearMinePixiLayer(layers.surface);
-    drawSurface(layers.surface, layout, props.currentPlatformRow);
-    drawLiftCables(layers.surface, layout);
+    renderMinePixiSurface({
+      currentPlatformRow: props.currentPlatformRow,
+      layers,
+      layout
+    });
   }, [layout, props.currentPlatformRow, readyTick]);
 
   useEffect(() => {
@@ -366,23 +349,17 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileMineBlocks({
+    renderMinePixiMineAndDepth({
       activeCell: props.activeCell,
+      blockNodes: blockNodesRef.current,
       blockTypeById: props.blockTypeById,
       currentPlatformRow: props.currentPlatformRow,
-      exposedCellKeys: props.exposedCellKeys,
-      layout,
-      mineLayer: layers.mine,
-      renderedBlocks: blockNodesRef.current,
-      sessionBlocks: props.session.blocks,
-      visibleRowRange
-    });
-    reconcileDepthMarkers({
-      currentPlatformRow: props.currentPlatformRow,
       depthMarkerLabel: props.depthMarkerLabel,
+      depthMarkerNodes: depthMarkerNodesRef.current,
+      exposedCellKeys: props.exposedCellKeys,
+      layers,
       layout,
-      renderedMarkers: depthMarkerNodesRef.current,
-      root: layers.markers,
+      sessionBlocks: props.session.blocks,
       visibleRowRange
     });
   }, [
@@ -404,14 +381,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    reconcileHitEffects({
+    renderMinePixiHitEffects({
       animatedBlockImpactsRef,
       animatedHitEffectsRef,
       blockTypeById: props.blockTypeById,
+      hitEffectNodes: hitEffectNodesRef.current,
       hitEffects: props.hitEffects,
+      layers,
       layout,
-      renderedEffects: hitEffectNodesRef.current,
-      root: layers.effects,
       sessionBlocks: props.session.blocks,
       visibleRowRange
     });
@@ -424,29 +401,20 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearMinePixiLayer(layers.platform);
-    animatedGoblinsRef.current = [];
-    platformRef.current = drawPlatform({
-      animatedGoblins: animatedGoblinsRef.current,
+    renderMinePixiPlatform({
+      animatedGoblinsRef,
       blocks: props.session.blocks,
       currentPlatformRow: props.currentPlatformRow,
       goblins: props.goblins,
+      layers,
       layout,
       mineWidth: props.session.mine.width,
+      platformAnimationStartedAtRef,
       platformCellKeys: props.platformCellKeys,
-      root: layers.platform,
+      platformDropAnimatingRef,
+      platformRef,
       setDragState
     });
-
-    const platform = platformRef.current as AnimatedItem | null;
-
-    if (platform) {
-      platform.node.y = platform.baseY + currentPlatformDropOffset(
-        performance.now(),
-        platformDropAnimatingRef.current,
-        platformAnimationStartedAtRef.current
-      );
-    }
   }, [
     layout,
     props.currentPlatformRow,
@@ -464,12 +432,11 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       return;
     }
 
-    clearMinePixiLayer(layers.drag);
-    drawDragPreview({
+    renderMinePixiDragPreview({
       dragState,
       goblins: props.goblins,
-      layout,
-      root: layers.drag
+      layers,
+      layout
     });
   }, [dragState, layout, props.goblins, readyTick]);
 
