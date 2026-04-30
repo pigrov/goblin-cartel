@@ -299,4 +299,33 @@ describe("content service", () => {
       }
     });
   });
+
+  it("updates reward table entities through the same server validation path", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const rewardChestType = structuredClone(starterContentBundle.rewardChestTypes[0]);
+
+    if (!rewardChestType) {
+      throw new Error("Missing starter reward chest type");
+    }
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "rewardChestType",
+      entityId: rewardChestType.id,
+      entity: {
+        ...rewardChestType,
+        rewardTable: [{ resourceId: "gold", min: 10, max: 25, chance: 0.5 }]
+      },
+      localization: {
+        [rewardChestType.nameKey]: "Проверочный сундук"
+      }
+    });
+
+    expect(result && "content" in result ? result.content.rewardChestTypes[0]?.rewardTable : null).toEqual([
+      { resourceId: "gold", min: 10, max: 25, chance: 0.5 }
+    ]);
+  });
 });

@@ -16,7 +16,7 @@ export type ContentEntityType =
   | "mineTemplate"
   | "goblin"
   | "localization";
-export type EditableContentEntityType = "goblin" | "mineTemplate" | "builtMineType";
+export type EditableContentEntityType = "blockType" | "builtMineType" | "goblin" | "mineTemplate" | "rewardChestType";
 
 export interface ContentVersionRecord {
   id: string;
@@ -457,21 +457,31 @@ function upsertEditableContentEntity(
 
 function collectionForEntityType(content: ContentBundle, entityType: EditableContentEntityType): Array<Record<string, unknown>> {
   switch (entityType) {
+    case "blockType":
+      return content.blockTypes;
     case "builtMineType":
       return content.builtMineTypes;
     case "mineTemplate":
       return content.mineTemplates;
+    case "rewardChestType":
+      return content.rewardChestTypes;
     default:
       return content.goblins;
   }
 }
 
-function collectionNameForEntityType(entityType: EditableContentEntityType): "builtMineTypes" | "goblins" | "mineTemplates" {
+function collectionNameForEntityType(
+  entityType: EditableContentEntityType
+): "blockTypes" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes" {
   switch (entityType) {
+    case "blockType":
+      return "blockTypes";
     case "builtMineType":
       return "builtMineTypes";
     case "mineTemplate":
       return "mineTemplates";
+    case "rewardChestType":
+      return "rewardChestTypes";
     default:
       return "goblins";
   }

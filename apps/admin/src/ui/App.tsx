@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   UserPlus
 } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 const sessionStorageKey = "goblin-cartel.admin.session-token";
 
@@ -45,8 +45,8 @@ interface CredentialItem {
 type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "push" | "json" | "secret";
 type CredentialEnvironment = "production" | "staging" | "development";
 type AdminSection = "dashboard" | "content" | "credentials";
-type ContentEntityKind = "goblins" | "mineTemplates" | "builtMineTypes";
-type ContentEntityApiKind = "goblin" | "mineTemplate" | "builtMineType";
+type ContentEntityKind = "blockTypes" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes";
+type ContentEntityApiKind = "blockType" | "builtMineType" | "goblin" | "mineTemplate" | "rewardChestType";
 type EntityFormState = Record<string, string>;
 
 interface ContentVersion {
@@ -104,9 +104,11 @@ const credentialEnvironments: Array<{ value: CredentialEnvironment; label: strin
 ];
 
 const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind }> = [
+  { value: "blockTypes", label: "Блоки" },
   { value: "goblins", label: "Гоблины" },
   { value: "mineTemplates", label: "Рудники" },
-  { value: "builtMineTypes", label: "Типы шахт" }
+  { value: "builtMineTypes", label: "Типы шахт" },
+  { value: "rewardChestTypes", label: "Сундуки" }
 ];
 
 const goblinClassOptions = [
@@ -138,6 +140,24 @@ const seedModeOptions = [
   { value: "fixed", label: "Fixed" },
   { value: "random", label: "Random" },
   { value: "playerBased", label: "Player based" }
+];
+
+const specialBehaviorOptions = [
+  { value: "none", label: "None" },
+  { value: "explosion", label: "Explosion" },
+  { value: "chest", label: "Chest" }
+];
+
+const rewardChestTierOptions = [
+  { value: "wooden", label: "Wooden" },
+  { value: "iron", label: "Iron" },
+  { value: "steel", label: "Steel" },
+  { value: "golden", label: "Golden" }
+];
+
+const guaranteedObjectTypeOptions = [
+  { value: "vein", label: "Жила" },
+  { value: "chest", label: "Сундук" }
 ];
 
 const cards = [
@@ -855,10 +875,12 @@ function ContentSection(props: {
   const [draftToolMessage, setDraftToolMessage] = useState<string | null>(null);
   const [entityEditorKind, setEntityEditorKind] = useState<ContentEntityKind>("goblins");
   const [selectedEntityId, setSelectedEntityId] = useState("");
+  const [showCreateVersion, setShowCreateVersion] = useState(false);
   const contentPreview = useMemo(() => parseContentPreview(props.contentJson), [props.contentJson]);
   const canEdit =
     props.selectedContentVersion?.status === "draft" || props.selectedContentVersion?.status === "validated";
   const selectedEntityItems = contentPreview ? getContentEntityItems(contentPreview, entityEditorKind) : [];
+  const shouldShowCreateVersion = showCreateVersion || (!props.contentLoading && props.contentVersions.length === 0);
 
   useEffect(() => {
     if (selectedEntityItems.length === 0) {
@@ -908,31 +930,38 @@ function ContentSection(props: {
   return (
     <section className="content-layout">
       <aside className="content-side">
-        <form className="gc-panel content-create" onSubmit={props.onCreateContentVersion}>
-          <h2>Новая версия</h2>
-          <label>
-            Version
-            <input
-              onChange={(event) => props.onContentVersionNameChange(event.target.value)}
-              placeholder="0.1.0"
-              required
-              type="text"
-              value={props.contentVersionName}
-            />
-          </label>
-          <label>
-            Notes
-            <textarea
-              onChange={(event) => props.onContentNotesChange(event.target.value)}
-              rows={3}
-              value={props.contentNotes}
-            />
-          </label>
-          <button className="primary-action" disabled={props.busy} type="submit">
-            {props.busy ? <Loader2 className="spin" size={18} /> : <FileJson size={18} />}
-            Создать draft
+        <section className="gc-panel content-create">
+          <button className="content-create-toggle" onClick={() => setShowCreateVersion((current) => !current)} type="button">
+            <PlusCircle size={17} />
+            Новая версия
           </button>
-        </form>
+          {shouldShowCreateVersion ? (
+            <form className="content-create-form" onSubmit={props.onCreateContentVersion}>
+              <label>
+                Version
+                <input
+                  onChange={(event) => props.onContentVersionNameChange(event.target.value)}
+                  placeholder="0.1.0"
+                  required
+                  type="text"
+                  value={props.contentVersionName}
+                />
+              </label>
+              <label>
+                Notes
+                <textarea
+                  onChange={(event) => props.onContentNotesChange(event.target.value)}
+                  rows={3}
+                  value={props.contentNotes}
+                />
+              </label>
+              <button className="primary-action" disabled={props.busy} type="submit">
+                {props.busy ? <Loader2 className="spin" size={18} /> : <FileJson size={18} />}
+                Создать draft
+              </button>
+            </form>
+          ) : null}
+        </section>
 
         <section className="content-version-list">
           {props.contentVersions.length === 0 ? (
@@ -1095,6 +1124,13 @@ function ContentEntityEditor(props: {
     }));
   }
 
+  function updateFields(values: EntityFormState) {
+    setFormState((current) => ({
+      ...current,
+      ...values
+    }));
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -1142,7 +1178,7 @@ function ContentEntityEditor(props: {
 
         <form className="content-entity-form" onSubmit={handleSubmit}>
           {selectedEntity ? (
-            renderEntityFields(props.kind, formState, props.content, updateField)
+            renderEntityFields(props.kind, formState, props.content, updateField, updateFields)
           ) : (
             <p className="content-tool-message">Выбери или создай сущность.</p>
           )}
@@ -1169,8 +1205,35 @@ function renderEntityFields(
   kind: ContentEntityKind,
   formState: EntityFormState,
   content: ContentBundle,
-  updateField: (field: string, value: string) => void
+  updateField: (field: string, value: string) => void,
+  updateFields: (values: EntityFormState) => void
 ) {
+  if (kind === "blockTypes") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <div className="content-form-grid">
+          <ContentTextField label="HP" name="baseHp" onChange={updateField} type="number" value={formState.baseHp} />
+          <ContentSelectField
+            label="Особое поведение"
+            name="specialBehavior"
+            onChange={updateField}
+            options={specialBehaviorOptions}
+            value={formState.specialBehavior}
+          />
+        </div>
+        <ContentTextField label="Теги через запятую" name="tags" onChange={updateField} value={formState.tags} />
+        <div className="content-form-grid">
+          <ContentTextField label="Asset intact" name="assetIntact" onChange={updateField} value={formState.assetIntact} />
+          <ContentTextField label="Asset cracked" name="assetCracked" onChange={updateField} value={formState.assetCracked} />
+          <ContentTextField label="Asset breaking" name="assetBreaking" onChange={updateField} value={formState.assetBreaking} />
+        </div>
+        <ContentRewardRows content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
+      </>
+    );
+  }
+
   if (kind === "goblins") {
     return (
       <>
@@ -1210,10 +1273,15 @@ function renderEntityFields(
           />
           <ContentTextField label="Бонус добычи %" name="productionBonusPercent" onChange={updateField} type="number" value={formState.productionBonusPercent} />
         </div>
-        <div className="content-form-grid">
-          <ContentSelectField label="Стоимость найма" name="hireCostResourceId" onChange={updateField} options={resourceSelectOptions(content)} value={formState.hireCostResourceId} />
-          <ContentTextField label="Кол-во" name="hireCostAmount" onChange={updateField} type="number" value={formState.hireCostAmount} />
-        </div>
+        <ContentResourceAmountRows
+          amountLabel="Кол-во"
+          content={content}
+          formState={formState}
+          prefix="hireCost"
+          title="Стоимость найма"
+          updateField={updateField}
+          updateFields={updateFields}
+        />
       </>
     );
   }
@@ -1247,6 +1315,22 @@ function renderEntityFields(
             value={formState.completionRewardChestTypeId}
           />
         </div>
+        <ContentStrataRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
+        <ContentGuaranteedObjectRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
+      </>
+    );
+  }
+
+  if (kind === "rewardChestTypes") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <div className="content-form-grid">
+          <ContentSelectField label="Tier" name="tier" onChange={updateField} options={rewardChestTierOptions} value={formState.tier} />
+          <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
+        </div>
+        <ContentRewardRows content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
       </>
     );
   }
@@ -1269,12 +1353,15 @@ function renderEntityFields(
         <ContentTextField label="Вместимость" name="baseCapacity" onChange={updateField} type="number" value={formState.baseCapacity} />
         <ContentTextField label="Стройка, сек" name="buildTimeSec" onChange={updateField} type="number" value={formState.buildTimeSec} />
       </div>
-      <div className="content-form-grid">
-        <ContentSelectField label="Стоимость 1" name="buildCostResourceId1" onChange={updateField} options={resourceSelectOptions(content)} value={formState.buildCostResourceId1} />
-        <ContentTextField label="Кол-во 1" name="buildCostAmount1" onChange={updateField} type="number" value={formState.buildCostAmount1} />
-        <ContentSelectField label="Стоимость 2" name="buildCostResourceId2" onChange={updateField} options={[{ value: "", label: "Не задана" }, ...resourceSelectOptions(content)]} value={formState.buildCostResourceId2} />
-        <ContentTextField label="Кол-во 2" name="buildCostAmount2" onChange={updateField} type="number" value={formState.buildCostAmount2} />
-      </div>
+      <ContentResourceAmountRows
+        amountLabel="Кол-во"
+        content={content}
+        formState={formState}
+        prefix="buildCost"
+        title="Стоимость строительства"
+        updateField={updateField}
+        updateFields={updateFields}
+      />
     </>
   );
 }
@@ -1332,6 +1419,274 @@ function ContentSelectField(props: {
         ))}
       </select>
     </label>
+  );
+}
+
+function ContentNestedSection(props: {
+  addLabel: string;
+  children: ReactNode;
+  onAdd: () => void;
+  title: string;
+}) {
+  return (
+    <section className="content-nested-section">
+      <header>
+        <strong>{props.title}</strong>
+        <button onClick={props.onAdd} type="button">
+          <PlusCircle size={15} />
+          {props.addLabel}
+        </button>
+      </header>
+      {props.children}
+    </section>
+  );
+}
+
+function ContentResourceAmountRows(props: {
+  amountLabel: string;
+  content: ContentBundle;
+  formState: EntityFormState;
+  prefix: string;
+  title: string;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, `${props.prefix}Count`, 1);
+  const resourceOptions = resourceSelectOptions(props.content);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить строку"
+      onAdd={() =>
+        props.updateFields({
+          [`${props.prefix}Amount_${count}`]: "",
+          [`${props.prefix}Count`]: String(count + 1),
+          [`${props.prefix}ResourceId_${count}`]: resourceOptions[0]?.value ?? ""
+        })
+      }
+      title={props.title}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row" key={`${props.prefix}-${index}`}>
+          <ContentSelectField
+            label="Ресурс"
+            name={`${props.prefix}ResourceId_${index}`}
+            onChange={props.updateField}
+            options={resourceOptions}
+            value={props.formState[`${props.prefix}ResourceId_${index}`]}
+          />
+          <ContentTextField
+            label={props.amountLabel}
+            name={`${props.prefix}Amount_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}Amount_${index}`]}
+          />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(removeIndexedFormRow(props.formState, props.prefix, index, ["ResourceId", "Amount"], count))
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentRewardRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  prefix: string;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, `${props.prefix}Count`, 1);
+  const resourceOptions = resourceSelectOptions(props.content);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить награду"
+      onAdd={() =>
+        props.updateFields({
+          [`${props.prefix}ChancePercent_${count}`]: "100",
+          [`${props.prefix}Count`]: String(count + 1),
+          [`${props.prefix}Max_${count}`]: "1",
+          [`${props.prefix}Min_${count}`]: "1",
+          [`${props.prefix}ResourceId_${count}`]: resourceOptions[0]?.value ?? ""
+        })
+      }
+      title="Таблица наград"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row content-list-row-wide" key={`${props.prefix}-${index}`}>
+          <ContentSelectField
+            label="Ресурс"
+            name={`${props.prefix}ResourceId_${index}`}
+            onChange={props.updateField}
+            options={resourceOptions}
+            value={props.formState[`${props.prefix}ResourceId_${index}`]}
+          />
+          <ContentTextField label="Min" name={`${props.prefix}Min_${index}`} onChange={props.updateField} type="number" value={props.formState[`${props.prefix}Min_${index}`]} />
+          <ContentTextField label="Max" name={`${props.prefix}Max_${index}`} onChange={props.updateField} type="number" value={props.formState[`${props.prefix}Max_${index}`]} />
+          <ContentTextField
+            label="Chance %"
+            name={`${props.prefix}ChancePercent_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}ChancePercent_${index}`]}
+          />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(
+                removeIndexedFormRow(props.formState, props.prefix, index, ["ResourceId", "Min", "Max", "ChancePercent"], count)
+              )
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentStrataRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, "strataCount", 1);
+  const blockTypes = props.content.blockTypes;
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить слой"
+      onAdd={() => {
+        const nextIndex = count;
+        const previousToRow = toInteger(props.formState[`strataToRow_${count - 1}`]);
+        const patch: EntityFormState = {
+          strataCount: String(count + 1),
+          [`strataFromRow_${nextIndex}`]: String(Math.max(0, previousToRow + 1)),
+          [`strataId_${nextIndex}`]: `stratum_${nextIndex + 1}`,
+          [`strataToRow_${nextIndex}`]: String(Math.max(0, previousToRow + 1))
+        };
+        for (const blockType of blockTypes) {
+          patch[`strataWeight_${nextIndex}_${stringField(blockType, "id")}`] = "0";
+        }
+        props.updateFields(patch);
+      }}
+      title="Слои рудника"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <section className="content-nested-card" key={`strata-${index}`}>
+          <div className="content-list-row content-list-row-wide">
+            <ContentTextField label="ID слоя" name={`strataId_${index}`} onChange={props.updateField} value={props.formState[`strataId_${index}`]} />
+            <ContentTextField label="С ряда" name={`strataFromRow_${index}`} onChange={props.updateField} type="number" value={props.formState[`strataFromRow_${index}`]} />
+            <ContentTextField label="По ряд" name={`strataToRow_${index}`} onChange={props.updateField} type="number" value={props.formState[`strataToRow_${index}`]} />
+            <button
+              disabled={count <= 1}
+              onClick={() => props.updateFields(removeStrataRow(props.formState, props.content, index, count))}
+              type="button"
+            >
+              Убрать
+            </button>
+          </div>
+          <div className="content-weight-grid">
+            {blockTypes.map((blockType) => {
+              const blockId = stringField(blockType, "id");
+              return (
+                <ContentTextField
+                  key={blockId}
+                  label={contentEntityTitle(blockType, props.content.localization?.ru ?? {})}
+                  name={`strataWeight_${index}_${blockId}`}
+                  onChange={props.updateField}
+                  type="number"
+                  value={props.formState[`strataWeight_${index}_${blockId}`]}
+                />
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentGuaranteedObjectRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, "objectCount", 0);
+  const blockOptions = [{ value: "", label: "Не задан" }, ...blockTypeSelectOptions(props.content)];
+  const requiredBlockOptions = blockTypeSelectOptions(props.content);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить объект"
+      onAdd={() =>
+        props.updateFields({
+          [`objectBlockTypeId_${count}`]: requiredBlockOptions[0]?.value ?? "",
+          objectCount: String(count + 1),
+          [`objectItemCount_${count}`]: "1",
+          [`objectRowEnd_${count}`]: "0",
+          [`objectRowStart_${count}`]: "0",
+          [`objectType_${count}`]: "vein",
+          [`objectVeinTypeId_${count}`]: veinSelectOptions(props.content)[0]?.value ?? ""
+        })
+      }
+      title="Гарантированные объекты"
+    >
+      {count === 0 ? <p className="content-tool-message">Объекты не заданы.</p> : null}
+      {Array.from({ length: count }, (_, index) => {
+        const type = props.formState[`objectType_${index}`] || "vein";
+        return (
+          <section className="content-nested-card" key={`object-${index}`}>
+            <div className="content-list-row content-list-row-wide">
+              <ContentSelectField
+                label="Тип"
+                name={`objectType_${index}`}
+                onChange={props.updateField}
+                options={guaranteedObjectTypeOptions}
+                value={type}
+              />
+              <ContentSelectField
+                label="Блок"
+                name={`objectBlockTypeId_${index}`}
+                onChange={props.updateField}
+                options={type === "chest" ? requiredBlockOptions : blockOptions}
+                value={props.formState[`objectBlockTypeId_${index}`]}
+              />
+              {type === "vein" ? (
+                <ContentSelectField
+                  label="Жила"
+                  name={`objectVeinTypeId_${index}`}
+                  onChange={props.updateField}
+                  options={veinSelectOptions(props.content)}
+                  value={props.formState[`objectVeinTypeId_${index}`]}
+                />
+              ) : null}
+              <button onClick={() => props.updateFields(removeGuaranteedObjectRow(props.formState, index, count))} type="button">
+                Убрать
+              </button>
+            </div>
+            <div className="content-form-grid">
+              <ContentTextField label="С ряда" name={`objectRowStart_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectRowStart_${index}`]} />
+              <ContentTextField label="По ряд" name={`objectRowEnd_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectRowEnd_${index}`]} />
+              <ContentTextField label="Кол-во" name={`objectItemCount_${index}`} onChange={props.updateField} type="number" value={props.formState[`objectItemCount_${index}`]} />
+            </div>
+          </section>
+        );
+      })}
+    </ContentNestedSection>
   );
 }
 
@@ -1597,16 +1952,24 @@ function addRuLocalization(
 
 function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind): ContentRecord[] {
   switch (kind) {
+    case "blockTypes":
+      return content.blockTypes;
     case "builtMineTypes":
       return content.builtMineTypes ?? [];
     case "mineTemplates":
       return content.mineTemplates;
+    case "rewardChestTypes":
+      return content.rewardChestTypes ?? [];
     default:
       return content.goblins;
   }
 }
 
 function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, content: ContentBundle): EntityFormState {
+  if (kind === "blockTypes") {
+    return createBlockTypeFormState(entity, content);
+  }
+
   if (kind === "goblins") {
     return createGoblinFormState(entity, content);
   }
@@ -1615,7 +1978,26 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
     return createMineTemplateFormState(entity, content);
   }
 
+  if (kind === "rewardChestTypes") {
+    return createRewardChestTypeFormState(entity, content);
+  }
+
   return createBuiltMineTypeFormState(entity, content);
+}
+
+function createBlockTypeFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const visualStateAssets = recordField(entity, "visualStateAssets");
+  return {
+    assetBreaking: stringField(visualStateAssets, "breaking"),
+    assetCracked: stringField(visualStateAssets, "cracked"),
+    assetIntact: stringField(visualStateAssets, "intact"),
+    baseHp: numberString(numberField(entity, "baseHp", 1)),
+    id: stringField(entity, "id"),
+    specialBehavior: stringField(entity, "specialBehavior") || "none",
+    tags: arrayStringField(entity, "tags").join(", "),
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createRewardTableFormState("reward", arrayField(entity, "rewardTable"), content)
+  };
 }
 
 function createGoblinFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
@@ -1623,7 +2005,6 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
   const stats = recordField(entity, "baseStats");
   const effects = arrayField(ability, "effects");
   const hireCost = arrayField(entity, "hireCost");
-  const firstHireCost = recordAt(hireCost, 0);
   const capacityEffect = findEffect(effects, "mine_capacity_multiplier");
   const productionEffect = findEffect(effects, "mine_production_multiplier");
 
@@ -1635,8 +2016,6 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     capacityBonusPercent: numberString(multiplierToPercent(numberField(capacityEffect, "value", 1))),
     class: stringField(entity, "class") || "miner",
     description: localizationValue(content, stringField(entity, "descriptionKey")),
-    hireCostAmount: numberString(numberField(firstHireCost, "amount", 0)),
-    hireCostResourceId: stringField(firstHireCost, "resourceId") || findResourceId(content, "gold"),
     id: stringField(entity, "id"),
     loyalty: numberString(numberField(stats, "loyalty", 0)),
     luck: numberString(numberField(stats, "luck", 0)),
@@ -1647,7 +2026,8 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     specialization: stringField(entity, "specialization"),
     speed: numberString(numberField(stats, "speed", 0)),
     strength: numberString(numberField(stats, "strength", 0)),
-    title: localizationValue(content, stringField(entity, "nameKey"))
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createResourceAmountFormState("hireCost", hireCost, content, "gold")
   };
 }
 
@@ -1662,29 +2042,115 @@ function createMineTemplateFormState(entity: ContentRecord, content: ContentBund
     seedMode: stringField(entity, "seedMode") || "playerBased",
     sortOrder: numberString(numberField(entity, "sortOrder", 0)),
     title: localizationValue(content, stringField(entity, "displayNameKey")),
-    width: numberString(numberField(entity, "width", 1))
+    width: numberString(numberField(entity, "width", 1)),
+    ...createGuaranteedObjectsFormState(arrayField(entity, "guaranteedObjects"), content),
+    ...createStrataFormState(arrayField(entity, "strata"), content)
   };
 }
 
 function createBuiltMineTypeFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
   const buildCost = arrayField(entity, "buildCost");
-  const firstCost = recordAt(buildCost, 0);
-  const secondCost = recordAt(buildCost, 1);
 
   return {
     assetId: stringField(entity, "assetId"),
     baseCapacity: numberString(numberField(entity, "baseCapacity", 1)),
     baseProductionPerHour: numberString(numberField(entity, "baseProductionPerHour", 1)),
-    buildCostAmount1: numberString(numberField(firstCost, "amount", 0)),
-    buildCostAmount2: numberString(numberField(secondCost, "amount", 0)),
-    buildCostResourceId1: stringField(firstCost, "resourceId") || findResourceId(content, "stone"),
-    buildCostResourceId2: stringField(secondCost, "resourceId"),
     buildTimeSec: numberString(numberField(entity, "buildTimeSec", 0)),
     id: stringField(entity, "id"),
     productionResourceId: stringField(entity, "productionResourceId") || findResourceId(content, "gold"),
     sourceVeinType: stringField(entity, "sourceVeinType") || stringField((content.veinTypes ?? [])[0] ?? {}, "id"),
-    title: localizationValue(content, stringField(entity, "nameKey"))
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createResourceAmountFormState("buildCost", buildCost, content, "stone")
   };
+}
+
+function createRewardChestTypeFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  return {
+    assetId: stringField(entity, "assetId"),
+    id: stringField(entity, "id"),
+    tier: stringField(entity, "tier") || "wooden",
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createRewardTableFormState("reward", arrayField(entity, "rewardTable"), content)
+  };
+}
+
+function createResourceAmountFormState(
+  prefix: string,
+  rows: ContentRecord[],
+  content: ContentBundle,
+  fallbackResourceId: string
+): EntityFormState {
+  const count = Math.max(1, rows.length);
+  const state: EntityFormState = {
+    [`${prefix}Count`]: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const row = recordAt(rows, index);
+    state[`${prefix}Amount_${index}`] = numberString(numberField(row, "amount", 0));
+    state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, fallbackResourceId);
+  }
+
+  return state;
+}
+
+function createRewardTableFormState(prefix: string, rows: ContentRecord[], content: ContentBundle): EntityFormState {
+  const count = Math.max(1, rows.length);
+  const state: EntityFormState = {
+    [`${prefix}Count`]: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const row = recordAt(rows, index);
+    state[`${prefix}ChancePercent_${index}`] = numberString(Math.round(numberField(row, "chance", 1) * 100));
+    state[`${prefix}Max_${index}`] = numberString(numberField(row, "max", 1));
+    state[`${prefix}Min_${index}`] = numberString(numberField(row, "min", 1));
+    state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, "gold");
+  }
+
+  return state;
+}
+
+function createStrataFormState(strata: ContentRecord[], content: ContentBundle): EntityFormState {
+  const count = Math.max(1, strata.length);
+  const state: EntityFormState = {
+    strataCount: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const stratum = recordAt(strata, index);
+    const weights = recordField(stratum, "blockWeights");
+    state[`strataFromRow_${index}`] = numberString(numberField(stratum, "fromRow", 0));
+    state[`strataId_${index}`] = stringField(stratum, "id") || `stratum_${index + 1}`;
+    state[`strataToRow_${index}`] = numberString(numberField(stratum, "toRow", 0));
+
+    for (const blockType of content.blockTypes) {
+      const blockId = stringField(blockType, "id");
+      state[`strataWeight_${index}_${blockId}`] = numberString(numberField(weights, blockId, 0));
+    }
+  }
+
+  return state;
+}
+
+function createGuaranteedObjectsFormState(objects: ContentRecord[], content: ContentBundle): EntityFormState {
+  const state: EntityFormState = {
+    objectCount: String(objects.length)
+  };
+  const fallbackBlockId = stringField(content.blockTypes[0] ?? {}, "id");
+  const fallbackVeinId = stringField((content.veinTypes ?? [])[0] ?? {}, "id");
+
+  objects.forEach((object, index) => {
+    const rowRange = Array.isArray(object.rowRange) ? object.rowRange : [0, 0];
+    state[`objectBlockTypeId_${index}`] = stringField(object, "blockTypeId") || (stringField(object, "type") === "chest" ? fallbackBlockId : "");
+    state[`objectItemCount_${index}`] = numberString(numberField(object, "count", 1));
+    state[`objectRowEnd_${index}`] = numberString(typeof rowRange[1] === "number" ? rowRange[1] : 0);
+    state[`objectRowStart_${index}`] = numberString(typeof rowRange[0] === "number" ? rowRange[0] : 0);
+    state[`objectType_${index}`] = stringField(object, "type") || "vein";
+    state[`objectVeinTypeId_${index}`] = stringField(object, "veinTypeId") || fallbackVeinId;
+  });
+
+  return state;
 }
 
 function validateEntityForm(
@@ -1710,10 +2176,14 @@ function validateEntityForm(
     errors.push("Название RU обязательно.");
   }
 
-  if (kind === "goblins") {
+  if (kind === "blockTypes") {
+    validateBlockTypeForm(state, content, errors);
+  } else if (kind === "goblins") {
     validateGoblinForm(state, content, errors);
   } else if (kind === "mineTemplates") {
     validateMineTemplateForm(state, content, errors);
+  } else if (kind === "rewardChestTypes") {
+    validateRewardChestTypeForm(state, content, errors);
   } else {
     validateBuiltMineTypeForm(state, content, errors);
   }
@@ -1722,6 +2192,22 @@ function validateEntityForm(
     errors,
     ok: errors.length === 0
   };
+}
+
+function validateBlockTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  validateIntegerField(state, "baseHp", "HP", errors, { min: 1 });
+
+  if (!specialBehaviorOptions.some((option) => option.value === formValue(state, "specialBehavior"))) {
+    errors.push("Выбери корректное особое поведение.");
+  }
+
+  for (const field of ["assetIntact", "assetCracked", "assetBreaking"]) {
+    if (!formValue(state, field).trim()) {
+      errors.push(`${field}: asset обязателен.`);
+    }
+  }
+
+  validateRewardRows(state, "reward", content, errors);
 }
 
 function validateGoblinForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -1758,11 +2244,7 @@ function validateGoblinForm(state: EntityFormState, content: ContentBundle, erro
   validateIntegerField(state, "autoCollectSlots", "Слоты автосбора", errors, { min: 0 });
   validateNumberField(state, "capacityBonusPercent", "Бонус вместимости", errors, { min: 0 });
   validateNumberField(state, "productionBonusPercent", "Бонус добычи", errors, { min: 0 });
-  validateIntegerField(state, "hireCostAmount", "Стоимость найма", errors, { min: 0 });
-
-  if (toNumber(state.hireCostAmount) > 0 && !resourceIdSet(content).has(formValue(state, "hireCostResourceId"))) {
-    errors.push("Выбери ресурс стоимости найма.");
-  }
+  validateResourceAmountRows(state, "hireCost", "Стоимость найма", content, errors);
 
   const productionBonusResourceId = formValue(state, "productionBonusResourceId");
 
@@ -1792,6 +2274,9 @@ function validateMineTemplateForm(state: EntityFormState, content: ContentBundle
   if (completionRewardChestTypeId && !rewardChestIdSet(content).has(completionRewardChestTypeId)) {
     errors.push("Сундук перехода не найден.");
   }
+
+  validateStrataRows(state, content, errors);
+  validateGuaranteedObjectRows(state, content, errors);
 }
 
 function validateBuiltMineTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -1810,8 +2295,163 @@ function validateBuiltMineTypeForm(state: EntityFormState, content: ContentBundl
   validateNumberField(state, "baseProductionPerHour", "Добыча в час", errors, { min: 0.01 });
   validateNumberField(state, "baseCapacity", "Вместимость", errors, { min: 0.01 });
   validateIntegerField(state, "buildTimeSec", "Стройка", errors, { min: 0 });
-  validateCostPair(state, "buildCostResourceId1", "buildCostAmount1", "Стоимость 1", content, errors, { optional: true });
-  validateCostPair(state, "buildCostResourceId2", "buildCostAmount2", "Стоимость 2", content, errors, { optional: true });
+  validateResourceAmountRows(state, "buildCost", "Стоимость строительства", content, errors);
+}
+
+function validateRewardChestTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  if (!rewardChestTierOptions.some((option) => option.value === formValue(state, "tier"))) {
+    errors.push("Выбери корректный tier сундука.");
+  }
+
+  if (!formValue(state, "assetId").trim()) {
+    errors.push("Asset ID обязателен.");
+  }
+
+  validateRewardRows(state, "reward", content, errors);
+}
+
+function validateResourceAmountRows(
+  state: EntityFormState,
+  prefix: string,
+  label: string,
+  content: ContentBundle,
+  errors: string[]
+) {
+  const count = formCount(state, `${prefix}Count`, 1);
+
+  for (let index = 0; index < count; index += 1) {
+    const amountField = `${prefix}Amount_${index}`;
+    const resourceId = formValue(state, `${prefix}ResourceId_${index}`);
+    const rawAmount = formValue(state, amountField);
+    const amount = toNumber(rawAmount);
+
+    if (!rawAmount.trim() || amount === 0) {
+      continue;
+    }
+
+    validateIntegerField(state, amountField, `${label} ${index + 1}`, errors, { min: 1 });
+
+    if (!resourceIdSet(content).has(resourceId)) {
+      errors.push(`${label} ${index + 1}: ресурс не найден.`);
+    }
+  }
+}
+
+function validateRewardRows(state: EntityFormState, prefix: string, content: ContentBundle, errors: string[]) {
+  const count = formCount(state, `${prefix}Count`, 1);
+
+  for (let index = 0; index < count; index += 1) {
+    const rowLabel = `Награда ${index + 1}`;
+    const min = toNumber(state[`${prefix}Min_${index}`]);
+    const max = toNumber(state[`${prefix}Max_${index}`]);
+    const chance = toNumber(state[`${prefix}ChancePercent_${index}`]);
+    const resourceId = formValue(state, `${prefix}ResourceId_${index}`);
+
+    validateIntegerField(state, `${prefix}Min_${index}`, `${rowLabel} min`, errors, { min: 0 });
+    validateIntegerField(state, `${prefix}Max_${index}`, `${rowLabel} max`, errors, { min: 0 });
+    validateNumberField(state, `${prefix}ChancePercent_${index}`, `${rowLabel} chance`, errors, { min: 0 });
+
+    if (min > max) {
+      errors.push(`${rowLabel}: min не может быть больше max.`);
+    }
+
+    if (chance > 100) {
+      errors.push(`${rowLabel}: шанс не может быть больше 100%.`);
+    }
+
+    if (!resourceIdSet(content).has(resourceId)) {
+      errors.push(`${rowLabel}: ресурс не найден.`);
+    }
+  }
+}
+
+function validateStrataRows(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  const count = formCount(state, "strataCount", 1);
+  const seenIds = new Set<string>();
+  const mineHeight = toInteger(state.height);
+
+  for (let index = 0; index < count; index += 1) {
+    const id = formValue(state, `strataId_${index}`).trim();
+    const fromRow = toNumber(state[`strataFromRow_${index}`]);
+    const toRow = toNumber(state[`strataToRow_${index}`]);
+    let hasWeight = false;
+
+    if (!id) {
+      errors.push(`Слой ${index + 1}: ID обязателен.`);
+    } else if (seenIds.has(id)) {
+      errors.push(`Слой ${index + 1}: ID должен быть уникальным.`);
+    }
+    seenIds.add(id);
+
+    validateIntegerField(state, `strataFromRow_${index}`, `Слой ${index + 1} с ряда`, errors, { min: 0 });
+    validateIntegerField(state, `strataToRow_${index}`, `Слой ${index + 1} по ряд`, errors, { min: 0 });
+
+    if (fromRow > toRow) {
+      errors.push(`Слой ${index + 1}: начало не может быть больше конца.`);
+    }
+
+    if (Number.isFinite(toRow) && Number.isInteger(toRow) && mineHeight > 0 && toRow >= mineHeight) {
+      errors.push(`Слой ${index + 1}: ряд выходит за высоту рудника.`);
+    }
+
+    for (const blockType of content.blockTypes) {
+      const blockId = stringField(blockType, "id");
+      const weightField = `strataWeight_${index}_${blockId}`;
+      const weight = toNumber(state[weightField]);
+      validateNumberField(state, weightField, `Слой ${index + 1} ${blockId}`, errors, { min: 0 });
+
+      if (weight > 0) {
+        hasWeight = true;
+      }
+    }
+
+    if (!hasWeight) {
+      errors.push(`Слой ${index + 1}: нужен хотя бы один блок с весом больше 0.`);
+    }
+  }
+}
+
+function validateGuaranteedObjectRows(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  const count = formCount(state, "objectCount", 0);
+  const mineHeight = toInteger(state.height);
+  const blockIds = blockTypeIdSet(content);
+  const veinIds = veinIdSet(content);
+
+  for (let index = 0; index < count; index += 1) {
+    const type = formValue(state, `objectType_${index}`) || "vein";
+    const blockTypeId = formValue(state, `objectBlockTypeId_${index}`);
+    const veinTypeId = formValue(state, `objectVeinTypeId_${index}`);
+    const fromRow = toNumber(state[`objectRowStart_${index}`]);
+    const toRow = toNumber(state[`objectRowEnd_${index}`]);
+
+    if (!guaranteedObjectTypeOptions.some((option) => option.value === type)) {
+      errors.push(`Объект ${index + 1}: тип некорректен.`);
+    }
+
+    if (type === "chest" && !blockIds.has(blockTypeId)) {
+      errors.push(`Объект ${index + 1}: выбери блок сундука.`);
+    }
+
+    if (type === "vein" && !veinIds.has(veinTypeId)) {
+      errors.push(`Объект ${index + 1}: выбери жилу.`);
+    }
+
+    if (blockTypeId && !blockIds.has(blockTypeId)) {
+      errors.push(`Объект ${index + 1}: блок не найден.`);
+    }
+
+    validateIntegerField(state, `objectRowStart_${index}`, `Объект ${index + 1} с ряда`, errors, { min: 0 });
+    validateIntegerField(state, `objectRowEnd_${index}`, `Объект ${index + 1} по ряд`, errors, { min: 0 });
+    validateIntegerField(state, `objectItemCount_${index}`, `Объект ${index + 1} кол-во`, errors, { min: 1 });
+
+    if (fromRow > toRow) {
+      errors.push(`Объект ${index + 1}: начало не может быть больше конца.`);
+    }
+
+    if (Number.isFinite(toRow) && Number.isInteger(toRow) && mineHeight > 0 && toRow >= mineHeight) {
+      errors.push(`Объект ${index + 1}: ряд выходит за высоту рудника.`);
+    }
+  }
 }
 
 function applyEntityForm(
@@ -1820,6 +2460,10 @@ function applyEntityForm(
   selectedId: string,
   state: EntityFormState
 ): EntityDraftUpdate {
+  if (kind === "blockTypes") {
+    return applyBlockTypeForm(content, selectedId, state);
+  }
+
   if (kind === "goblins") {
     return applyGoblinForm(content, selectedId, state);
   }
@@ -1828,7 +2472,49 @@ function applyEntityForm(
     return applyMineTemplateForm(content, selectedId, state);
   }
 
+  if (kind === "rewardChestTypes") {
+    return applyRewardChestTypeForm(content, selectedId, state);
+  }
+
   return applyBuiltMineTypeForm(content, selectedId, state);
+}
+
+function applyBlockTypeForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const current = content.blockTypes.find((item) => stringField(item, "id") === selectedId);
+
+  if (!current) {
+    throw new Error("Блок не найден.");
+  }
+
+  const id = formValue(state, "id");
+  const nameKey = stringField(current, "nameKey") || `block.${id}.name`;
+  const nextBlockType: ContentRecord = {
+    ...current,
+    baseHp: toInteger(state.baseHp),
+    id,
+    nameKey,
+    rewardTable: createRewardTableFromForm(state, "reward"),
+    specialBehavior: formValue(state, "specialBehavior") || "none",
+    tags: formValue(state, "tags")
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean),
+    visualStateAssets: {
+      breaking: formValue(state, "assetBreaking").trim(),
+      cracked: formValue(state, "assetCracked").trim(),
+      intact: formValue(state, "assetIntact").trim()
+    }
+  };
+
+  return {
+    entity: nextBlockType,
+    entityId: selectedId,
+    entityType: "blockType",
+    localization: {
+      [nameKey]: formValue(state, "title").trim()
+    },
+    message: `Блок ${id} сохранен как draft.`
+  };
 }
 
 function applyGoblinForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
@@ -1845,7 +2531,6 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
   const descriptionKey = stringField(current, "descriptionKey") || `goblin.${id}.description`;
   const abilityNameKey = stringField(ability, "nameKey") || `ability.${id}.name`;
   const abilityDescriptionKey = stringField(ability, "descriptionKey") || `ability.${id}.description`;
-  const hireCostAmount = toInteger(state.hireCostAmount);
   const nextEffects = updateGoblinEffects(arrayField(ability, "effects"), state);
   const nextGoblin: ContentRecord = {
     ...current,
@@ -1865,7 +2550,7 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
     },
     class: formValue(state, "class"),
     descriptionKey,
-    hireCost: hireCostAmount > 0 ? [{ resourceId: formValue(state, "hireCostResourceId"), amount: hireCostAmount }] : [],
+    hireCost: createResourceAmountsFromForm(state, "hireCost"),
     id,
     nameKey,
     rarity: formValue(state, "rarity"),
@@ -1909,6 +2594,8 @@ function applyMineTemplateForm(content: ContentBundle, selectedId: string, state
     id,
     seedMode: formValue(state, "seedMode"),
     sortOrder: toInteger(state.sortOrder),
+    strata: createStrataFromForm(state, content),
+    guaranteedObjects: createGuaranteedObjectsFromForm(state),
     width: toInteger(state.width)
   };
 
@@ -1941,7 +2628,7 @@ function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, stat
     assetId: formValue(state, "assetId").trim(),
     baseCapacity: toNumber(state.baseCapacity),
     baseProductionPerHour: toNumber(state.baseProductionPerHour),
-    buildCost: createBuildCostFromForm(current, state),
+    buildCost: createResourceAmountsFromForm(state, "buildCost"),
     buildTimeSec: toInteger(state.buildTimeSec),
     id,
     nameKey,
@@ -1957,6 +2644,36 @@ function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, stat
       [nameKey]: formValue(state, "title").trim()
     },
     message: `Тип шахты ${id} сохранен как draft.`
+  };
+}
+
+function applyRewardChestTypeForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const rewardChestTypes = content.rewardChestTypes ?? [];
+  const current = rewardChestTypes.find((item) => stringField(item, "id") === selectedId);
+
+  if (!current) {
+    throw new Error("Сундук не найден.");
+  }
+
+  const id = formValue(state, "id");
+  const nameKey = stringField(current, "nameKey") || `reward_chest.${id}.name`;
+  const nextRewardChestType: ContentRecord = {
+    ...current,
+    assetId: formValue(state, "assetId").trim(),
+    id,
+    nameKey,
+    rewardTable: createRewardTableFromForm(state, "reward"),
+    tier: formValue(state, "tier")
+  };
+
+  return {
+    entity: nextRewardChestType,
+    entityId: selectedId,
+    entityType: "rewardChestType",
+    localization: {
+      [nameKey]: formValue(state, "title").trim()
+    },
+    message: `Сундук ${id} сохранен как draft.`
   };
 }
 
@@ -1990,23 +2707,98 @@ function updateGoblinEffects(effects: ContentRecord[], state: EntityFormState): 
   return nextEffects;
 }
 
-function createBuildCostFromForm(current: ContentRecord, state: EntityFormState): Array<{ amount: number; resourceId: string }> {
-  const cost: Array<{ amount: number; resourceId: string }> = [];
-  const amount1 = toInteger(state.buildCostAmount1);
-  const amount2 = toInteger(state.buildCostAmount2);
+function createResourceAmountsFromForm(state: EntityFormState, prefix: string): Array<{ amount: number; resourceId: string }> {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const rows: Array<{ amount: number; resourceId: string }> = [];
 
-  if (amount1 > 0) {
-    cost.push({ resourceId: formValue(state, "buildCostResourceId1"), amount: amount1 });
+  for (let index = 0; index < count; index += 1) {
+    const amount = toInteger(state[`${prefix}Amount_${index}`]);
+    const resourceId = formValue(state, `${prefix}ResourceId_${index}`);
+
+    if (amount > 0 && resourceId) {
+      rows.push({ amount, resourceId });
+    }
   }
 
-  if (amount2 > 0 && formValue(state, "buildCostResourceId2")) {
-    cost.push({ resourceId: formValue(state, "buildCostResourceId2"), amount: amount2 });
+  return rows;
+}
+
+function createRewardTableFromForm(state: EntityFormState, prefix: string): Array<{ chance: number; max: number; min: number; resourceId: string }> {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const rows: Array<{ chance: number; max: number; min: number; resourceId: string }> = [];
+
+  for (let index = 0; index < count; index += 1) {
+    rows.push({
+      chance: Math.round((toNumber(state[`${prefix}ChancePercent_${index}`]) / 100) * 1000) / 1000,
+      max: toInteger(state[`${prefix}Max_${index}`]),
+      min: toInteger(state[`${prefix}Min_${index}`]),
+      resourceId: formValue(state, `${prefix}ResourceId_${index}`)
+    });
   }
 
-  return [...cost, ...arrayField(current, "buildCost").slice(2).filter(isResourceAmountLike).map((item) => ({
-    amount: toInteger(String(item.amount)),
-    resourceId: String(item.resourceId)
-  }))];
+  return rows;
+}
+
+function createStrataFromForm(state: EntityFormState, content: ContentBundle): Array<{
+  blockWeights: Record<string, number>;
+  fromRow: number;
+  id: string;
+  toRow: number;
+}> {
+  const count = formCount(state, "strataCount", 1);
+  const strata = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const blockWeights: Record<string, number> = {};
+
+    for (const blockType of content.blockTypes) {
+      const blockId = stringField(blockType, "id");
+      const weight = toNumber(state[`strataWeight_${index}_${blockId}`]);
+
+      if (weight > 0) {
+        blockWeights[blockId] = weight;
+      }
+    }
+
+    strata.push({
+      blockWeights,
+      fromRow: toInteger(state[`strataFromRow_${index}`]),
+      id: formValue(state, `strataId_${index}`).trim(),
+      toRow: toInteger(state[`strataToRow_${index}`])
+    });
+  }
+
+  return strata;
+}
+
+function createGuaranteedObjectsFromForm(state: EntityFormState): ContentRecord[] {
+  const count = formCount(state, "objectCount", 0);
+  const objects: ContentRecord[] = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const type = formValue(state, `objectType_${index}`) || "vein";
+    const blockTypeId = formValue(state, `objectBlockTypeId_${index}`);
+    const baseObject: ContentRecord = {
+      count: toInteger(state[`objectItemCount_${index}`]),
+      rowRange: [toInteger(state[`objectRowStart_${index}`]), toInteger(state[`objectRowEnd_${index}`])],
+      type
+    };
+
+    if (type === "vein") {
+      objects.push({
+        ...baseObject,
+        ...(blockTypeId ? { blockTypeId } : {}),
+        veinTypeId: formValue(state, `objectVeinTypeId_${index}`)
+      });
+    } else {
+      objects.push({
+        ...baseObject,
+        blockTypeId
+      });
+    }
+  }
+
+  return objects;
 }
 
 function setOptionalField(record: ContentRecord, key: string, value: string) {
@@ -2056,29 +2848,6 @@ function validateNumberField(
   }
 }
 
-function validateCostPair(
-  state: EntityFormState,
-  resourceField: string,
-  amountField: string,
-  label: string,
-  content: ContentBundle,
-  errors: string[],
-  options: { optional?: boolean } = {}
-) {
-  const amount = toNumber(state[amountField]);
-  const resourceId = formValue(state, resourceField);
-
-  if (options.optional && !resourceId && amount === 0) {
-    return;
-  }
-
-  validateIntegerField(state, amountField, label, errors, { min: options.optional ? 0 : 1 });
-
-  if (amount > 0 && !resourceIdSet(content).has(resourceId)) {
-    errors.push(`${label}: ресурс не найден.`);
-  }
-}
-
 function resourceSelectOptions(content: ContentBundle): Array<{ label: string; value: string }> {
   return content.resources.map((resource) => ({
     label: contentEntityTitle(resource, content.localization?.ru ?? {}),
@@ -2100,6 +2869,13 @@ function rewardChestSelectOptions(content: ContentBundle): Array<{ label: string
   }));
 }
 
+function blockTypeSelectOptions(content: ContentBundle): Array<{ label: string; value: string }> {
+  return content.blockTypes.map((blockType) => ({
+    label: contentEntityTitle(blockType, content.localization?.ru ?? {}),
+    value: stringField(blockType, "id")
+  }));
+}
+
 function localizationValue(content: ContentBundle, key: string): string {
   return key ? content.localization?.ru?.[key] ?? "" : "";
 }
@@ -2112,6 +2888,11 @@ function recordField(record: ContentRecord, key: string): ContentRecord {
 function arrayField(record: ContentRecord, key: string): ContentRecord[] {
   const value = record[key];
   return Array.isArray(value) ? value.filter(isRecord) : [];
+}
+
+function arrayStringField(record: ContentRecord, key: string): string[] {
+  const value = record[key];
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 
 function recordAt(items: ContentRecord[], index: number): ContentRecord {
@@ -2129,6 +2910,72 @@ function numberString(value: number): string {
 
 function formValue(state: EntityFormState, field: string): string {
   return state[field] ?? "";
+}
+
+function formCount(state: EntityFormState, field: string, fallback: number): number {
+  return Math.max(0, toInteger(state[field] ?? String(fallback)));
+}
+
+function removeIndexedFormRow(
+  state: EntityFormState,
+  prefix: string,
+  index: number,
+  fieldSuffixes: string[],
+  count: number
+): EntityFormState {
+  const next: EntityFormState = {
+    [`${prefix}Count`]: String(Math.max(0, count - 1))
+  };
+
+  for (let rowIndex = index; rowIndex < count - 1; rowIndex += 1) {
+    for (const suffix of fieldSuffixes) {
+      next[`${prefix}${suffix}_${rowIndex}`] = formValue(state, `${prefix}${suffix}_${rowIndex + 1}`);
+    }
+  }
+
+  for (const suffix of fieldSuffixes) {
+    next[`${prefix}${suffix}_${count - 1}`] = "";
+  }
+
+  return next;
+}
+
+function removeStrataRow(state: EntityFormState, content: ContentBundle, index: number, count: number): EntityFormState {
+  const suffixes = ["Id", "FromRow", "ToRow"];
+  const next: EntityFormState = {
+    strataCount: String(Math.max(0, count - 1))
+  };
+
+  for (let rowIndex = index; rowIndex < count - 1; rowIndex += 1) {
+    next[`strataId_${rowIndex}`] = formValue(state, `strataId_${rowIndex + 1}`);
+    next[`strataFromRow_${rowIndex}`] = formValue(state, `strataFromRow_${rowIndex + 1}`);
+    next[`strataToRow_${rowIndex}`] = formValue(state, `strataToRow_${rowIndex + 1}`);
+
+    for (const blockType of content.blockTypes) {
+      const blockId = stringField(blockType, "id");
+      next[`strataWeight_${rowIndex}_${blockId}`] = formValue(state, `strataWeight_${rowIndex + 1}_${blockId}`);
+    }
+  }
+
+  for (const suffix of suffixes) {
+    next[`strata${suffix}_${count - 1}`] = "";
+  }
+
+  for (const blockType of content.blockTypes) {
+    next[`strataWeight_${count - 1}_${stringField(blockType, "id")}`] = "";
+  }
+
+  return next;
+}
+
+function removeGuaranteedObjectRow(state: EntityFormState, index: number, count: number): EntityFormState {
+  return removeIndexedFormRow(
+    state,
+    "object",
+    index,
+    ["Type", "BlockTypeId", "VeinTypeId", "RowStart", "RowEnd", "ItemCount"],
+    count
+  );
 }
 
 function findEffect(effects: ContentRecord[], type: string): ContentRecord {
@@ -2159,6 +3006,10 @@ function resourceIdSet(content: ContentBundle): Set<string> {
   return new Set(content.resources.map((resource) => stringField(resource, "id")));
 }
 
+function blockTypeIdSet(content: ContentBundle): Set<string> {
+  return new Set(content.blockTypes.map((blockType) => stringField(blockType, "id")));
+}
+
 function veinIdSet(content: ContentBundle): Set<string> {
   return new Set((content.veinTypes ?? []).map((veinType) => stringField(veinType, "id")));
 }
@@ -2178,10 +3029,6 @@ function statLabel(field: string): string {
     default:
       return "Сила";
   }
-}
-
-function isResourceAmountLike(value: ContentRecord): value is { amount: number; resourceId: string } {
-  return typeof value.resourceId === "string" && typeof value.amount === "number";
 }
 
 function CredentialsSection(props: {
