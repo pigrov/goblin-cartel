@@ -5,7 +5,9 @@ import {
   canMoveToNextMine,
   findMineTemplateIndex,
   findNextMineTemplate,
-  hasBuiltMineFromSession
+  hasBuiltMineFromSession,
+  markMineCompletionNoticeSeen,
+  shouldShowMineCompletionNotice
 } from "./mineProgressionClientState";
 
 const firstMine = {
@@ -52,5 +54,24 @@ describe("mine progression client state", () => {
     expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session })).toBe(true);
     expect(canMoveToNextMine({ builtMines: [], mineTemplates: [firstMine, secondMine], session })).toBe(false);
     expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine], session })).toBe(false);
+  });
+
+  it("shows mine completion notice once per mine", () => {
+    expect(
+      shouldShowMineCompletionNotice({
+        canStartNextMine: true,
+        mineTemplateId: "first_mine",
+        seenMineCompletionNoticeIds: []
+      })
+    ).toBe(true);
+    expect(
+      shouldShowMineCompletionNotice({
+        canStartNextMine: true,
+        mineTemplateId: "first_mine",
+        seenMineCompletionNoticeIds: ["first_mine"]
+      })
+    ).toBe(false);
+    expect(markMineCompletionNoticeSeen([], "first_mine")).toEqual(["first_mine"]);
+    expect(markMineCompletionNoticeSeen(["first_mine"], "first_mine")).toEqual(["first_mine"]);
   });
 });

@@ -1097,7 +1097,8 @@ body,
 .mine-progress-card button,
 .found-vein-card button,
 .built-mine-card button,
-.vein-modal-actions button {
+.vein-modal-actions button,
+.mine-complete-actions button {
   min-height: 34px;
   border: 1px solid #a86235;
   border-radius: var(--gc-radius-sm);
@@ -1116,7 +1117,8 @@ body,
 .mine-progress-card button:disabled,
 .found-vein-card button:disabled,
 .built-mine-card button:disabled,
-.vein-modal-actions button:disabled {
+.vein-modal-actions button:disabled,
+.mine-complete-actions button:disabled {
   border-color: var(--gc-border);
   background: var(--gc-panel-raised);
   cursor: not-allowed;
@@ -1739,7 +1741,8 @@ body,
 
 .boss-modal,
 .settings-modal,
-.vein-modal {
+.vein-modal,
+.mine-complete-modal {
   display: grid;
   gap: 12px;
   padding: 12px;
@@ -1751,7 +1754,8 @@ body,
 
 .boss-modal header,
 .settings-modal header,
-.vein-modal header {
+.vein-modal header,
+.mine-complete-modal header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1763,13 +1767,16 @@ body,
 .settings-modal p,
 .settings-modal strong,
 .vein-modal p,
-.vein-modal strong {
+.vein-modal strong,
+.mine-complete-modal p,
+.mine-complete-modal strong {
   margin: 0;
 }
 
 .boss-modal p,
 .settings-modal p,
-.vein-modal p {
+.vein-modal p,
+.mine-complete-modal p {
   color: var(--gc-muted);
   font-size: 11px;
 }
@@ -1791,6 +1798,76 @@ body,
 }
 
 .vein-modal-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mine-complete-modal {
+  overflow: hidden;
+  border-color: rgb(242 184 75 / 46%);
+  background:
+    radial-gradient(circle at 50% 0, rgb(242 184 75 / 16%), transparent 42%),
+    linear-gradient(180deg, rgb(68 198 200 / 10%), transparent 56%),
+    #1c140f;
+}
+
+.mine-complete-modal strong {
+  color: var(--gc-gold);
+}
+
+.mine-complete-medal {
+  width: 74px;
+  height: 74px;
+  display: grid;
+  place-items: center;
+  justify-self: center;
+  border: 1px solid rgb(242 184 75 / 52%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 28%, rgb(255 255 255 / 24%), transparent 24%),
+    linear-gradient(180deg, rgb(242 184 75 / 32%), rgb(192 122 61 / 22%)),
+    rgb(24 18 13 / 88%);
+  color: var(--gc-gold);
+  box-shadow:
+    0 0 0 8px rgb(242 184 75 / 8%),
+    0 18px 32px rgb(0 0 0 / 28%);
+}
+
+.mine-complete-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.mine-complete-summary > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  padding: 9px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 4%);
+}
+
+.mine-complete-summary span,
+.mine-complete-summary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-complete-summary span {
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.mine-complete-summary strong {
+  color: var(--gc-text);
+  font-size: 13px;
+}
+
+.mine-complete-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;

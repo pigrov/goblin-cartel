@@ -49,7 +49,9 @@ import {
 import {
   canMoveToNextMine,
   findMineTemplateIndex,
-  findNextMineTemplate
+  findNextMineTemplate,
+  markMineCompletionNoticeSeen,
+  shouldShowMineCompletionNotice
 } from "./mineProgressionClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
@@ -107,6 +109,7 @@ interface StoredMineSave {
   goblinPlacements?: GoblinPlacementMap;
   bossEnergy?: BossEnergyState;
   builtMines?: BuiltMineState[];
+  mineCompletionNoticeSeenIds?: string[];
   savedAt?: number;
 }
 
@@ -130,6 +133,7 @@ interface RestoredMiningState {
   goblinPlacements: GoblinPlacementMap;
   bossEnergy: BossEnergyState;
   builtMines: BuiltMineState[];
+  mineCompletionNoticeSeenIds: string[];
 }
 
 interface OfflineMiningSummary {
@@ -191,6 +195,8 @@ export function App() {
   const [builtMines, setBuiltMines] = useState<BuiltMineState[]>([]);
   const [builtMineMessage, setBuiltMineMessage] = useState<string | null>(null);
   const [foundVeinNotice, setFoundVeinNotice] = useState<MiningFoundVein | null>(null);
+  const [mineCompletionNoticeOpen, setMineCompletionNoticeOpen] = useState(false);
+  const [mineCompletionNoticeSeenIds, setMineCompletionNoticeSeenIds] = useState<string[]>([]);
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
   const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(bossEnergyConfig, Date.now()));
   const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
@@ -265,6 +271,8 @@ export function App() {
           setGoblinPlacements(restoredMining.goblinPlacements);
           setBossEnergy(restoredMining.bossEnergy);
           setBuiltMines(restoredMining.builtMines);
+          setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
+          setMineCompletionNoticeOpen(false);
           setBuiltMineMessage(null);
           setFoundVeinNotice(null);
           setClockNow(Date.now());
@@ -291,6 +299,8 @@ export function App() {
           setGoblinPlacements(restoredMining.goblinPlacements);
           setBossEnergy(restoredMining.bossEnergy);
           setBuiltMines(restoredMining.builtMines);
+          setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
+          setMineCompletionNoticeOpen(false);
           setBuiltMineMessage(null);
           setFoundVeinNotice(null);
           setClockNow(Date.now());
@@ -315,8 +325,27 @@ export function App() {
       return;
     }
 
-    saveMiningSession(contentState.version, session, activeCell, platformRow, goblinPlacements, bossEnergy, builtMines);
-  }, [activeCell, bossEnergy, builtMines, contentState.version, goblinPlacements, platformRow, session, sessionReady]);
+    saveMiningSession(
+      contentState.version,
+      session,
+      activeCell,
+      platformRow,
+      goblinPlacements,
+      bossEnergy,
+      builtMines,
+      mineCompletionNoticeSeenIds
+    );
+  }, [
+    activeCell,
+    bossEnergy,
+    builtMines,
+    contentState.version,
+    goblinPlacements,
+    mineCompletionNoticeSeenIds,
+    platformRow,
+    session,
+    sessionReady
+  ]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -393,6 +422,10 @@ export function App() {
     () => findNextMineTemplate(contentState.content.mineTemplates, session.mine.templateId),
     [contentState.content.mineTemplates, session.mine.templateId]
   );
+  const currentMineIndex = useMemo(
+    () => (mineTemplate ? findMineTemplateIndex(contentState.content.mineTemplates, mineTemplate.id) : -1),
+    [contentState.content.mineTemplates, mineTemplate]
+  );
   const canStartNextMine = useMemo(
     () =>
       canMoveToNextMine({
@@ -402,6 +435,31 @@ export function App() {
       }),
     [contentState.content.mineTemplates, session, visibleBuiltMines]
   );
+
+  useEffect(() => {
+    if (
+      !sessionReady ||
+      foundVeinNotice ||
+      mineCompletionNoticeOpen ||
+      !shouldShowMineCompletionNotice({
+        canStartNextMine,
+        mineTemplateId: session.mine.templateId,
+        seenMineCompletionNoticeIds: mineCompletionNoticeSeenIds
+      })
+    ) {
+      return;
+    }
+
+    setMineCompletionNoticeOpen(true);
+  }, [
+    canStartNextMine,
+    foundVeinNotice,
+    mineCompletionNoticeOpen,
+    mineCompletionNoticeSeenIds,
+    session.mine.templateId,
+    sessionReady
+  ]);
+
   const platformCells = useMemo(() => findPlatformCells(session, currentPlatformRow), [currentPlatformRow, session]);
   const platformCellKeys = useMemo(() => new Set(platformCells.map(cellKey)), [platformCells]);
   const exposedCells = useMemo(() => findExposedCells(session), [session]);
@@ -692,11 +750,13 @@ export function App() {
     setBuiltMines([]);
     setBuiltMineMessage(null);
     setFoundVeinNotice(null);
+    setMineCompletionNoticeOpen(false);
+    setMineCompletionNoticeSeenIds([]);
     syncVisibleResourceAmounts(nextSession.resources);
     setClockNow(resetAt);
     setOfflineSummary(null);
     setPendingOfflineFinalHit(null);
-    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy, []);
+    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy, [], []);
   }
 
   function handleConfirmResetMine() {
@@ -725,17 +785,35 @@ export function App() {
     const nextPlatformRow = findPlatformRow(nextSession, 0);
     const nextActiveCell = findFirstPlayableCell(nextSession);
     const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, hiredGoblins, nextPlatformRow);
+    const nextSeenNoticeIds = markMineCompletionNoticeSeen(mineCompletionNoticeSeenIds, session.mine.templateId);
 
     setSession(nextSession);
     setActiveCell(nextActiveCell);
     setPlatformRow(nextPlatformRow);
     setGoblinPlacements(nextGoblinPlacements);
     setFoundVeinNotice(null);
+    setMineCompletionNoticeOpen(false);
+    setMineCompletionNoticeSeenIds(nextSeenNoticeIds);
     setPendingOfflineFinalHit(null);
     setOfflineSummary(null);
     setActiveSection("mine");
     setBuiltMineMessage(`${mineTitle(nextMine, labels)} открыт.`);
-    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, bossEnergy, builtMines);
+    saveMiningSession(
+      contentState.version,
+      nextSession,
+      nextActiveCell,
+      nextPlatformRow,
+      nextGoblinPlacements,
+      bossEnergy,
+      builtMines,
+      nextSeenNoticeIds
+    );
+  }
+
+  function handleDismissMineCompletionNotice() {
+    setMineCompletionNoticeOpen(false);
+    setMineCompletionNoticeSeenIds((current) => markMineCompletionNoticeSeen(current, session.mine.templateId));
+    setBuiltMineMessage("Можно перейти к следующему руднику из меню шахт.");
   }
 
   function showResourceTooltip(resource: ResourceConfig, value: number) {
@@ -989,6 +1067,45 @@ export function App() {
           </div>
         ) : null}
 
+        {mineCompletionNoticeOpen && nextMineTemplate ? (
+          <div className="modal-backdrop" onClick={handleDismissMineCompletionNotice} role="presentation">
+            <section className="mine-complete-modal" aria-label="Рудник освоен" onClick={(event) => event.stopPropagation()}>
+              <header>
+                <div>
+                  <p>Рудник освоен</p>
+                  <strong>{mineTitle(mineTemplate, labels)}</strong>
+                </div>
+                <button className="icon-button" onClick={handleDismissMineCompletionNotice} type="button" aria-label="Закрыть">
+                  <X size={18} />
+                </button>
+              </header>
+              <div className="mine-complete-medal" aria-hidden="true">
+                <Pickaxe size={30} />
+              </div>
+              <div className="mine-complete-summary">
+                <div>
+                  <span>Жила закреплена</span>
+                  <strong>Постоянная шахта построена</strong>
+                </div>
+                <div>
+                  <span>Открыт маршрут</span>
+                  <strong>
+                    Рудник №{currentMineIndex + 2} · {mineTitle(nextMineTemplate, labels)}
+                  </strong>
+                </div>
+              </div>
+              <div className="mine-complete-actions">
+                <button onClick={handleStartNextMine} type="button">
+                  В следующий рудник
+                </button>
+                <button onClick={handleDismissMineCompletionNotice} type="button">
+                  Остаться
+                </button>
+              </div>
+            </section>
+          </div>
+        ) : null}
+
         {settingsOpen ? (
           <div className="modal-backdrop" onClick={() => setSettingsOpen(false)} role="presentation">
             <section className="settings-modal" aria-label="Настройки" onClick={(event) => event.stopPropagation()}>
@@ -1135,7 +1252,8 @@ function createRestoredMiningState(
       platformRow: initialPlatformRow,
       goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
-      builtMines: []
+      builtMines: [],
+      mineCompletionNoticeSeenIds: []
     };
   }
 
@@ -1151,6 +1269,7 @@ function createRestoredMiningState(
       : createDefaultGoblinPlacements(restoredSession, hiredGoblins, restoredPlatformRow);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
     const restoredBuiltMines = advanceBuiltMinesProduction(storedSave.builtMines ?? [], now);
+    const restoredMineCompletionNoticeSeenIds = normalizeIdList(storedSave.mineCompletionNoticeSeenIds ?? []);
 
     return applyOfflineMining(
       content,
@@ -1161,6 +1280,7 @@ function createRestoredMiningState(
       restoredPlacements,
       restoredBossEnergy,
       restoredBuiltMines,
+      restoredMineCompletionNoticeSeenIds,
       storedSave.savedAt
     );
   } catch {
@@ -1174,7 +1294,8 @@ function createRestoredMiningState(
       platformRow: initialPlatformRow,
       goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
-      builtMines: []
+      builtMines: [],
+      mineCompletionNoticeSeenIds: []
     };
   }
 }
@@ -1188,6 +1309,7 @@ function applyOfflineMining(
   goblinPlacements: GoblinPlacementMap,
   bossEnergy: BossEnergyState,
   builtMines: BuiltMineState[],
+  mineCompletionNoticeSeenIds: string[],
   savedAt: number | undefined
 ): RestoredMiningState {
   const activePlatformRow = findPlatformRow(session, platformRow);
@@ -1201,7 +1323,8 @@ function applyOfflineMining(
       platformRow: activePlatformRow,
       goblinPlacements,
       bossEnergy,
-      builtMines
+      builtMines,
+      mineCompletionNoticeSeenIds
     };
   }
 
@@ -1216,7 +1339,8 @@ function applyOfflineMining(
       platformRow: activePlatformRow,
       goblinPlacements,
       bossEnergy,
-      builtMines
+      builtMines,
+      mineCompletionNoticeSeenIds
     };
   }
 
@@ -1237,7 +1361,8 @@ function applyOfflineMining(
       platformRow: activePlatformRow,
       goblinPlacements: restoredPlacements,
       bossEnergy,
-      builtMines
+      builtMines,
+      mineCompletionNoticeSeenIds
     };
   }
 
@@ -1305,7 +1430,8 @@ function applyOfflineMining(
       platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow
     }),
     bossEnergy,
-    builtMines
+    builtMines,
+    mineCompletionNoticeSeenIds
   };
 }
 
@@ -1923,7 +2049,8 @@ function saveMiningSession(
   platformRow: number,
   goblinPlacements: GoblinPlacementMap,
   bossEnergy: BossEnergyState,
-  builtMines: BuiltMineState[]
+  builtMines: BuiltMineState[],
+  mineCompletionNoticeSeenIds: string[]
 ): void {
   const payload: StoredMineSave = {
     contentVersion,
@@ -1933,9 +2060,14 @@ function saveMiningSession(
     goblinPlacements,
     bossEnergy,
     builtMines,
+    mineCompletionNoticeSeenIds,
     savedAt: Date.now()
   };
   localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
+}
+
+function normalizeIdList(values: readonly string[]): string[] {
+  return values.filter((value, index, list) => typeof value === "string" && value.length > 0 && list.indexOf(value) === index);
 }
 
 function loadMiningSessionSave(): StoredMineSave | null {

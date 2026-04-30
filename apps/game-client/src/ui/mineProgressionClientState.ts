@@ -30,3 +30,22 @@ export function canMoveToNextMine(input: {
 }): boolean {
   return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasBuiltMineFromSession(input.session, input.builtMines);
 }
+
+export function shouldShowMineCompletionNotice(input: {
+  canStartNextMine: boolean;
+  mineTemplateId: string;
+  seenMineCompletionNoticeIds: readonly string[];
+}): boolean {
+  return input.canStartNextMine && !input.seenMineCompletionNoticeIds.includes(input.mineTemplateId);
+}
+
+export function markMineCompletionNoticeSeen(
+  seenMineCompletionNoticeIds: readonly string[],
+  mineTemplateId: string
+): string[] {
+  if (seenMineCompletionNoticeIds.includes(mineTemplateId)) {
+    return [...seenMineCompletionNoticeIds];
+  }
+
+  return [...seenMineCompletionNoticeIds, mineTemplateId];
+}
