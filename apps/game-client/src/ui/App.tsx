@@ -45,6 +45,7 @@ import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import {
   canBuildFoundVein,
+  createBuiltMineDashboardState,
   createBuildCostRequirements,
   createVisibleBuiltMines,
   findUnbuiltFoundVeins,
@@ -1003,6 +1004,48 @@ export function App() {
     setBuiltMineMessage(`Собрано ${formatInteger(result.collectedAmount)} ${resourceLabelById(result.builtMine.productionResourceId, labels, contentState.content)}.`);
   }
 
+  function handleCollectAllBuiltMines() {
+    const now = Date.now();
+    const collectedResources: Record<string, number> = {};
+    let nextResources = session.resources;
+    let collectedTotal = 0;
+
+    const nextBuiltMines = builtMines.map((builtMine) => {
+      const result = collectBuiltMineIncome({
+        builtMine,
+        now,
+        resources: nextResources
+      });
+
+      nextResources = result.resources;
+
+      if (result.collectedAmount > 0) {
+        collectedTotal += result.collectedAmount;
+        collectedResources[result.builtMine.productionResourceId] =
+          (collectedResources[result.builtMine.productionResourceId] ?? 0) + result.collectedAmount;
+      }
+
+      return result.builtMine;
+    });
+
+    setBuiltMines(nextBuiltMines);
+
+    if (collectedTotal <= 0) {
+      setBuiltMineMessage("В шахтах пока нечего собрать.");
+      return;
+    }
+
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: nextResources
+    }));
+    syncVisibleResourceAmounts(nextResources);
+    setBuiltMineMessage(
+      `Собрано ${resourceAmountSummaryLabel(rewardDropsFromMap(collectedResources, contentState.content, labels), labels, contentState.content)}.`
+    );
+  }
+
   function handleHireGoblin(goblin: GoblinConfig) {
     const result = hireGoblin({
       goblinId: goblin.id,
@@ -1084,6 +1127,7 @@ export function App() {
             labels={labels}
             message={builtMineMessage}
             nextMineTemplate={nextMineTemplate}
+            onCollectAllMines={handleCollectAllBuiltMines}
             onBuildMine={handleBuildMineFromVein}
             onCollectMine={handleCollectBuiltMine}
             onStartNextMine={handleStartNextMine}
@@ -1734,7 +1778,7 @@ function GoblinSection(props: {
   rosterMessage: string | null;
 }) {
   return (
-    <section className="goblin-roster" aria-label="Гоблины">
+    <section className="goblin-roster management-screen" aria-label="Гоблины">
       <header className="section-title">
         <div>
           <p>Бригада</p>
@@ -1790,28 +1834,70 @@ function BuiltMinesSection(props: {
   nextMineTemplate: MineTemplateConfig | undefined;
   now: number;
   onBuildMine: (vein: MiningFoundVein) => boolean;
+  onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
   onStartNextMine: () => void;
   resources: Record<string, number>;
 }) {
-  const activeMineCount = props.builtMines.filter((builtMine) => builtMine.status === "active").length;
-  const buildingMineCount = props.builtMines.filter((builtMine) => builtMine.status === "building").length;
+  const dashboard = createBuiltMineDashboardState(props.builtMines);
+  const hasBuiltMines = props.builtMines.length > 0;
+  const hasCollectableIncome = dashboard.collectableResources.length > 0;
+  const hasFoundVeins = props.foundVeins.length > 0;
   const currentMineIndex = props.currentMineTemplate ? findMineTemplateIndex(props.content.mineTemplates, props.currentMineTemplate.id) : -1;
 
   return (
-    <section className="built-mines" aria-label="Шахты">
-      <header className="section-title">
+    <section className="built-mines management-screen" aria-label="Шахты">
+      <header className="section-title management-title">
         <div>
-          <p>Производство</p>
-          <strong>{props.builtMines.length} шахт</strong>
+          <p>Шахты</p>
+          <strong>Постоянная добыча</strong>
         </div>
-        <span>{activeMineCount} работают · {buildingMineCount} строятся</span>
+        <span>
+          {dashboard.activeCount} работают · {dashboard.buildingCount} строятся · {dashboard.fullCount} заполнены
+        </span>
       </header>
 
       <p className="built-mine-message">{props.message ?? ""}</p>
 
       <div className="built-mine-list">
-        <article className="mine-progress-card">
+        <section className="built-mine-dashboard" aria-label="Сводка шахт">
+          <div className="built-mine-kpis">
+            <div>
+              <span>Работают</span>
+              <strong>{dashboard.activeCount}</strong>
+            </div>
+            <div>
+              <span>Строятся</span>
+              <strong>{dashboard.buildingCount}</strong>
+            </div>
+            <div>
+              <span>Заполнены</span>
+              <strong>{dashboard.fullCount}</strong>
+            </div>
+          </div>
+          <button className="built-mine-collect-all" disabled={!hasCollectableIncome} onClick={props.onCollectAllMines} type="button">
+            <span>К сбору</span>
+            <strong>{resourceAmountSummaryLabel(dashboard.collectableResources, props.labels, props.content)}</strong>
+            <small>{hasCollectableIncome ? `${dashboard.collectableMineCount} шахт готовы` : "Доход еще копится"}</small>
+          </button>
+          <div className="built-mine-income-row" aria-label="Доход в час">
+            <span>Доход в час</span>
+            <div>
+              {dashboard.productionPerHour.length > 0 ? (
+                dashboard.productionPerHour.map((resource) => (
+                  <span className={`mine-resource-pill ${resourceClassName(resource.resourceId)}`} key={resource.resourceId}>
+                    <ResourceIcon resourceId={resource.resourceId} size={14} />
+                    {formatNumber(resource.amount)}/ч
+                  </span>
+                ))
+              ) : (
+                <span className="mine-resource-pill empty">Нет активных шахт</span>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <article className="mine-progress-card mine-route-card">
           <div>
             <span>Текущий рудник</span>
             <strong>
@@ -1828,103 +1914,153 @@ function BuiltMinesSection(props: {
           )}
         </article>
 
-        {props.foundVeins.map((vein) => {
-          const builtMineType = builtMineTypeForVein(vein, props.builtMineTypes);
-          const canBuild = canBuildFoundVein({
-            builtMineTypes: props.builtMineTypes,
-            builtMines: props.builtMines,
-            resources: props.resources,
-            vein
-          });
-          const buildRequirements = builtMineType ? createBuildCostRequirements(builtMineType.buildCost, props.resources) : [];
-          const missingRequirements = buildRequirements.filter((requirement) => !requirement.ok);
-
-          return (
-            <article className="found-vein-card" key={vein.id}>
-              <div className="found-vein-icon" aria-hidden="true">
-                <Gem size={22} />
+        {hasFoundVeins ? (
+          <section className="built-mine-group" aria-label="Найденные жилы">
+            <header className="built-mine-group-title">
+              <div>
+                <span>Новые шахты</span>
+                <strong>Найденные жилы</strong>
               </div>
-              <div className="found-vein-main">
-                <strong>{veinNameById(vein.veinTypeId, props.content, props.labels)}</strong>
-                {builtMineType ? (
-                  <>
-                    <span>
-                      {builtMineTypeName(builtMineType.id, props.content, props.labels)} · {formatNumber(builtMineType.baseProductionPerHour)}/ч{" "}
-                      {resourceLabelById(builtMineType.productionResourceId, props.labels, props.content)}
-                    </span>
-                    <div className="build-cost-list">
-                      {buildRequirements.map((requirement) => (
-                        <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
-                          <ResourceIcon resourceId={requirement.resourceId} size={13} />
-                          {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
-                        </span>
-                      ))}
+              <small>{props.foundVeins.length} доступно</small>
+            </header>
+            <div className="built-mine-group-list">
+              {props.foundVeins.map((vein) => {
+                const builtMineType = builtMineTypeForVein(vein, props.builtMineTypes);
+                const canBuild = canBuildFoundVein({
+                  builtMineTypes: props.builtMineTypes,
+                  builtMines: props.builtMines,
+                  resources: props.resources,
+                  vein
+                });
+                const buildRequirements = builtMineType ? createBuildCostRequirements(builtMineType.buildCost, props.resources) : [];
+                const missingRequirements = buildRequirements.filter((requirement) => !requirement.ok);
+
+                return (
+                  <article className="found-vein-card" key={vein.id}>
+                    <div className="found-vein-icon" aria-hidden="true">
+                      <Gem size={22} />
                     </div>
-                    <small>
-                      {missingRequirements.length > 0
-                        ? `Не хватает: ${missingRequirements
-                            .map(
-                              (requirement) =>
-                                `${formatInteger(requirement.missing)} ${resourceLabelById(requirement.resourceId, props.labels, props.content)}`
-                            )
-                            .join(" · ")}`
-                        : `Строительство ${formatDurationMs(builtMineType.buildTimeSec * 1000)}`}
-                    </small>
-                  </>
-                ) : (
-                  <span>Нет проекта шахты</span>
-                )}
-              </div>
-              <button disabled={!canBuild || !builtMineType} onClick={() => props.onBuildMine(vein)} type="button">
-                {canBuild ? "Построить" : "Не хватает"}
-              </button>
-            </article>
-          );
-        })}
-
-        {props.builtMines.map((builtMine) => {
-          const collectableAmount = Math.floor(builtMine.storedAmount);
-          const storagePercent = getBuiltMineStoragePercent(builtMine);
-          const buildProgressPercent = getBuiltMineBuildProgressPercent(builtMine, props.now);
-          const buildRemainingMs = getBuiltMineBuildRemainingMs(builtMine, props.now);
-          const progressPercent = builtMine.status === "building" ? buildProgressPercent : storagePercent;
-          const storageFull = isBuiltMineStorageFull(builtMine);
-
-          return (
-            <article className={`built-mine-card ${builtMine.status}${storageFull ? " full" : ""}`} key={builtMine.id}>
-              <header>
-                <div>
-                  <strong>{builtMineTypeName(builtMine.typeId, props.content, props.labels)}</strong>
-                  <span>{builtMineStatusLabel(builtMine, props.now)}</span>
-                </div>
-                <span>{formatNumber(builtMine.productionPerHour)}/ч</span>
-              </header>
-              <div className={builtMine.status === "building" ? "built-mine-progress building" : "built-mine-progress storage"}>
-                <span style={{ width: `${progressPercent}%` }} />
-              </div>
-              <footer>
-                {builtMine.status === "building" ? (
-                  <span>Готово через {formatDurationMs(buildRemainingMs)}</span>
-                ) : (
-                  <span>
-                    {formatNumber(builtMine.storedAmount)}/{formatNumber(builtMine.capacity)}{" "}
-                    {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)}
-                  </span>
-                )}
-                <button disabled={builtMine.status !== "active" || collectableAmount <= 0} onClick={() => props.onCollectMine(builtMine.id)} type="button">
-                  {builtMine.status === "building" ? "Строится" : `Собрать ${collectableAmount > 0 ? formatInteger(collectableAmount) : ""}`}
-                </button>
-              </footer>
-            </article>
-          );
-        })}
-
-        {props.foundVeins.length === 0 && props.builtMines.length === 0 ? (
-          <article className="built-mine-empty">
-            <strong>Шахт пока нет</strong>
-            <span>Докопайся до жилы в руднике, чтобы открыть первую постоянную шахту.</span>
-          </article>
+                    <div className="found-vein-main">
+                      <strong>{veinNameById(vein.veinTypeId, props.content, props.labels)}</strong>
+                      {builtMineType ? (
+                        <>
+                          <span>
+                            {builtMineTypeName(builtMineType.id, props.content, props.labels)} ·{" "}
+                            {formatNumber(builtMineType.baseProductionPerHour)}/ч{" "}
+                            {resourceLabelById(builtMineType.productionResourceId, props.labels, props.content)}
+                          </span>
+                          <div className="build-cost-list">
+                            {buildRequirements.map((requirement) => (
+                              <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                                <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                                {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                              </span>
+                            ))}
+                          </div>
+                          <small>
+                            {missingRequirements.length > 0
+                              ? `Не хватает: ${missingRequirements
+                                  .map(
+                                    (requirement) =>
+                                      `${formatInteger(requirement.missing)} ${resourceLabelById(
+                                        requirement.resourceId,
+                                        props.labels,
+                                        props.content
+                                      )}`
+                                  )
+                                  .join(" · ")}`
+                              : `Строительство ${formatDurationMs(builtMineType.buildTimeSec * 1000)}`}
+                          </small>
+                        </>
+                      ) : (
+                        <span>Нет проекта шахты</span>
+                      )}
+                    </div>
+                    <button disabled={!canBuild || !builtMineType} onClick={() => props.onBuildMine(vein)} type="button">
+                      {canBuild ? "Построить" : "Не хватает"}
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
+
+        <section className="built-mine-group permanent-mines-group" aria-label="Постоянные шахты">
+          <header className="built-mine-group-title">
+            <div>
+              <span>Список шахт</span>
+              <strong>{hasBuiltMines ? `${props.builtMines.length} шахт` : "Пока пусто"}</strong>
+            </div>
+            <small>{hasBuiltMines ? "Сбор вручную" : "Нужна первая жила"}</small>
+          </header>
+
+          {hasBuiltMines ? (
+            <div className="built-mine-group-list">
+              {props.builtMines.map((builtMine) => {
+                const collectableAmount = Math.floor(builtMine.storedAmount);
+                const storagePercent = getBuiltMineStoragePercent(builtMine);
+                const buildProgressPercent = getBuiltMineBuildProgressPercent(builtMine, props.now);
+                const buildRemainingMs = getBuiltMineBuildRemainingMs(builtMine, props.now);
+                const progressPercent = builtMine.status === "building" ? buildProgressPercent : storagePercent;
+                const storageFull = isBuiltMineStorageFull(builtMine);
+                const stateClass = builtMine.status === "building" ? "building" : storageFull ? "full" : "active";
+
+                return (
+                  <article className={`built-mine-card ${builtMine.status}${storageFull ? " full" : ""}`} key={builtMine.id}>
+                    <header className="built-mine-card-head">
+                      <div className="built-mine-card-title">
+                        <span className={`built-mine-state ${stateClass}`}>{builtMineStateText(builtMine, props.now)}</span>
+                        <strong>{builtMineTypeName(builtMine.typeId, props.content, props.labels)}</strong>
+                        <small>
+                          {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)} · уровень {builtMine.level}
+                        </small>
+                      </div>
+                      <div className={`built-mine-resource-icon ${resourceClassName(builtMine.productionResourceId)}`} aria-hidden="true">
+                        <ResourceIcon resourceId={builtMine.productionResourceId} size={22} />
+                      </div>
+                    </header>
+                    <div className="built-mine-stat-row">
+                      <span>
+                        <strong>{formatNumber(builtMine.productionPerHour)}/ч</strong>
+                        <small>Добыча</small>
+                      </span>
+                      <span>
+                        <strong>{builtMine.status === "building" ? `${Math.round(buildProgressPercent)}%` : `${Math.round(storagePercent)}%`}</strong>
+                        <small>{builtMine.status === "building" ? "Стройка" : "Хранилище"}</small>
+                      </span>
+                    </div>
+                    <div className={builtMine.status === "building" ? "built-mine-progress building" : "built-mine-progress storage"}>
+                      <span style={{ width: `${progressPercent}%` }} />
+                    </div>
+                    <footer>
+                      {builtMine.status === "building" ? (
+                        <span>Готово через {formatDurationMs(buildRemainingMs)}</span>
+                      ) : (
+                        <span>
+                          {formatNumber(builtMine.storedAmount)}/{formatNumber(builtMine.capacity)}{" "}
+                          {resourceLabelById(builtMine.productionResourceId, props.labels, props.content)}
+                        </span>
+                      )}
+                      <button
+                        disabled={builtMine.status !== "active" || collectableAmount <= 0}
+                        onClick={() => props.onCollectMine(builtMine.id)}
+                        type="button"
+                      >
+                        {builtMine.status === "building" ? "Строится" : `Собрать ${collectableAmount > 0 ? formatInteger(collectableAmount) : ""}`}
+                      </button>
+                    </footer>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <article className="built-mine-empty">
+              <strong>Шахт пока нет</strong>
+              <span>Докопайся до жилы в руднике, чтобы открыть первую постоянную шахту.</span>
+            </article>
+          )}
+        </section>
       </div>
     </section>
   );
@@ -2043,13 +2179,13 @@ function builtMineCostLabel(builtMineType: BuiltMineTypeConfig, labels: Record<s
     .join(" · ");
 }
 
-function builtMineStatusLabel(builtMine: BuiltMineState, now: number): string {
+function builtMineStateText(builtMine: BuiltMineState, now: number): string {
   if (builtMine.status === "building") {
     const remainingMs = getBuiltMineBuildRemainingMs(builtMine, now);
-    return remainingMs > 0 ? `Строится · ${formatDurationMs(remainingMs)}` : "Запускается";
+    return remainingMs > 0 ? "Строится" : "Запускается";
   }
 
-  return isBuiltMineStorageFull(builtMine) ? "Хранилище заполнено" : "Работает";
+  return isBuiltMineStorageFull(builtMine) ? "Заполнена" : "Работает";
 }
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
@@ -2113,6 +2249,20 @@ function rewardDropsFromMap(rewards: Record<string, number>, content: ContentBun
       label: resourceLabelById(resourceId, labels, content),
       resourceId
     }));
+}
+
+function resourceAmountSummaryLabel(
+  resources: Array<{ amount: number; label?: string; resourceId: string }>,
+  labels: Record<string, string>,
+  content: ContentBundle
+): string {
+  if (resources.length === 0) {
+    return "0";
+  }
+
+  return resources
+    .map((resource) => `${formatInteger(resource.amount)} ${resource.label ?? resourceLabelById(resource.resourceId, labels, content)}`)
+    .join(" · ");
 }
 
 function messageForHireFailure(reason: string): string {

@@ -14,8 +14,61 @@ export interface BuildCostRequirement {
   resourceId: string;
 }
 
+export interface BuiltMineResourceSummary {
+  amount: number;
+  resourceId: string;
+}
+
+export interface BuiltMineDashboardState {
+  activeCount: number;
+  buildingCount: number;
+  collectableMineCount: number;
+  collectableResources: BuiltMineResourceSummary[];
+  fullCount: number;
+  productionPerHour: BuiltMineResourceSummary[];
+}
+
 export function createVisibleBuiltMines(builtMines: BuiltMineState[], now: number): BuiltMineState[] {
   return builtMines.map((builtMine) => advanceBuiltMineProduction(builtMine, now));
+}
+
+export function createBuiltMineDashboardState(builtMines: readonly BuiltMineState[]): BuiltMineDashboardState {
+  const collectableResources = new Map<string, number>();
+  const productionPerHour = new Map<string, number>();
+  let activeCount = 0;
+  let buildingCount = 0;
+  let collectableMineCount = 0;
+  let fullCount = 0;
+
+  for (const builtMine of builtMines) {
+    if (builtMine.status === "building") {
+      buildingCount += 1;
+      continue;
+    }
+
+    activeCount += 1;
+    addResourceAmount(productionPerHour, builtMine.productionResourceId, builtMine.productionPerHour);
+
+    if (isBuiltMineStorageFull(builtMine)) {
+      fullCount += 1;
+    }
+
+    const collectableAmount = Math.floor(builtMine.storedAmount);
+
+    if (collectableAmount > 0) {
+      collectableMineCount += 1;
+      addResourceAmount(collectableResources, builtMine.productionResourceId, collectableAmount);
+    }
+  }
+
+  return {
+    activeCount,
+    buildingCount,
+    collectableMineCount,
+    collectableResources: createResourceSummaries(collectableResources),
+    fullCount,
+    productionPerHour: createResourceSummaries(productionPerHour)
+  };
 }
 
 export function hasBuiltMineForVein(builtMines: readonly BuiltMineState[], veinId: string): boolean {
@@ -101,4 +154,21 @@ function clampPercent(value: number): number {
   }
 
   return Math.min(100, Math.max(0, value));
+}
+
+function addResourceAmount(amounts: Map<string, number>, resourceId: string, amount: number): void {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return;
+  }
+
+  amounts.set(resourceId, (amounts.get(resourceId) ?? 0) + amount);
+}
+
+function createResourceSummaries(amounts: Map<string, number>): BuiltMineResourceSummary[] {
+  return Array.from(amounts.entries())
+    .sort(([leftResourceId], [rightResourceId]) => leftResourceId.localeCompare(rightResourceId))
+    .map(([resourceId, amount]) => ({
+      amount,
+      resourceId
+    }));
 }

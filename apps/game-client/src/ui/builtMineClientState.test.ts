@@ -3,6 +3,7 @@ import type { BuiltMineTypeConfig } from "@goblin-cartel/content-schemas";
 import type { BuiltMineState, MiningFoundVein } from "@goblin-cartel/game-core";
 import {
   canBuildFoundVein,
+  createBuiltMineDashboardState,
   createBuildCostRequirements,
   createVisibleBuiltMines,
   findUnbuiltFoundVeins,
@@ -139,5 +140,44 @@ describe("built mine client state", () => {
     expect(getBuiltMineBuildProgressPercent(builtMine, 30_000)).toBe(50);
     expect(getBuiltMineBuildRemainingMs(builtMine, 30_000)).toBe(30_000);
     expect(getBuiltMineStoragePercent({ ...builtMine, capacity: 300, storedAmount: 75 })).toBe(25);
+  });
+
+  it("summarizes permanent mines for the dashboard screen", () => {
+    expect(
+      createBuiltMineDashboardState([
+        {
+          ...builtMine,
+          status: "active",
+          storedAmount: 132.8
+        },
+        {
+          ...builtMine,
+          id: "small_gold_mine:gold",
+          productionPerHour: 90,
+          productionResourceId: "gold",
+          status: "active",
+          storedAmount: 300
+        },
+        {
+          ...builtMine,
+          id: "small_copper_mine:building",
+          status: "building",
+          storedAmount: 0
+        }
+      ])
+    ).toEqual({
+      activeCount: 2,
+      buildingCount: 1,
+      collectableMineCount: 2,
+      collectableResources: [
+        { amount: 132, resourceId: "copper_ore" },
+        { amount: 300, resourceId: "gold" }
+      ],
+      fullCount: 1,
+      productionPerHour: [
+        { amount: 120, resourceId: "copper_ore" },
+        { amount: 90, resourceId: "gold" }
+      ]
+    });
   });
 });
