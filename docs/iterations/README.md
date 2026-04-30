@@ -33,3 +33,4 @@
 - `0020_platform_overlay_anchor_fix` - исправление привязки overlay-платформы к `.mine-grid`, а не к верхней части игровой области.
 - `0029_pixi_dev_overlay_resource_tooltips` - Pixi dev overlay, resource counter tooltips, removal of DOM pickup trails, and immediate boss hit input.
 - `0030_pixi_hit_test_destroy_fx` - Pixi hit-test details in the dev overlay and richer procedural block destruction shards.
+- `0031_pixi_effects_module_near_break` - extracted Pixi hit effects into a module and added near-break block visuals.
