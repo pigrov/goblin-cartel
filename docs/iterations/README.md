@@ -75,3 +75,4 @@
 - `0070_base_screen_save_migrations` - separated Base upgrades from goblin management and added stable player save migration so content version updates do not reset progress.
 - `0071_boss_cards_elixir_pixi_stable` - added Boss cards with Elixir upgrades and stabilized Pixi production chunking to fix the main screen crash.
 - `0072_content_driven_boss_cards` - moved Boss card balance into content/admin and rebuilt the Boss cards modal as a compact 3-column card grid.
+- `0073_boss_card_visuals_goblin_grab` - added content-driven Boss card asset IDs, effect-specific card visuals, chest drop balance summary, and a larger Pixi goblin grab area.

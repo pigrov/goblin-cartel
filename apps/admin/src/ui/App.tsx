@@ -1498,6 +1498,7 @@ function renderEntityFields(
           <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
         </div>
         <ContentRewardRows content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
+        <ContentBossCardDropSummary content={content} formState={formState} prefix="reward" />
       </>
     );
   }
@@ -1511,6 +1512,7 @@ function renderEntityFields(
         <div className="content-form-grid">
           <ContentSelectField label="Редкость" name="rarity" onChange={updateField} options={bossCardRarityOptions} value={formState.rarity} />
           <ContentSelectField label="Эффект" name="effectType" onChange={updateField} options={bossCardEffectOptions} value={formState.effectType} />
+          <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
           <ContentSelectField
             label="Ресурс-карта"
             name="cardResourceId"
@@ -2020,6 +2022,54 @@ function ContentRewardRows(props: {
         </div>
       ))}
     </ContentNestedSection>
+  );
+}
+
+function ContentBossCardDropSummary(props: { content: ContentBundle; formState: EntityFormState; prefix: string }) {
+  const count = formCount(props.formState, `${props.prefix}Count`, 1);
+  const rowByResourceId = new Map<string, { chancePercent: number; max: number; min: number }>();
+  const bossCards = props.content.bossCards ?? [];
+  const elixirResourceId = stringField(bossCards[0] ?? {}, "elixirResourceId") || findResourceId(props.content, "elixir");
+  const targets: Array<{ label: string; resourceId: string }> = [
+    { label: resourceLabel(props.content, elixirResourceId), resourceId: elixirResourceId },
+    ...bossCards.map((card) => ({
+      label: contentEntityTitle(card, props.content.localization?.ru ?? {}),
+      resourceId: stringField(card, "cardResourceId")
+    }))
+  ].filter((target) => target.resourceId);
+
+  for (let index = 0; index < count; index += 1) {
+    const resourceId = formValue(props.formState, `${props.prefix}ResourceId_${index}`);
+
+    if (!resourceId) {
+      continue;
+    }
+
+    rowByResourceId.set(resourceId, {
+      chancePercent: toNumber(formValue(props.formState, `${props.prefix}ChancePercent_${index}`)),
+      max: toInteger(formValue(props.formState, `${props.prefix}Max_${index}`)),
+      min: toInteger(formValue(props.formState, `${props.prefix}Min_${index}`))
+    });
+  }
+
+  return (
+    <section className="content-nested-section content-drop-summary">
+      <header>
+        <strong>Boss card drop balance</strong>
+      </header>
+      <div className="content-drop-summary-grid">
+        {targets.map((target) => {
+          const row = rowByResourceId.get(target.resourceId);
+
+          return (
+            <span className={row ? "content-drop-summary-item" : "content-drop-summary-item missing"} key={target.resourceId}>
+              <b>{target.label}</b>
+              <small>{row ? `${row.min}-${row.max} / ${row.chancePercent}%` : "not added"}</small>
+            </span>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -2634,6 +2684,7 @@ export function addDraftBossCardTemplate(content: ContentBundle): DraftContentTo
     nameKey,
     descriptionKey,
     rarity: "common",
+    assetId: `boss_card_${id}_v1`,
     cardResourceId: findResourceId(content, "boss_card_hit_damage"),
     effectType: "damagePerTap",
     valuePerLevel: 1,
@@ -2931,6 +2982,7 @@ function createBossCardFormState(entity: ContentRecord, content: ContentBundle):
   const upgradeCardAmounts = entity.upgradeCardAmounts;
 
   return {
+    assetId: stringField(entity, "assetId") || "boss_card_generic_v1",
     cardResourceId: stringField(entity, "cardResourceId") || findResourceId(content, "boss_card_hit_damage"),
     description: localizationValue(content, stringField(entity, "descriptionKey")),
     effectType: stringField(entity, "effectType") || "damagePerTap",
@@ -3283,6 +3335,10 @@ function validateRewardChestTypeForm(state: EntityFormState, content: ContentBun
 function validateBossCardForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
   if (!formValue(state, "description").trim()) {
     errors.push("Описание RU обязательно.");
+  }
+
+  if (!formValue(state, "assetId").trim()) {
+    errors.push("Asset ID обязателен.");
   }
 
   if (!bossCardRarityOptions.some((option) => option.value === formValue(state, "rarity"))) {
@@ -3748,6 +3804,7 @@ function applyBossCardForm(content: ContentBundle, selectedId: string, state: En
   const descriptionKey = stringField(current, "descriptionKey") || `boss_card.${id}.description`;
   const nextBossCard: ContentRecord = {
     ...current,
+    assetId: formValue(state, "assetId").trim(),
     cardResourceId: formValue(state, "cardResourceId"),
     descriptionKey,
     effectType: formValue(state, "effectType"),
@@ -4041,6 +4098,12 @@ function resourceSelectOptions(content: ContentBundle): Array<{ label: string; v
     label: contentEntityTitle(resource, content.localization?.ru ?? {}),
     value: stringField(resource, "id")
   }));
+}
+
+function resourceLabel(content: ContentBundle, resourceId: string): string {
+  const resource = content.resources.find((item) => stringField(item, "id") === resourceId);
+
+  return resource ? contentEntityTitle(resource, content.localization?.ru ?? {}) : resourceId;
 }
 
 function mineUpgradeCostSourceOptions(content: ContentBundle): Array<{ label: string; value: string }> {

@@ -2267,6 +2267,68 @@ function BossStat(props: { label: string; value: string }) {
   );
 }
 
+function BossCardArt(props: { card: BossCardDefinition }) {
+  const className = `boss-card-art ${bossCardAssetClass(props.card)}`;
+
+  switch (props.card.effectType) {
+    case "critChance":
+      return (
+        <div className={className} aria-hidden="true">
+          <Zap size={22} />
+        </div>
+      );
+    case "critMultiplier":
+      return (
+        <div className={className} aria-hidden="true">
+          <Sparkles size={22} />
+        </div>
+      );
+    case "maxEnergy":
+      return (
+        <div className={className} aria-hidden="true">
+          <Gem size={22} />
+        </div>
+      );
+    default:
+      return (
+        <div className={className} aria-hidden="true">
+          <Hammer size={22} />
+        </div>
+      );
+  }
+}
+
+function bossCardAssetClass(card: BossCardDefinition): string {
+  const assetId = card.assetId ?? "";
+
+  if (assetId.includes("crit_chance")) {
+    return "crit-chance";
+  }
+
+  if (assetId.includes("crit_multiplier")) {
+    return "crit-multiplier";
+  }
+
+  if (assetId.includes("max_energy")) {
+    return "max-energy";
+  }
+
+  if (assetId.includes("hit_damage")) {
+    return "hit-damage";
+  }
+
+  switch (card.effectType) {
+    case "critChance":
+      return "crit-chance";
+    case "critMultiplier":
+      return "crit-multiplier";
+    case "maxEnergy":
+      return "max-energy";
+    default:
+      return "hit-damage";
+  }
+}
+
 function BossCardsModal(props: {
   cards: BossCardDefinition[];
   labels: Record<string, string>;
@@ -2300,9 +2362,7 @@ function BossCardsModal(props: {
 
             return (
               <article className={`boss-card ${card.rarity}`} key={card.id}>
-                <div className="boss-card-art" aria-hidden="true">
-                  <Sparkles size={22} />
-                </div>
+                <BossCardArt card={card} />
                 <div className="boss-card-copy">
                   <div className="boss-card-title">
                     <span>{bossCardRarityLabel(card.rarity)}</span>

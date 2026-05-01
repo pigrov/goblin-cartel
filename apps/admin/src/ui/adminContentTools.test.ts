@@ -109,6 +109,7 @@ describe("admin draft templates", () => {
     expect(result.entityKind).toBe("bossCards");
     expect(result.entityId).toBe("draft_boss_card_01");
     expect(createdCard).toMatchObject({
+      assetId: "boss_card_draft_boss_card_01_v1",
       cardResourceId: "boss_card_hit_damage",
       effectType: "damagePerTap",
       elixirResourceId: "elixir",

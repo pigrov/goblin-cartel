@@ -31,6 +31,7 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
   const bossCardResourceIds = new Set(["elixir", "boss_card_hit_damage", "boss_card_crit_chance", "boss_card_crit_multiplier", "boss_card_max_energy"]);
   const starterResourceById = new Map(starterContentBundle.resources.map((resource) => [resource.id, resource]));
   const starterBlockById = new Map(starterContentBundle.blockTypes.map((blockType) => [blockType.id, blockType]));
+  const starterBossCardById = new Map(starterContentBundle.bossCards.map((card) => [card.id, card]));
   const starterChestById = new Map(starterContentBundle.rewardChestTypes.map((chestType) => [chestType.id, chestType]));
   const starterRu = starterContentBundle.localization.ru ?? {};
   const contentBossCards = "bossCards" in content && Array.isArray(content.bossCards) ? content.bossCards : [];
@@ -80,9 +81,23 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
       rewardTable: [...chestType.rewardTable, ...missingBossCardRewards]
     };
   });
-  const bossCards = contentBossCards.length > 0 ? contentBossCards : starterContentBundle.bossCards;
+  let bossCards = contentBossCards.length > 0 ? contentBossCards : starterContentBundle.bossCards;
 
-  if (bossCards !== contentBossCards) {
+  if (contentBossCards.length > 0) {
+    bossCards = contentBossCards.map((card) => {
+      const assetId = (card as { assetId?: string }).assetId;
+
+      if (assetId) {
+        return card;
+      }
+
+      changed = true;
+      return {
+        ...card,
+        assetId: starterBossCardById.get(card.id)?.assetId ?? "boss_card_generic_v1"
+      };
+    });
+  } else {
     changed = true;
   }
   const ruLocalization = { ...(content.localization?.ru ?? {}) };

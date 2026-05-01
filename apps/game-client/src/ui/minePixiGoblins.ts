@@ -39,9 +39,10 @@ export function drawGoblin(cellSize: number, working: boolean, dragging: boolean
 
 export function createGoblinGrabHitArea(cellSize: number): Rectangle {
   const scale = calculateGoblinScale(cellSize);
-  const targetWidth = Math.max(68, cellSize * 1.35);
-  const targetHeight = Math.max(116, cellSize * 2.55);
-  const targetTop = -Math.max(42, cellSize * 0.92);
+  const grabScale = 1.5;
+  const targetWidth = Math.max(68, cellSize * 1.35) * grabScale;
+  const targetHeight = Math.max(116, cellSize * 2.55) * grabScale;
+  const targetTop = -Math.max(42, cellSize * 0.92) * grabScale;
   const width = targetWidth / scale;
   const height = targetHeight / scale;
 

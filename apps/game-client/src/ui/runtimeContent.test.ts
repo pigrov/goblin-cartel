@@ -85,5 +85,30 @@ describe("runtime content", () => {
     expect(runtimeContent.localization.ru?.["resource.elixir.name"]).toBe("Эликсир");
     expect(runtimeContent.localization.ru?.["boss_card.hit_damage.name"]).toBe("Сила удара");
     expect(runtimeContent.bossCards.map((card) => card.id)).toEqual(["hit_damage", "crit_chance", "crit_multiplier", "max_energy"]);
+    expect(runtimeContent.bossCards.map((card) => card.assetId)).toEqual([
+      "boss_card_hit_damage_v1",
+      "boss_card_crit_chance_v1",
+      "boss_card_crit_multiplier_v1",
+      "boss_card_max_energy_v1"
+    ]);
+  });
+
+  it("backfills boss card asset ids for legacy authored boss cards", () => {
+    const content = structuredClone(starterContentBundle);
+    content.bossCards = content.bossCards.map((card) => {
+      const legacyCard = { ...card };
+      delete (legacyCard as { assetId?: string }).assetId;
+      return legacyCard;
+    }) as typeof content.bossCards;
+
+    const runtimeContent = createRuntimeContentBundle(content);
+
+    expect(runtimeContent).not.toBe(content);
+    expect(runtimeContent.bossCards.map((card) => card.assetId)).toEqual([
+      "boss_card_hit_damage_v1",
+      "boss_card_crit_chance_v1",
+      "boss_card_crit_multiplier_v1",
+      "boss_card_max_energy_v1"
+    ]);
   });
 });

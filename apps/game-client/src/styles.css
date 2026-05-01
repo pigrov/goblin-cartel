@@ -2906,6 +2906,34 @@ body,
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
 }
 
+.boss-card-art.hit-damage {
+  color: #ffe5a7;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 28%), transparent 28%),
+    linear-gradient(180deg, #9b4f2c, #3e2418);
+}
+
+.boss-card-art.crit-chance {
+  color: #bfe9ff;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 30%), transparent 28%),
+    linear-gradient(180deg, #315f91, #1c2c4b);
+}
+
+.boss-card-art.crit-multiplier {
+  color: #f9d8ff;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 30%), transparent 28%),
+    linear-gradient(180deg, #884aa5, #35213f);
+}
+
+.boss-card-art.max-energy {
+  color: #bfffe5;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 30%), transparent 28%),
+    linear-gradient(180deg, #31826d, #193b33);
+}
+
 .boss-card.golden .boss-card-art {
   color: #fff4bb;
   background:

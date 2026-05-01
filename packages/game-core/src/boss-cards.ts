@@ -5,6 +5,7 @@ export type BossCardRarity = "common" | "golden" | "rare";
 export type BossCardEffectType = "critChance" | "critMultiplier" | "damagePerTap" | "maxEnergy";
 
 export interface BossCardDefinition {
+  assetId?: string;
   cardResourceId: string;
   descriptionKey: string;
   elixirCostMultiplier?: number;
@@ -55,6 +56,7 @@ export interface UpgradeBossCardInput {
 
 export const bossCardDefinitions: BossCardDefinition[] = [
   {
+    assetId: "boss_card_hit_damage_v1",
     cardResourceId: "boss_card_hit_damage",
     descriptionKey: "boss_card.hit_damage.description",
     effectType: "damagePerTap",
@@ -65,6 +67,7 @@ export const bossCardDefinitions: BossCardDefinition[] = [
     valuePerLevel: 4
   },
   {
+    assetId: "boss_card_crit_chance_v1",
     cardResourceId: "boss_card_crit_chance",
     descriptionKey: "boss_card.crit_chance.description",
     effectType: "critChance",
@@ -75,6 +78,7 @@ export const bossCardDefinitions: BossCardDefinition[] = [
     valuePerLevel: 0.015
   },
   {
+    assetId: "boss_card_crit_multiplier_v1",
     cardResourceId: "boss_card_crit_multiplier",
     descriptionKey: "boss_card.crit_multiplier.description",
     effectType: "critMultiplier",
@@ -85,6 +89,7 @@ export const bossCardDefinitions: BossCardDefinition[] = [
     valuePerLevel: 0.12
   },
   {
+    assetId: "boss_card_max_energy_v1",
     cardResourceId: "boss_card_max_energy",
     descriptionKey: "boss_card.max_energy.description",
     effectType: "maxEnergy",

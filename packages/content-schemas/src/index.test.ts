@@ -54,11 +54,11 @@ describe("content schemas", () => {
         chestType.rewardTable.some((reward) => reward.resourceId.startsWith("boss_card_"))
       )
     ).toBe(true);
-    expect(starterContentBundle.bossCards.map((card) => [card.id, card.cardResourceId, card.effectType])).toEqual([
-      ["hit_damage", "boss_card_hit_damage", "damagePerTap"],
-      ["crit_chance", "boss_card_crit_chance", "critChance"],
-      ["crit_multiplier", "boss_card_crit_multiplier", "critMultiplier"],
-      ["max_energy", "boss_card_max_energy", "maxEnergy"]
+    expect(starterContentBundle.bossCards.map((card) => [card.id, card.assetId, card.cardResourceId, card.effectType])).toEqual([
+      ["hit_damage", "boss_card_hit_damage_v1", "boss_card_hit_damage", "damagePerTap"],
+      ["crit_chance", "boss_card_crit_chance_v1", "boss_card_crit_chance", "critChance"],
+      ["crit_multiplier", "boss_card_crit_multiplier_v1", "boss_card_crit_multiplier", "critMultiplier"],
+      ["max_energy", "boss_card_max_energy_v1", "boss_card_max_energy", "maxEnergy"]
     ]);
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.maxHiredGoblins, level.unlockedClasses])).toEqual([
       [1, 2, ["miner"]],
