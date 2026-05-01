@@ -72,7 +72,10 @@ const builtMineType: BuiltMineTypeConfig = {
 const collector = {
   ability: {
     descriptionKey: "ability.collect.description",
-    effects: [{ type: "auto_collect_slots" as const, value: 2 }],
+    effects: [
+      { type: "auto_collect_slots" as const, value: 2 },
+      { type: "mine_capacity_multiplier" as const, value: 1 }
+    ],
     id: "collect",
     nameKey: "ability.collect.name"
   },
@@ -88,6 +91,19 @@ const collector = {
   descriptionKey: "goblin.collector.description",
   hireCost: [],
   id: "collector_1",
+  leveling: {
+    autoCollectSlotsPerLevel: 0.5,
+    cost: [{ baseAmount: 100, levelMultiplier: 1, levelPower: 1, resourceId: "gold" }],
+    maxLevel: 5,
+    mineCapacityMultiplierPerLevel: 0.05,
+    mineProductionMultiplierPerLevel: 0.05,
+    statGrowthPerLevel: {
+      loyalty: 1,
+      luck: 1,
+      speed: 1,
+      strength: 0
+    }
+  },
   nameKey: "goblin.collector.name",
   rarity: "common" as const,
   sortOrder: 1,
@@ -316,6 +332,7 @@ describe("built mine client state", () => {
     expect(hasCollectorSlotAvailable(collector, assignedMines, "mine-c")).toBe(false);
     expect(hasCollectorSlotAvailable(collector, assignedMines, "mine-a")).toBe(true);
     expect(findAssignableCollector([collector], assignedMines, "mine-c")).toBeUndefined();
+    expect(getGoblinAutoCollectSlots(collector, 3)).toBe(3);
   });
 
   it("applies collector mine bonuses to visible production and collection without changing base stats", () => {
@@ -358,5 +375,25 @@ describe("built mine client state", () => {
       capacity: 300,
       productionPerHour: 120
     });
+  });
+
+  it("applies collector level growth to slots and mine bonuses", () => {
+    const assignedMine = {
+      ...builtMine,
+      assignedCollectorGoblinId: collector.id,
+      completesAt: 0,
+      lastProducedAt: 0,
+      status: "active" as const
+    };
+
+    const visible = createVisibleBuiltMines([assignedMine], 30 * 60 * 1000, [collector], { collector_1: 3 })[0];
+
+    expect(visible).toMatchObject({
+      capacity: 330,
+      storedAmount: 60
+    });
+    expect(hasCollectorSlotAvailable(collector, [{ ...assignedMine, id: "mine-a" }, { ...assignedMine, id: "mine-b" }], "mine-c", 3)).toBe(
+      true
+    );
   });
 });

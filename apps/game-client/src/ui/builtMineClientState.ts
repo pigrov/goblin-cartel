@@ -4,6 +4,7 @@ import {
   builtMineMaxLevel,
   calculateBuiltMineUpgradeCost,
   calculateBuiltMineUpgradeStats,
+  calculateGoblinEffectiveAbilityEffects,
   canBuildMineFromVein,
   collectBuiltMineIncome,
   type BuiltMineUpgradeConfig,
@@ -48,12 +49,20 @@ export interface BuiltMineUpgradePreview {
 export function createVisibleBuiltMines(
   builtMines: BuiltMineState[],
   now: number,
-  collectorGoblins: readonly GoblinConfig[] = []
+  collectorGoblins: readonly GoblinConfig[] = [],
+  goblinLevels: Readonly<Record<string, number>> = {}
 ): BuiltMineState[] {
   const collectorsById = createCollectorMap(collectorGoblins);
 
   return builtMines.map((builtMine) =>
-    advanceBuiltMineProduction(createEffectiveBuiltMine(builtMine, findAssignedCollector(builtMine, collectorsById)), now)
+    advanceBuiltMineProduction(
+      createEffectiveBuiltMine(
+        builtMine,
+        findAssignedCollector(builtMine, collectorsById),
+        getCollectorLevel(findAssignedCollector(builtMine, collectorsById), goblinLevels)
+      ),
+      now
+    )
   );
 }
 
@@ -210,14 +219,14 @@ export function createBuiltMineUpgradePreview(
   };
 }
 
-export function getGoblinAutoCollectSlots(goblin: GoblinConfig): number {
+export function getGoblinAutoCollectSlots(goblin: GoblinConfig, level = 1): number {
   if (goblin.class !== "collector") {
     return 0;
   }
 
   return Math.max(
     0,
-    goblin.ability.effects
+    calculateGoblinEffectiveAbilityEffects(goblin, level)
       .filter((effect) => effect.type === "auto_collect_slots")
       .reduce((total, effect) => total + effect.value, 0)
   );
@@ -231,26 +240,35 @@ export function countCollectorAssignedMines(
   return builtMines.filter((builtMine) => builtMine.id !== ignoredMineId && builtMine.assignedCollectorGoblinId === goblinId).length;
 }
 
-export function hasCollectorSlotAvailable(goblin: GoblinConfig, builtMines: readonly BuiltMineState[], targetMineId: string): boolean {
-  return countCollectorAssignedMines(goblin.id, builtMines, targetMineId) < getGoblinAutoCollectSlots(goblin);
+export function hasCollectorSlotAvailable(
+  goblin: GoblinConfig,
+  builtMines: readonly BuiltMineState[],
+  targetMineId: string,
+  level = 1
+): boolean {
+  return countCollectorAssignedMines(goblin.id, builtMines, targetMineId) < getGoblinAutoCollectSlots(goblin, level);
 }
 
 export function findAssignableCollector(
   collectors: readonly GoblinConfig[],
   builtMines: readonly BuiltMineState[],
-  targetMineId: string
+  targetMineId: string,
+  goblinLevels: Readonly<Record<string, number>> = {}
 ): GoblinConfig | undefined {
-  return collectors.find((collector) => hasCollectorSlotAvailable(collector, builtMines, targetMineId));
+  return collectors.find((collector) =>
+    hasCollectorSlotAvailable(collector, builtMines, targetMineId, getCollectorLevel(collector, goblinLevels))
+  );
 }
 
 export function collectBuiltMineIncomeWithCollector(input: {
   builtMine: BuiltMineState;
   collector?: GoblinConfig;
+  collectorLevel?: number;
   now: number;
   resources: Record<string, number>;
 }): CollectBuiltMineIncomeResult {
   const result = collectBuiltMineIncome({
-    builtMine: createEffectiveBuiltMine(input.builtMine, input.collector),
+    builtMine: createEffectiveBuiltMine(input.builtMine, input.collector, input.collectorLevel ?? 1),
     now: input.now,
     resources: input.resources
   });
@@ -264,6 +282,7 @@ export function collectBuiltMineIncomeWithCollector(input: {
 export function collectAutomatedBuiltMineIncomeWithCollectors(input: {
   builtMines: BuiltMineState[];
   collectors: readonly GoblinConfig[];
+  goblinLevels?: Readonly<Record<string, number>>;
   now: number;
   resources: Record<string, number>;
 }): {
@@ -287,6 +306,7 @@ export function collectAutomatedBuiltMineIncomeWithCollectors(input: {
     const result = collectBuiltMineIncomeWithCollector({
       builtMine,
       collector,
+      collectorLevel: getCollectorLevel(collector, input.goblinLevels ?? {}),
       now: input.now,
       resources
     });
@@ -310,15 +330,15 @@ export function collectAutomatedBuiltMineIncomeWithCollectors(input: {
   };
 }
 
-function createEffectiveBuiltMine(builtMine: BuiltMineState, collector: GoblinConfig | undefined): BuiltMineState {
+function createEffectiveBuiltMine(builtMine: BuiltMineState, collector: GoblinConfig | undefined, collectorLevel = 1): BuiltMineState {
   if (!collector) {
     return builtMine;
   }
 
-  const capacity = Math.max(1, builtMine.capacity * getCollectorMineCapacityMultiplier(collector));
+  const capacity = Math.max(1, builtMine.capacity * getCollectorMineCapacityMultiplier(collector, collectorLevel));
   const productionPerHour = Math.max(
     0,
-    builtMine.productionPerHour * getCollectorMineProductionMultiplier(collector, builtMine.productionResourceId)
+    builtMine.productionPerHour * getCollectorMineProductionMultiplier(collector, builtMine.productionResourceId, collectorLevel)
   );
 
   return {
@@ -328,14 +348,14 @@ function createEffectiveBuiltMine(builtMine: BuiltMineState, collector: GoblinCo
   };
 }
 
-function getCollectorMineCapacityMultiplier(goblin: GoblinConfig): number {
-  return goblin.ability.effects
+function getCollectorMineCapacityMultiplier(goblin: GoblinConfig, level: number): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level)
     .filter((effect) => effect.type === "mine_capacity_multiplier")
     .reduce((multiplier, effect) => multiplier * effect.value, 1);
 }
 
-function getCollectorMineProductionMultiplier(goblin: GoblinConfig, resourceId: string): number {
-  return goblin.ability.effects.reduce((multiplier, effect) => {
+function getCollectorMineProductionMultiplier(goblin: GoblinConfig, resourceId: string, level: number): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
     if (effect.type !== "mine_production_multiplier" || (effect.resourceId && effect.resourceId !== resourceId)) {
       return multiplier;
     }
@@ -350,6 +370,10 @@ function createCollectorMap(collectorGoblins: readonly GoblinConfig[]): Map<stri
 
 function findAssignedCollector(builtMine: BuiltMineState, collectorsById: ReadonlyMap<string, GoblinConfig>): GoblinConfig | undefined {
   return builtMine.assignedCollectorGoblinId ? collectorsById.get(builtMine.assignedCollectorGoblinId) : undefined;
+}
+
+function getCollectorLevel(collector: GoblinConfig | undefined, goblinLevels: Readonly<Record<string, number>>): number {
+  return collector ? Math.max(1, Math.floor(goblinLevels[collector.id] ?? 1)) : 1;
 }
 
 function restoreBaseMineStats(effectiveBuiltMine: BuiltMineState, baseBuiltMine: BuiltMineState): BuiltMineState {

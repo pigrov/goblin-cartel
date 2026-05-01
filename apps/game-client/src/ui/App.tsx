@@ -14,11 +14,14 @@ import {
   getBossEnergySecondsUntilReady,
   hitMineBlock,
   hireGoblin,
+  getGoblinLevel,
   isGoblinHired,
+  normalizeGoblinRoster,
   openRewardChest,
   regenerateBossEnergy,
   restoreBossEnergyState,
   restoreMiningSession,
+  upgradeGoblin,
   upgradeBuiltMine,
   type BossEnergyConfig,
   type BossEnergyState,
@@ -71,6 +74,7 @@ import {
   type MineProgressionStatus,
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
+import { createGoblinRoleSummary, createGoblinUpgradePreview, type GoblinUpgradePreview } from "./goblinHutClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
@@ -266,6 +270,7 @@ export function App() {
   const previousPlatformRowRef = useRef(0);
   const pendingRewardChestRef = useRef(pendingRewardChest);
   const rewardChestSummaryTimeoutRef = useRef<number | null>(null);
+  const rosterRef = useRef(roster);
   const sessionRef = useRef(session);
   const spawnHitEffectRef = useRef<SpawnHitEffect>(() => undefined);
   const tooltipSequenceRef = useRef(0);
@@ -414,6 +419,7 @@ export function App() {
       const result = collectAutomatedBuiltMineIncomeWithCollectors({
         builtMines: builtMinesRef.current,
         collectors: hiredGoblinsRef.current,
+        goblinLevels: rosterRef.current.goblinLevels ?? {},
         now: Date.now(),
         resources: sessionRef.current.resources
       });
@@ -490,11 +496,19 @@ export function App() {
     () => availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)),
     [availableGoblins, roster]
   );
-  const hiredCollectorGoblins = useMemo(() => hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin) > 0), [hiredGoblins]);
+  const goblinLevels = roster.goblinLevels ?? {};
+  const completedMineTemplateIds = useMemo(
+    () => Array.from(new Set(session.foundVeins.map((vein) => vein.mineTemplateId))),
+    [session.foundVeins]
+  );
+  const hiredCollectorGoblins = useMemo(
+    () => hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0),
+    [hiredGoblins, roster]
+  );
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
   const visibleBuiltMines = useMemo(
-    () => createVisibleBuiltMines(builtMines, clockNow, hiredCollectorGoblins),
-    [builtMines, clockNow, hiredCollectorGoblins]
+    () => createVisibleBuiltMines(builtMines, clockNow, hiredCollectorGoblins, goblinLevels),
+    [builtMines, clockNow, goblinLevels, hiredCollectorGoblins]
   );
   const builtMineUpgradePreviews = useMemo(() => {
     const progressedBuiltMines = createVisibleBuiltMines(builtMines, clockNow);
@@ -564,8 +578,8 @@ export function App() {
   const exposedCellKeys = useMemo(() => new Set(exposedCells.map(cellKey)), [exposedCells]);
   const selectedCell = useMemo(() => findExposedCellForPreferred(session, activeCell), [activeCell, session]);
   const workerAssignments = useMemo(
-    () => assignGoblinWorkers(session, hiredGoblins, goblinPlacements, currentPlatformRow),
-    [currentPlatformRow, goblinPlacements, hiredGoblins, session]
+    () => assignGoblinWorkers(session, hiredGoblins, goblinPlacements, currentPlatformRow, roster),
+    [currentPlatformRow, goblinPlacements, hiredGoblins, roster, session]
   );
   const workerByColumn = useMemo(
     () => new Map(workerAssignments.map((worker) => [worker.targetCell.col, worker])),
@@ -611,6 +625,7 @@ export function App() {
     hiredGoblinsRef.current = hiredGoblins;
     pendingOfflineFinalHitRef.current = pendingOfflineFinalHit;
     platformRowRef.current = platformRow;
+    rosterRef.current = roster;
     sessionRef.current = session;
     spawnHitEffectRef.current = spawnHitEffect;
   });
@@ -651,7 +666,8 @@ export function App() {
           current,
           hiredGoblinsRef.current,
           goblinPlacementsRef.current,
-          nextPlatformStartRow
+          nextPlatformStartRow,
+          rosterRef.current
         );
 
         if (currentWorkers.length === 0) {
@@ -1095,6 +1111,7 @@ export function App() {
     const result = collectBuiltMineIncomeWithCollector({
       builtMine,
       collector,
+      collectorLevel: collector ? getGoblinLevel(roster, collector.id) : undefined,
       now: Date.now(),
       resources: session.resources
     });
@@ -1128,6 +1145,7 @@ export function App() {
       const result = collectBuiltMineIncomeWithCollector({
         builtMine,
         collector,
+        collectorLevel: collector ? getGoblinLevel(roster, collector.id) : undefined,
         now,
         resources: nextResources
       });
@@ -1212,7 +1230,7 @@ export function App() {
       return;
     }
 
-    if (!hasCollectorSlotAvailable(collector, builtMines, builtMineId)) {
+    if (!hasCollectorSlotAvailable(collector, builtMines, builtMineId, getGoblinLevel(roster, collector.id))) {
       setBuiltMineMessage(`${goblinName(collector, labels)} уже занят.`);
       return;
     }
@@ -1226,6 +1244,7 @@ export function App() {
   function handleHireGoblin(goblin: GoblinConfig) {
     const result = hireGoblin({
       builtMinesCount: builtMines.length,
+      completedMineTemplateIds,
       goblinId: goblin.id,
       goblins: availableGoblins,
       roster,
@@ -1246,6 +1265,29 @@ export function App() {
       lastRewards: {}
     }));
     setRosterMessage(`${goblinName(goblin, labels)} нанят.`);
+  }
+
+  function handleUpgradeGoblin(goblin: GoblinConfig) {
+    const result = upgradeGoblin({
+      goblinId: goblin.id,
+      goblins: availableGoblins,
+      resources: session.resources,
+      roster
+    });
+
+    if (!result.ok) {
+      setRosterMessage(messageForGoblinUpgradeFailure(result.reason));
+      return;
+    }
+
+    setRoster(result.roster);
+    syncVisibleResourceAmounts(result.resources);
+    setSession((current) => ({
+      ...current,
+      resources: result.resources,
+      lastRewards: {}
+    }));
+    setRosterMessage(`${goblinName(goblin, labels)} уровень ${getGoblinLevel(result.roster, goblin.id)}.`);
   }
 
   return (
@@ -1294,9 +1336,11 @@ export function App() {
           <GoblinSection
             availableGoblins={availableGoblins}
             builtMinesCount={visibleBuiltMines.length}
+            completedMineTemplateIds={completedMineTemplateIds}
             content={contentState.content}
             labels={labels}
             onHireGoblin={handleHireGoblin}
+            onUpgradeGoblin={handleUpgradeGoblin}
             resources={session.resources}
             roster={roster}
             rosterMessage={rosterMessage}
@@ -1311,6 +1355,7 @@ export function App() {
             content={contentState.content}
             currentMineTemplate={mineTemplate}
             foundVeins={unbuiltFoundVeins}
+            goblinLevels={goblinLevels}
             labels={labels}
             message={builtMineMessage}
             progressionStatus={mineProgressionStatus}
@@ -1376,6 +1421,7 @@ export function App() {
             builtMines={visibleBuiltMines}
             collectors={hiredCollectorGoblins}
             content={contentState.content}
+            goblinLevels={goblinLevels}
             labels={labels}
             onAssign={(goblinId) => {
               handleAssignBuiltMineCollector(collectorPickerBuiltMine.id, goblinId);
@@ -1573,7 +1619,7 @@ export function App() {
           </button>
           <button className={activeSection === "goblins" ? "active" : ""} onClick={() => setActiveSection("goblins")} type="button">
             <Users size={18} />
-            Гоблины
+            Хижина
           </button>
           <button className={activeSection === "builtMines" ? "active" : ""} onClick={() => setActiveSection("builtMines")} type="button">
             <Warehouse size={18} />
@@ -1652,10 +1698,11 @@ function createRestoredMiningState(
         })
       : createDefaultGoblinPlacements(restoredSession, hiredGoblins, restoredPlatformRow);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
-    const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins);
+    const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster);
     const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
       collectors: hiredGoblins,
+      goblinLevels: roster.goblinLevels ?? {},
       now,
       resources: restoredSession.resources
     });
@@ -1744,7 +1791,7 @@ function applyOfflineMining(
     placeMissing: false,
     platformRow: activePlatformRow
   });
-  const workers = assignGoblinWorkers(session, hiredGoblins, restoredPlacements, activePlatformRow);
+  const workers = assignGoblinWorkers(session, hiredGoblins, restoredPlacements, activePlatformRow, roster);
 
   if (workers.length === 0) {
     return {
@@ -1837,15 +1884,19 @@ function createRestoredGoblinRoster(content: ContentBundle, contentVersion: stri
     return createInitialGoblinRoster(goblins);
   }
 
-  return {
-    hiredGoblinIds: storedRoster.roster.hiredGoblinIds.filter((id, index, ids) =>
-      goblins.some((goblin) => goblin.id === id) && ids.indexOf(id) === index
-    )
-  };
+  return normalizeGoblinRoster(storedRoster.roster, goblins);
 }
 
-function normalizeBuiltMineCollectorAssignments(builtMines: BuiltMineState[], hiredGoblins: GoblinConfig[]): BuiltMineState[] {
-  const collectorById = new Map(hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin) > 0).map((goblin) => [goblin.id, goblin]));
+function normalizeBuiltMineCollectorAssignments(
+  builtMines: BuiltMineState[],
+  hiredGoblins: GoblinConfig[],
+  roster: GoblinRosterState
+): BuiltMineState[] {
+  const collectorById = new Map(
+    hiredGoblins
+      .filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0)
+      .map((goblin) => [goblin.id, goblin])
+  );
   const assignedSlots = new Map<string, number>();
 
   return builtMines.map((builtMine) => {
@@ -1866,7 +1917,7 @@ function normalizeBuiltMineCollectorAssignments(builtMines: BuiltMineState[], hi
 
     const usedSlots = assignedSlots.get(collectorId) ?? 0;
 
-    if (usedSlots >= getGoblinAutoCollectSlots(collector)) {
+    if (usedSlots >= getGoblinAutoCollectSlots(collector, getGoblinLevel(roster, collector.id))) {
       return {
         ...builtMine,
         assignedCollectorGoblinId: null
@@ -2029,28 +2080,41 @@ function BossStat(props: { label: string; value: string }) {
 function GoblinSection(props: {
   availableGoblins: GoblinConfig[];
   builtMinesCount: number;
+  completedMineTemplateIds: string[];
   content: ContentBundle;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
+  onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
   roster: GoblinRosterState;
   rosterMessage: string | null;
 }) {
+  const roleSummary = createGoblinRoleSummary(props.availableGoblins, props.roster);
+
   return (
     <section className="goblin-roster management-screen" aria-label="Гоблины">
       <header className="section-title">
         <div>
-          <p>Бригада</p>
-          <strong>{props.roster.hiredGoblinIds.length} нанято</strong>
+          <p>Хижина гоблинов</p>
+          <strong>{roleSummary.hiredCount} нанято</strong>
         </div>
         <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: props.availableGoblins, roster: props.roster })}/сек</span>
       </header>
 
+      <div className="goblin-role-summary" aria-label="Роли гоблинов">
+        <span>Шахтеры {roleSummary.minerCount}</span>
+        <span>Сборщики {roleSummary.collectorCount}</span>
+        <span>Автосбор {roleSummary.totalAutoCollectSlots}</span>
+        <span>Бригадиры {roleSummary.builderCount}</span>
+      </div>
+
       <div className="goblin-list">
         {props.availableGoblins.map((goblin) => {
           const hired = isGoblinHired(props.roster, goblin.id);
+          const upgradePreview = createGoblinUpgradePreview(goblin, props.roster, props.resources);
           const canHire = canHireGoblin({
             builtMinesCount: props.builtMinesCount,
+            completedMineTemplateIds: props.completedMineTemplateIds,
             goblin,
             goblins: props.availableGoblins,
             resources: props.resources,
@@ -2062,10 +2126,39 @@ function GoblinSection(props: {
               <div>
                 <strong>{goblinName(goblin, props.labels)}</strong>
                 <span>
-                  {goblinClassLabel(goblin.class)} · {calculateCrewAutoDamagePerSecond({ goblins: [goblin], roster: { hiredGoblinIds: [goblin.id] } })}/сек
+                  {goblinClassLabel(goblin.class)} · ур. {upgradePreview.levelNow}/{upgradePreview.maxLevel}
                 </span>
               </div>
               <p>{labelFromNameKey(goblin.descriptionKey, goblin.id, props.labels)}</p>
+              <div className="goblin-effect-row">
+                <span>{collectorSpecializationLabel(goblin)}</span>
+                <strong>{goblinHutEffectLabel(goblin, upgradePreview)}</strong>
+              </div>
+              {hired ? (
+                <div className="goblin-upgrade-row">
+                  <span>
+                    <strong>
+                      Уровень {upgradePreview.levelNow} → {upgradePreview.levelAfter}
+                    </strong>
+                    <small>{goblinUpgradeEffectLabel(goblin, upgradePreview)}</small>
+                  </span>
+                  <div className="build-cost-list">
+                    {upgradePreview.costRequirements.length > 0 ? (
+                      upgradePreview.costRequirements.map((requirement) => (
+                        <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                          <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                          {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="ok">Максимум</span>
+                    )}
+                  </div>
+                  <button disabled={!upgradePreview.canUpgrade} onClick={() => props.onUpgradeGoblin(goblin)} type="button">
+                    {upgradePreview.failureReason === "max_level" ? "Макс." : "Улучшить"}
+                  </button>
+                </div>
+              ) : null}
               <footer>
                 <span>{hireCostLabel(goblin, props.labels, props.content)}</span>
                 <button disabled={hired || !canHire} onClick={() => props.onHireGoblin(goblin)} type="button">
@@ -2090,6 +2183,7 @@ function BuiltMinesSection(props: {
   content: ContentBundle;
   currentMineTemplate: MineTemplateConfig | undefined;
   foundVeins: MiningFoundVein[];
+  goblinLevels: Record<string, number>;
   labels: Record<string, string>;
   message: string | null;
   nextMineTemplate: MineTemplateConfig | undefined;
@@ -2109,7 +2203,10 @@ function BuiltMinesSection(props: {
   const hasCollectableIncome = dashboard.collectableResources.length > 0;
   const hasFoundVeins = props.foundVeins.length > 0;
   const assignedCollectorCount = props.builtMines.filter((builtMine) => builtMine.assignedCollectorGoblinId).length;
-  const totalCollectorSlots = props.collectorGoblins.reduce((total, goblin) => total + getGoblinAutoCollectSlots(goblin), 0);
+  const totalCollectorSlots = props.collectorGoblins.reduce(
+    (total, goblin) => total + getGoblinAutoCollectSlots(goblin, props.goblinLevels[goblin.id] ?? 1),
+    0
+  );
   const currentMineIndex = props.currentMineTemplate ? findMineTemplateIndex(props.content.mineTemplates, props.currentMineTemplate.id) : -1;
 
   return (
@@ -2281,7 +2378,12 @@ function BuiltMinesSection(props: {
                 const assignedCollector = builtMine.assignedCollectorGoblinId
                   ? props.collectorGoblins.find((goblin) => goblin.id === builtMine.assignedCollectorGoblinId)
                   : undefined;
-                const assignableCollector = findAssignableCollector(props.collectorGoblins, props.builtMines, builtMine.id);
+                const assignableCollector = findAssignableCollector(
+                  props.collectorGoblins,
+                  props.builtMines,
+                  builtMine.id,
+                  props.goblinLevels
+                );
                 const upgradePreview = props.upgradePreviews.get(builtMine.id);
 
                 return (
@@ -2392,6 +2494,7 @@ function CollectorAssignmentModal(props: {
   builtMines: BuiltMineState[];
   collectors: GoblinConfig[];
   content: ContentBundle;
+  goblinLevels: Record<string, number>;
   labels: Record<string, string>;
   onAssign: (goblinId: string | null) => void;
   onClose: () => void;
@@ -2426,8 +2529,9 @@ function CollectorAssignmentModal(props: {
             {props.collectors.map((collector) => {
               const isAssigned = assignedCollectorId === collector.id;
               const usedSlots = countCollectorAssignedMines(collector.id, props.builtMines);
-              const totalSlots = getGoblinAutoCollectSlots(collector);
-              const canAssign = hasCollectorSlotAvailable(collector, props.builtMines, props.builtMine.id);
+              const collectorLevel = props.goblinLevels[collector.id] ?? 1;
+              const totalSlots = getGoblinAutoCollectSlots(collector, collectorLevel);
+              const canAssign = hasCollectorSlotAvailable(collector, props.builtMines, props.builtMine.id, collectorLevel);
 
               return (
                 <article className={isAssigned ? "collector-card active" : "collector-card"} key={collector.id}>
@@ -2682,6 +2786,30 @@ function collectorEffectLabel(goblin: GoblinConfig, labels: Record<string, strin
   return effectLabels.filter((label): label is string => Boolean(label)).join(" · ") || labelFromNameKey(goblin.ability.descriptionKey, goblin.id, labels);
 }
 
+function goblinHutEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePreview): string {
+  if (goblin.class === "collector") {
+    return `${preview.autoCollectSlotsNow} ${pluralRu(preview.autoCollectSlotsNow, "шахта", "шахты", "шахт")} автосбора`;
+  }
+
+  if (goblin.class === "builder" || goblin.class === "foreman") {
+    return `бригада · ${preview.damagePerSecondNow}/сек`;
+  }
+
+  return `${preview.damagePerSecondNow}/сек по камням`;
+}
+
+function goblinUpgradeEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePreview): string {
+  if (preview.failureReason === "max_level") {
+    return "Максимальный уровень";
+  }
+
+  if (goblin.class === "collector") {
+    return `автосбор ${preview.autoCollectSlotsNow} → ${preview.autoCollectSlotsAfter}`;
+  }
+
+  return `урон ${preview.damagePerSecondNow}/сек → ${preview.damagePerSecondAfter}/сек`;
+}
+
 function formatMultiplierBonus(value: number): string {
   const percent = Math.round((value - 1) * 100);
   return percent >= 0 ? `+${percent}%` : `${percent}%`;
@@ -2758,6 +2886,19 @@ function messageForHireFailure(reason: string): string {
       return "Не хватает ресурсов для найма.";
     default:
       return "Найм не прошел.";
+  }
+}
+
+function messageForGoblinUpgradeFailure(reason: string): string {
+  switch (reason) {
+    case "max_level":
+      return "Гоблин уже на максимальном уровне.";
+    case "not_enough_resources":
+      return "Не хватает ресурсов для прокачки.";
+    case "not_hired":
+      return "Сначала найми этого гоблина.";
+    default:
+      return "Прокачка не прошла.";
   }
 }
 
@@ -2843,7 +2984,8 @@ function assignGoblinWorkers(
   session: MiningSession,
   hiredGoblins: GoblinConfig[],
   goblinPlacements: GoblinPlacementMap,
-  platformRow: number
+  platformRow: number,
+  roster: GoblinRosterState
 ): GoblinWorkerAssignment[] {
   const activePlatformRow = findPlatformRow(session, platformRow);
 
@@ -2871,6 +3013,9 @@ function assignGoblinWorkers(
           blockTags: targetBlock.tags,
           goblins: [goblin],
           roster: {
+            goblinLevels: {
+              [goblin.id]: getGoblinLevel(roster, goblin.id)
+            },
             hiredGoblinIds: [goblin.id]
           }
         })

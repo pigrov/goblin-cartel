@@ -85,6 +85,7 @@ describe("content schemas", () => {
     const collector = starterContentBundle.goblins.find((goblin) => goblin.id === "pip_dry_book");
 
     expect(collector?.specialization).toBe("warehouse_keeper");
+    expect(collector?.leveling.autoCollectSlotsPerLevel).toBe(0.5);
     expect(goblinSchema.safeParse(collector).success).toBe(true);
   });
 
@@ -281,6 +282,20 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("goblins.gryzz_crooked_tooth.hireCost references missing resource missing_resource");
+  });
+
+  it("rejects goblin leveling cost with missing resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const goblin = broken.goblins[0];
+
+    if (goblin) {
+      goblin.leveling.cost.push({ resourceId: "missing_resource", baseAmount: 10, levelMultiplier: 1, levelPower: 1 });
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblins.gryzz_crooked_tooth.leveling.cost.2 references missing resource missing_resource");
   });
 
   it("rejects missing goblin localization keys when locale exists", () => {

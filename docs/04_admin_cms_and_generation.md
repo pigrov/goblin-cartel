@@ -121,8 +121,13 @@ Idle-игра живёт на контенте, числах и регулярн
 | `clan` | rusty_picks/powder_ears/etc |
 | `rarity` | common/rare/epic/legendary |
 | `baseStats` | сила, скорость, удача, верность |
-| `growthCurveId` | кривая прокачки |
-| `abilityId` | способность |
+| `ability` | способность и effects |
+| `leveling.maxLevel` | максимальный уровень гоблина |
+| `leveling.cost` | цена следующего уровня, масштабируемая текущим уровнем |
+| `leveling.statGrowthPerLevel` | рост силы/скорости/удачи/лояльности за уровень |
+| `leveling.autoCollectSlotsPerLevel` | прирост слотов автосбора для сборщиков |
+| `leveling.mineCapacityMultiplierPerLevel` | прирост бонуса вместимости шахт за уровень |
+| `leveling.mineProductionMultiplierPerLevel` | прирост бонуса добычи шахт за уровень |
 | `assetId` | портрет/спрайт |
 | `unlockRequirements` | условия получения |
 | `hireCost` | цена найма |

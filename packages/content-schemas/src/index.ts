@@ -31,6 +31,34 @@ export const goblinBaseStatsSchema = z.object({
   loyalty: z.number().int().nonnegative()
 });
 
+export const goblinStatGrowthSchema = z.object({
+  strength: z.number().nonnegative().default(0),
+  speed: z.number().nonnegative().default(0),
+  luck: z.number().nonnegative().default(0),
+  loyalty: z.number().nonnegative().default(0)
+});
+
+export const goblinLevelingCostSchema = z.object({
+  resourceId: z.string().min(1),
+  baseAmount: z.number().int().positive(),
+  levelMultiplier: z.number().positive().default(1),
+  levelPower: z.number().nonnegative().default(1)
+});
+
+export const goblinLevelingSchema = z.object({
+  maxLevel: z.number().int().positive().default(5),
+  cost: z.array(goblinLevelingCostSchema).default([]),
+  statGrowthPerLevel: goblinStatGrowthSchema.default({
+    strength: 0,
+    speed: 0,
+    luck: 0,
+    loyalty: 0
+  }),
+  autoCollectSlotsPerLevel: z.number().nonnegative().default(0),
+  mineCapacityMultiplierPerLevel: z.number().nonnegative().default(0),
+  mineProductionMultiplierPerLevel: z.number().nonnegative().default(0)
+});
+
 export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("damage_bonus_by_tag"),
@@ -239,6 +267,19 @@ export const goblinSchema = z.object({
   baseStats: goblinBaseStatsSchema,
   ability: goblinAbilitySchema,
   hireCost: z.array(resourceAmountSchema).default([]),
+  leveling: goblinLevelingSchema.default({
+    maxLevel: 5,
+    cost: [],
+    statGrowthPerLevel: {
+      strength: 0,
+      speed: 0,
+      luck: 0,
+      loyalty: 0
+    },
+    autoCollectSlotsPerLevel: 0,
+    mineCapacityMultiplierPerLevel: 0,
+    mineProductionMultiplierPerLevel: 0
+  }),
   unlockRequirements: z.array(goblinUnlockRequirementSchema).default([]),
   sortOrder: z.number().int()
 });
@@ -282,6 +323,63 @@ function createStarterMineCellMap(rows: string[][]): MineCellConfig[] {
 export interface ContentValidationResult {
   ok: boolean;
   errors: string[];
+}
+
+function createStarterMinerLeveling(goldBaseAmount: number, stoneBaseAmount: number) {
+  return {
+    maxLevel: 5,
+    cost: [
+      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.25 },
+      { resourceId: "stone", baseAmount: stoneBaseAmount, levelMultiplier: 1, levelPower: 1.1 }
+    ],
+    statGrowthPerLevel: {
+      strength: 2,
+      speed: 1,
+      luck: 0,
+      loyalty: 0
+    },
+    autoCollectSlotsPerLevel: 0,
+    mineCapacityMultiplierPerLevel: 0,
+    mineProductionMultiplierPerLevel: 0
+  };
+}
+
+function createStarterBuilderLeveling(goldBaseAmount: number, stoneBaseAmount: number) {
+  return {
+    maxLevel: 5,
+    cost: [
+      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.28 },
+      { resourceId: "stone", baseAmount: stoneBaseAmount, levelMultiplier: 1, levelPower: 1.16 }
+    ],
+    statGrowthPerLevel: {
+      strength: 1,
+      speed: 1,
+      luck: 0,
+      loyalty: 1
+    },
+    autoCollectSlotsPerLevel: 0,
+    mineCapacityMultiplierPerLevel: 0,
+    mineProductionMultiplierPerLevel: 0
+  };
+}
+
+function createStarterCollectorLeveling(goldBaseAmount: number, oreResourceId: string, oreBaseAmount: number) {
+  return {
+    maxLevel: 5,
+    cost: [
+      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.3 },
+      { resourceId: oreResourceId, baseAmount: oreBaseAmount, levelMultiplier: 1, levelPower: 1.18 }
+    ],
+    statGrowthPerLevel: {
+      strength: 0,
+      speed: 1,
+      luck: 1,
+      loyalty: 1
+    },
+    autoCollectSlotsPerLevel: 0.5,
+    mineCapacityMultiplierPerLevel: 0.03,
+    mineProductionMultiplierPerLevel: 0.03
+  };
 }
 
 export const starterContentBundle: ContentBundle = {
@@ -683,6 +781,7 @@ export const starterContentBundle: ContentBundle = {
         effects: [{ type: "damage_bonus_by_tag", tag: "rock", value: 0.2 }]
       },
       hireCost: [],
+      leveling: createStarterMinerLeveling(120, 25),
       unlockRequirements: [],
       sortOrder: 10
     },
@@ -707,6 +806,7 @@ export const starterContentBundle: ContentBundle = {
         effects: [{ type: "base_damage_bonus", value: 2 }]
       },
       hireCost: [{ resourceId: "gold", amount: 150 }],
+      leveling: createStarterMinerLeveling(180, 35),
       unlockRequirements: [],
       sortOrder: 20
     },
@@ -734,6 +834,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 350 },
         { resourceId: "stone", amount: 40 }
       ],
+      leveling: createStarterMinerLeveling(260, 60),
       unlockRequirements: [{ type: "resource_collected", resourceId: "copper_ore", amount: 25 }],
       sortOrder: 30
     },
@@ -761,6 +862,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 900 },
         { resourceId: "stone", amount: 180 }
       ],
+      leveling: createStarterMinerLeveling(520, 130),
       unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 300 }],
       sortOrder: 40
     },
@@ -788,6 +890,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 500 },
         { resourceId: "stone", amount: 120 }
       ],
+      leveling: createStarterBuilderLeveling(360, 90),
       unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 150 }],
       sortOrder: 50
     },
@@ -815,6 +918,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 700 },
         { resourceId: "stone", amount: 160 }
       ],
+      leveling: createStarterBuilderLeveling(440, 110),
       unlockRequirements: [{ type: "built_mines_count", value: 1 }],
       sortOrder: 60
     },
@@ -846,6 +950,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 2500 },
         { resourceId: "copper_ore", amount: 100 }
       ],
+      leveling: createStarterCollectorLeveling(900, "copper_ore", 70),
       unlockRequirements: [{ type: "built_mines_count", value: 2 }],
       sortOrder: 70
     },
@@ -877,6 +982,7 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 4200 },
         { resourceId: "copper_ore", amount: 180 }
       ],
+      leveling: createStarterCollectorLeveling(1300, "copper_ore", 110),
       unlockRequirements: [{ type: "built_mines_count", value: 3 }],
       sortOrder: 75
     },
@@ -904,6 +1010,22 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 4000 },
         { resourceId: "copper_ore", amount: 180 }
       ],
+      leveling: {
+        maxLevel: 5,
+        cost: [
+          { resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 },
+          { resourceId: "iron", baseAmount: 40, levelMultiplier: 1, levelPower: 1.18 }
+        ],
+        statGrowthPerLevel: {
+          strength: 1,
+          speed: 1,
+          luck: 0,
+          loyalty: 1
+        },
+        autoCollectSlotsPerLevel: 0,
+        mineCapacityMultiplierPerLevel: 0,
+        mineProductionMultiplierPerLevel: 0
+      },
       unlockRequirements: [{ type: "goblins_by_class", class: "miner", count: 3 }],
       sortOrder: 80
     }
@@ -1090,6 +1212,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     validateLocalizationKey(goblin.ability.nameKey, "ru", ruLocalization, errors);
     validateLocalizationKey(goblin.ability.descriptionKey, "ru", ruLocalization, errors);
     validateResourceAmounts(`goblins.${goblin.id}.hireCost`, goblin.hireCost, resourceIds, errors);
+    validateGoblinLevelingCost(`goblins.${goblin.id}.leveling.cost`, goblin.leveling.cost, resourceIds, errors);
     validateUnlockRequirements(
       `goblins.${goblin.id}.unlockRequirements`,
       goblin.unlockRequirements,
@@ -1118,6 +1241,21 @@ function validateBuiltMineUpgradeCost(
     if (row?.useProductionResource) {
       continue;
     }
+
+    if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
+      errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());
+    }
+  }
+}
+
+function validateGoblinLevelingCost(
+  path: string,
+  cost: Array<{ resourceId?: string }>,
+  resourceIds: Set<string>,
+  errors: string[]
+) {
+  for (let index = 0; index < cost.length; index += 1) {
+    const row = cost[index];
 
     if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
       errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());

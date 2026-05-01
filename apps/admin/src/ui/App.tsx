@@ -1369,6 +1369,25 @@ function renderEntityFields(
           />
           <ContentTextField label="Бонус добычи %" name="productionBonusPercent" onChange={updateField} type="number" value={formState.productionBonusPercent} />
         </div>
+        <section className="content-nested-editor">
+          <header>
+            <div>
+              <span>Прокачка гоблина</span>
+              <strong>Уровни и рост бонусов</strong>
+            </div>
+          </header>
+          <div className="content-form-grid">
+            <ContentTextField label="Max level" name="levelMaxLevel" onChange={updateField} type="number" value={formState.levelMaxLevel} />
+            <ContentTextField label="Рост силы" name="levelStrength" onChange={updateField} type="number" value={formState.levelStrength} />
+            <ContentTextField label="Рост скорости" name="levelSpeed" onChange={updateField} type="number" value={formState.levelSpeed} />
+            <ContentTextField label="Рост удачи" name="levelLuck" onChange={updateField} type="number" value={formState.levelLuck} />
+            <ContentTextField label="Рост лояльности" name="levelLoyalty" onChange={updateField} type="number" value={formState.levelLoyalty} />
+            <ContentTextField label="Слоты/ур." name="levelAutoCollectSlots" onChange={updateField} type="number" value={formState.levelAutoCollectSlots} />
+            <ContentTextField label="Вместимость/ур. %" name="levelCapacityBonusPercent" onChange={updateField} type="number" value={formState.levelCapacityBonusPercent} />
+            <ContentTextField label="Добыча/ур. %" name="levelProductionBonusPercent" onChange={updateField} type="number" value={formState.levelProductionBonusPercent} />
+          </div>
+          <ContentGoblinLevelCostRows content={content} formState={formState} prefix="levelCost" updateField={updateField} updateFields={updateFields} />
+        </section>
         <ContentResourceAmountRows
           amountLabel="Кол-во"
           content={content}
@@ -1683,6 +1702,77 @@ function ContentMineUpgradeCostRows(props: {
             onClick={() =>
               props.updateFields(
                 removeIndexedFormRow(props.formState, props.prefix, index, ["Source", "BaseAmount", "LevelMultiplier", "LevelPower"], count)
+              )
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentGoblinLevelCostRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  prefix: string;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, `${props.prefix}Count`, 1);
+  const resourceOptions = resourceSelectOptions(props.content);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить строку"
+      onAdd={() =>
+        props.updateFields({
+          [`${props.prefix}BaseAmount_${count}`]: "",
+          [`${props.prefix}Count`]: String(count + 1),
+          [`${props.prefix}LevelMultiplier_${count}`]: "1",
+          [`${props.prefix}LevelPower_${count}`]: "1",
+          [`${props.prefix}ResourceId_${count}`]: resourceOptions[0]?.value ?? ""
+        })
+      }
+      title="Стоимость прокачки"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row content-upgrade-cost-row" key={`${props.prefix}-${index}`}>
+          <ContentSelectField
+            label="Ресурс"
+            name={`${props.prefix}ResourceId_${index}`}
+            onChange={props.updateField}
+            options={resourceOptions}
+            value={props.formState[`${props.prefix}ResourceId_${index}`]}
+          />
+          <ContentTextField
+            label="База"
+            name={`${props.prefix}BaseAmount_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}BaseAmount_${index}`]}
+          />
+          <ContentTextField
+            label="Множитель уровня"
+            name={`${props.prefix}LevelMultiplier_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}LevelMultiplier_${index}`]}
+          />
+          <ContentTextField
+            label="Степень"
+            name={`${props.prefix}LevelPower_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}LevelPower_${index}`]}
+          />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(
+                removeIndexedFormRow(props.formState, props.prefix, index, ["ResourceId", "BaseAmount", "LevelMultiplier", "LevelPower"], count)
               )
             }
             type="button"
@@ -2187,6 +2277,22 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
       ]
     },
     hireCost: [{ resourceId: goldResourceId, amount: 1000 }],
+    leveling: {
+      maxLevel: 5,
+      cost: [
+        { resourceId: goldResourceId, baseAmount: 400, levelMultiplier: 1, levelPower: 1.25 },
+        { resourceId: copperResourceId || goldResourceId, baseAmount: 40, levelMultiplier: 1, levelPower: 1.15 }
+      ],
+      statGrowthPerLevel: {
+        strength: 0,
+        speed: 1,
+        luck: 1,
+        loyalty: 1
+      },
+      autoCollectSlotsPerLevel: 0.5,
+      mineCapacityMultiplierPerLevel: 0.03,
+      mineProductionMultiplierPerLevel: 0.02
+    },
     unlockRequirements: copperResourceId ? [{ type: "resource_collected", resourceId: copperResourceId, amount: 1 }] : [],
     sortOrder: nextSortOrder(content.goblins)
   };
@@ -2463,6 +2569,8 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
   const stats = recordField(entity, "baseStats");
   const effects = arrayField(ability, "effects");
   const hireCost = arrayField(entity, "hireCost");
+  const leveling = recordField(entity, "leveling");
+  const statGrowth = recordField(leveling, "statGrowthPerLevel");
   const capacityEffect = findEffect(effects, "mine_capacity_multiplier");
   const productionEffect = findEffect(effects, "mine_production_multiplier");
 
@@ -2475,6 +2583,15 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     class: stringField(entity, "class") || "miner",
     description: localizationValue(content, stringField(entity, "descriptionKey")),
     id: stringField(entity, "id"),
+    levelAutoCollectSlots: numberString(numberField(leveling, "autoCollectSlotsPerLevel", 0)),
+    levelCapacityBonusPercent: numberString(multiplierDeltaToPercent(numberField(leveling, "mineCapacityMultiplierPerLevel", 0))),
+    levelCostCount: numberString(Math.max(1, arrayField(leveling, "cost").length)),
+    levelLoyalty: numberString(numberField(statGrowth, "loyalty", 0)),
+    levelLuck: numberString(numberField(statGrowth, "luck", 0)),
+    levelMaxLevel: numberString(numberField(leveling, "maxLevel", 5)),
+    levelProductionBonusPercent: numberString(multiplierDeltaToPercent(numberField(leveling, "mineProductionMultiplierPerLevel", 0))),
+    levelSpeed: numberString(numberField(statGrowth, "speed", 0)),
+    levelStrength: numberString(numberField(statGrowth, "strength", 0)),
     loyalty: numberString(numberField(stats, "loyalty", 0)),
     luck: numberString(numberField(stats, "luck", 0)),
     productionBonusPercent: numberString(multiplierToPercent(numberField(productionEffect, "value", 1))),
@@ -2485,6 +2602,7 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     speed: numberString(numberField(stats, "speed", 0)),
     strength: numberString(numberField(stats, "strength", 0)),
     title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createGoblinLevelCostFormState("levelCost", arrayField(leveling, "cost"), content),
     ...createResourceAmountFormState("hireCost", hireCost, content, "gold")
   };
 }
@@ -2591,6 +2709,24 @@ function createMineUpgradeCostFormState(prefix: string, rows: ContentRecord[]): 
     state[`${prefix}LevelPower_${index}`] = numberString(numberField(row, "levelPower", 1));
     state[`${prefix}Source_${index}`] =
       row.useProductionResource === true ? upgradeCostProductionResourceValue : stringField(row, "resourceId") || "gold";
+  }
+
+  return state;
+}
+
+function createGoblinLevelCostFormState(prefix: string, rows: ContentRecord[], content: ContentBundle): EntityFormState {
+  const fallbackRows = rows.length > 0 ? rows : [{ baseAmount: 100, levelMultiplier: 1, levelPower: 1.25, resourceId: findResourceId(content, "gold") }];
+  const count = Math.max(1, fallbackRows.length);
+  const state: EntityFormState = {
+    [`${prefix}Count`]: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const row = recordAt(fallbackRows, index);
+    state[`${prefix}BaseAmount_${index}`] = numberString(numberField(row, "baseAmount", 1));
+    state[`${prefix}LevelMultiplier_${index}`] = numberString(numberField(row, "levelMultiplier", 1));
+    state[`${prefix}LevelPower_${index}`] = numberString(numberField(row, "levelPower", 1));
+    state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, "gold");
   }
 
   return state;
@@ -2725,6 +2861,14 @@ function validateGoblinForm(state: EntityFormState, content: ContentBundle, erro
   validateIntegerField(state, "autoCollectSlots", "Слоты автосбора", errors, { min: 0 });
   validateNumberField(state, "capacityBonusPercent", "Бонус вместимости", errors, { min: 0 });
   validateNumberField(state, "productionBonusPercent", "Бонус добычи", errors, { min: 0 });
+  validateIntegerField(state, "levelMaxLevel", "Max level", errors, { min: 1 });
+  for (const field of ["levelStrength", "levelSpeed", "levelLuck", "levelLoyalty"]) {
+    validateNumberField(state, field, field, errors, { min: 0 });
+  }
+  validateNumberField(state, "levelAutoCollectSlots", "Слоты/ур.", errors, { min: 0 });
+  validateNumberField(state, "levelCapacityBonusPercent", "Вместимость/ур.", errors, { min: 0 });
+  validateNumberField(state, "levelProductionBonusPercent", "Добыча/ур.", errors, { min: 0 });
+  validateGoblinLevelCostRows(state, "levelCost", "Стоимость прокачки", content, errors);
   validateResourceAmountRows(state, "hireCost", "Стоимость найма", content, errors);
 
   const productionBonusResourceId = formValue(state, "productionBonusResourceId");
@@ -2833,6 +2977,30 @@ function validateMineUpgradeCostRows(
     const source = formValue(state, `${prefix}Source_${index}`);
 
     if (source !== upgradeCostProductionResourceValue && !resourceIds.has(source)) {
+      errors.push(`${rowLabel}: ресурс не найден.`);
+    }
+
+    validateIntegerField(state, `${prefix}BaseAmount_${index}`, `${rowLabel}: база`, errors, { min: 1 });
+    validateNumberField(state, `${prefix}LevelMultiplier_${index}`, `${rowLabel}: множитель уровня`, errors, { min: 0.01 });
+    validateNumberField(state, `${prefix}LevelPower_${index}`, `${rowLabel}: степень`, errors, { min: 0 });
+  }
+}
+
+function validateGoblinLevelCostRows(
+  state: EntityFormState,
+  prefix: string,
+  label: string,
+  content: ContentBundle,
+  errors: string[]
+) {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const resourceIds = resourceIdSet(content);
+
+  for (let index = 0; index < count; index += 1) {
+    const rowLabel = `${label} ${index + 1}`;
+    const resourceId = formValue(state, `${prefix}ResourceId_${index}`);
+
+    if (!resourceIds.has(resourceId)) {
       errors.push(`${rowLabel}: ресурс не найден.`);
     }
 
@@ -3002,6 +3170,19 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
     descriptionKey,
     hireCost: createResourceAmountsFromForm(state, "hireCost"),
     id,
+    leveling: {
+      autoCollectSlotsPerLevel: toNumber(state.levelAutoCollectSlots),
+      cost: createGoblinLevelCostFromForm(state, "levelCost"),
+      maxLevel: toInteger(state.levelMaxLevel),
+      mineCapacityMultiplierPerLevel: percentToMultiplierDelta(toNumber(state.levelCapacityBonusPercent)),
+      mineProductionMultiplierPerLevel: percentToMultiplierDelta(toNumber(state.levelProductionBonusPercent)),
+      statGrowthPerLevel: {
+        loyalty: toNumber(state.levelLoyalty),
+        luck: toNumber(state.levelLuck),
+        speed: toNumber(state.levelSpeed),
+        strength: toNumber(state.levelStrength)
+      }
+    },
     nameKey,
     rarity: formValue(state, "rarity"),
     sortOrder: toInteger(state.sortOrder),
@@ -3207,6 +3388,30 @@ function createMineUpgradeCostFromForm(
             resourceId: source
           }
     );
+  }
+
+  return rows;
+}
+
+function createGoblinLevelCostFromForm(
+  state: EntityFormState,
+  prefix: string
+): Array<{ baseAmount: number; levelMultiplier: number; levelPower: number; resourceId: string }> {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const rows: Array<{ baseAmount: number; levelMultiplier: number; levelPower: number; resourceId: string }> = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const baseAmount = toInteger(state[`${prefix}BaseAmount_${index}`]);
+    const resourceId = formValue(state, `${prefix}ResourceId_${index}`);
+
+    if (baseAmount > 0 && resourceId) {
+      rows.push({
+        baseAmount,
+        levelMultiplier: Math.max(0.01, toNumber(state[`${prefix}LevelMultiplier_${index}`]) || 1),
+        levelPower: Math.max(0, toNumber(state[`${prefix}LevelPower_${index}`])),
+        resourceId
+      });
+    }
   }
 
   return rows;
@@ -3424,8 +3629,16 @@ function multiplierToPercent(value: number): number {
   return Math.max(0, Math.round((value - 1) * 100));
 }
 
+function multiplierDeltaToPercent(value: number): number {
+  return Math.max(0, Math.round(value * 100));
+}
+
 function percentToMultiplier(percent: number): number {
   return Math.round((1 + Math.max(0, percent) / 100) * 1000) / 1000;
+}
+
+function percentToMultiplierDelta(percent: number): number {
+  return Math.round((Math.max(0, percent) / 100) * 1000) / 1000;
 }
 
 function toNumber(value: string | undefined): number {

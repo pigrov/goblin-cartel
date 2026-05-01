@@ -67,3 +67,4 @@
 - `0062_content_publish_guardrails` - removed game-client content fallback/runtime test depth, made admin JSON read-only, and added broken-text validation for content release checks.
 - `0063_mine_progression_upgrades` - added the first permanent-mine upgrade loop and initial stricter mine progression.
 - `0064_content_driven_mine_upgrades` - moved mine-upgrade balance into content/admin, made next-mine transition available after clearing, and expanded starter mines to five.
+- `0065_goblin_hut_progression` - added goblin leveling content/admin fields, a Goblin Hut screen, and level-driven miner/collector bonuses.

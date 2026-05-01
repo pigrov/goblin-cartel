@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   calculateCrewAutoDamagePerSecond,
   calculateCrewHitDamage,
+  calculateGoblinEffectiveAbilityEffects,
+  calculateGoblinHitDamage,
+  calculateGoblinUpgradeCost,
   canHireGoblin,
   createInitialGoblinRoster,
+  getGoblinLevel,
   hireGoblin,
   normalizeGoblinRoster,
+  upgradeGoblin,
   type GoblinRosterGoblin
 } from "./goblin-roster";
 
@@ -41,6 +46,19 @@ const goblins: GoblinRosterGoblin[] = [
       effects: [{ type: "base_damage_bonus", value: 2 }]
     },
     hireCost: [{ resourceId: "gold", amount: 100 }],
+    leveling: {
+      autoCollectSlotsPerLevel: 0,
+      cost: [{ resourceId: "gold", baseAmount: 80, levelMultiplier: 1, levelPower: 1 }],
+      maxLevel: 3,
+      mineCapacityMultiplierPerLevel: 0,
+      mineProductionMultiplierPerLevel: 0,
+      statGrowthPerLevel: {
+        loyalty: 0,
+        luck: 0,
+        speed: 1,
+        strength: 2
+      }
+    },
     unlockRequirements: [],
     sortOrder: 20
   },
@@ -74,11 +92,19 @@ describe("goblin roster", () => {
     expect(
       normalizeGoblinRoster(
         {
+          goblinLevels: {
+            missing: 9,
+            second_miner: 2,
+            starter_miner: 5
+          },
           hiredGoblinIds: ["starter_miner", "missing", "starter_miner", "second_miner"]
         },
         goblins
       )
     ).toEqual({
+      goblinLevels: {
+        second_miner: 2
+      },
       hiredGoblinIds: ["starter_miner", "second_miner"]
     });
   });
@@ -187,5 +213,111 @@ describe("goblin roster", () => {
       ok: false,
       reason: "not_enough_resources"
     });
+  });
+
+  it("upgrades hired goblins and deducts level-scaled cost", () => {
+    const result = upgradeGoblin({
+      goblinId: "second_miner",
+      goblins,
+      resources: {
+        gold: 100
+      },
+      roster: {
+        hiredGoblinIds: ["starter_miner", "second_miner"]
+      }
+    });
+
+    expect(result).toEqual({
+      ok: true,
+      cost: [{ amount: 80, resourceId: "gold" }],
+      resources: {
+        gold: 20
+      },
+      roster: {
+        goblinLevels: {
+          second_miner: 2
+        },
+        hiredGoblinIds: ["starter_miner", "second_miner"]
+      }
+    });
+  });
+
+  it("rejects goblin upgrades when locked by roster, level, or resources", () => {
+    expect(
+      upgradeGoblin({
+        goblinId: "second_miner",
+        goblins,
+        resources: {
+          gold: 500
+        },
+        roster: {
+          hiredGoblinIds: ["starter_miner"]
+        }
+      })
+    ).toEqual({
+      ok: false,
+      cost: [],
+      reason: "not_hired"
+    });
+
+    expect(
+      upgradeGoblin({
+        goblinId: "second_miner",
+        goblins,
+        resources: {
+          gold: 10
+        },
+        roster: {
+          hiredGoblinIds: ["starter_miner", "second_miner"]
+        }
+      })
+    ).toEqual({
+      ok: false,
+      cost: [{ amount: 80, resourceId: "gold" }],
+      reason: "not_enough_resources"
+    });
+
+    expect(
+      upgradeGoblin({
+        goblinId: "second_miner",
+        goblins,
+        resources: {
+          gold: 500
+        },
+        roster: {
+          goblinLevels: {
+            second_miner: 3
+          },
+          hiredGoblinIds: ["starter_miner", "second_miner"]
+        }
+      })
+    ).toEqual({
+      ok: false,
+      cost: [],
+      reason: "max_level"
+    });
+  });
+
+  it("applies level growth to damage and ability effects", () => {
+    const leveledRoster = {
+      goblinLevels: {
+        second_miner: 3
+      },
+      hiredGoblinIds: ["second_miner"]
+    };
+
+    expect(getGoblinLevel(leveledRoster, "second_miner")).toBe(3);
+    expect(calculateGoblinUpgradeCost(goblins[1] as GoblinRosterGoblin, 2)).toEqual([{ amount: 160, resourceId: "gold" }]);
+    expect(calculateGoblinHitDamage(goblins[1] as GoblinRosterGoblin, [], 1)).toBe(9);
+    expect(calculateGoblinHitDamage(goblins[1] as GoblinRosterGoblin, [], 3)).toBe(14);
+    expect(
+      calculateCrewAutoDamagePerSecond({
+        goblins,
+        roster: leveledRoster
+      })
+    ).toBe(4);
+    expect(calculateGoblinEffectiveAbilityEffects(goblins[1] as GoblinRosterGoblin, 3)).toEqual([
+      { type: "base_damage_bonus", value: 2 }
+    ]);
   });
 });
