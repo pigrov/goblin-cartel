@@ -176,6 +176,22 @@ describe("content service", () => {
     expect(current?.content.goblinHut.id).toBe("default");
   });
 
+  it("backfills boss cards when reading legacy content entity rows", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    store.entities.set(
+      detail.version.id,
+      (store.entities.get(detail.version.id) ?? []).filter((entity) => entity.entityType !== "bossCard")
+    );
+
+    const restored = await service.getVersion("admin-1", detail.version.id);
+
+    expect(restored?.content.bossCards.map((card) => card.id)).toEqual(["hit_damage", "crit_chance", "crit_multiplier", "max_energy"]);
+  });
+
   it("keeps published and archived versions read-only", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({ store });

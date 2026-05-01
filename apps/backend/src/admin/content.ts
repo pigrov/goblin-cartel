@@ -428,6 +428,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
       .filter((entity) => entity.entityType === "localization")
       .map((entity) => [entity.entityId, entity.data])
   );
+  const bossCards = sortContentItems(entities, "bossCard", starterContentBundle.bossCards);
 
   return {
     resources: sortContentItems(entities, "resource", starterContentBundle.resources),
@@ -435,7 +436,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     veinTypes: sortContentItems(entities, "veinType", starterContentBundle.veinTypes),
     builtMineTypes: sortContentItems(entities, "builtMineType", starterContentBundle.builtMineTypes),
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
-    bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
+    bossCards: bossCards.length > 0 ? bossCards : starterContentBundle.bossCards,
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     goblinHut:

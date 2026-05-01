@@ -14,6 +14,7 @@
   - `crit_multiplier`;
   - `max_energy`.
 - Backend теперь хранит и редактирует `bossCard` через общий content entity save path.
+- Backend подставляет starter-карты при чтении legacy content rows без `bossCard`, чтобы старая опубликованная версия сразу была видна в админке и public content API.
 - В админке добавлена вкладка `Карты босса`, форма редактирования и шаблон создания новой карты.
 - Game client больше не использует только hardcoded карты: определения берутся из опубликованного контента.
 - Старые опубликованные версии без `bossCards` получают runtime backfill, чтобы текущий production content не ломал экран карт.
