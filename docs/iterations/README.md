@@ -72,3 +72,4 @@
 - `0067_goblin_hut_v2_level_growth` - rebuilt Goblin Hut as compact goblin cards with details modal, split names/nicknames, gold-only upgrades, and level-scaling construction bonuses.
 - `0068_hut_upgrade_progression` - added content-driven Hut upgrades with hired-goblin limits, role unlocks, hire/leveling discounts, progress-gated requirements, game UI, and admin editing.
 - `0069_hut_balance_ci_chunks_visuals` - updated GitHub Actions to v5, split the game-client bundle, rebalanced Hut upgrade costs/requirements, and added level-based Hut visuals.
+- `0070_base_screen_save_migrations` - separated Base upgrades from goblin management and added stable player save migration so content version updates do not reset progress.

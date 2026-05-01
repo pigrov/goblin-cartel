@@ -30,7 +30,6 @@ import {
   type MiningBlockState,
   type MiningFoundVein,
   type MiningSession,
-  type MiningSessionSave,
   type OpenedRewardChest
 } from "@goblin-cartel/game-core";
 import {
@@ -42,7 +41,7 @@ import {
   type RewardChestTypeConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
-import { Bot, Coins, Gem, Hammer, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
+import { Coins, Gem, Hammer, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
 import { type CSSProperties, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
@@ -92,12 +91,18 @@ import {
   type GoblinHutProgressionState,
   type GoblinUpgradePreview
 } from "./goblinHutClientState";
+import {
+  loadStoredGoblinRoster,
+  loadStoredMiningSession,
+  saveStoredGoblinRoster,
+  saveStoredMiningSession,
+  type StoredGoblinRoster,
+  type StoredMineSave
+} from "./playerSave";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
 const mineSeed = "local-player-001";
-const mineSaveStorageKey = "goblin-cartel.player.mine-save.v2";
-const goblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 const autoMiningTickMs = 1000;
 const bossEnergyMinTickMs = 50;
 const offlineFinalHitDelayMs = 900;
@@ -115,7 +120,7 @@ const MinePixiScene = lazy(async () => {
 let hitEffectSequence = 0;
 let chestRewardSequence = 0;
 
-type GameSection = "mine" | "goblins" | "builtMines";
+type GameSection = "mine" | "base" | "goblins" | "builtMines";
 type GoblinPlacementMap = Record<string, number>;
 type HitEffectVariant = "boss" | "goblin" | "critical";
 type RewardChestStage = "closed" | "opening" | "summary";
@@ -142,26 +147,6 @@ interface ContentState {
   version: string;
   source: "error" | "loading" | "published";
   message: string;
-}
-
-interface StoredMineSave {
-  contentVersion: string;
-  save: MiningSessionSave;
-  activeCell?: {
-    row: number;
-    col: number;
-  };
-  platformRow?: number;
-  goblinPlacements?: GoblinPlacementMap;
-  bossEnergy?: BossEnergyState;
-  builtMines?: BuiltMineState[];
-  mineCompletionNoticeSeenIds?: string[];
-  savedAt?: number;
-}
-
-interface StoredGoblinRoster {
-  contentVersion: string;
-  roster: GoblinRosterState;
 }
 
 interface RestoredMiningState {
@@ -327,8 +312,8 @@ export function App() {
             source: "published" as const,
             message: "Опубликованный контент"
           };
-          const nextRoster = createRestoredGoblinRoster(runtimeContent, runtimeVersion);
-          const restoredMining = createRestoredMiningState(runtimeContent, runtimeVersion, nextRoster);
+          const nextRoster = createRestoredGoblinRoster(runtimeContent);
+          const restoredMining = createRestoredMiningState(runtimeContent, nextRoster);
           setContentState({
             ...nextContentState
           });
@@ -1411,6 +1396,13 @@ export function App() {
             <strong>Контент не загрузился</strong>
             <span>{contentState.message}</span>
           </section>
+        ) : activeSection === "base" ? (
+          <BaseSection
+            goblinHutProgression={goblinHutProgression}
+            labels={labels}
+            message={rosterMessage}
+            onUpgradeGoblinHut={handleUpgradeGoblinHut}
+          />
         ) : activeSection === "goblins" ? (
           <GoblinSection
             activeRoleTab={goblinRoleTab}
@@ -1418,11 +1410,11 @@ export function App() {
             builtMinesCount={visibleBuiltMines.length}
             completedMineTemplateIds={completedMineTemplateIds}
             content={contentState.content}
-            goblinHutProgression={goblinHutProgression}
+            hutLevel={goblinHutProgression.levelNow}
+            hutLimit={goblinHutProgression.maxHiredGoblins}
             labels={labels}
             onHireGoblin={handleHireGoblin}
             onRoleTabChange={setGoblinRoleTab}
-            onUpgradeGoblinHut={handleUpgradeGoblinHut}
             onUpgradeGoblin={handleUpgradeGoblin}
             resources={session.resources}
             roster={roster}
@@ -1711,17 +1703,17 @@ export function App() {
             <Pickaxe size={18} />
             Рудник
           </button>
+          <button className={activeSection === "base" ? "active" : ""} onClick={() => setActiveSection("base")} type="button">
+            <Hammer size={18} />
+            База
+          </button>
           <button className={activeSection === "goblins" ? "active" : ""} onClick={() => setActiveSection("goblins")} type="button">
             <Users size={18} />
-            Хижина
+            Гоблины
           </button>
           <button className={activeSection === "builtMines" ? "active" : ""} onClick={() => setActiveSection("builtMines")} type="button">
             <Warehouse size={18} />
             Шахты
-          </button>
-          <button disabled type="button">
-            <Bot size={18} />
-            Авто
           </button>
         </nav>
       </section>
@@ -1753,21 +1745,16 @@ function createSession(
   };
 }
 
-function createRestoredMiningState(
-  content: ContentBundle,
-  contentVersion: string,
-  roster: GoblinRosterState
-): RestoredMiningState {
-  const storedSave = loadMiningSessionSave();
+function createRestoredMiningState(content: ContentBundle, roster: GoblinRosterState): RestoredMiningState {
+  const storedSave = loadStoredMiningSession();
   const hiredGoblins = createHiredGoblins(content, roster);
   const hiredCollectorGoblins = hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0);
   const miningGoblins = hiredGoblins.filter(isMiningGoblin);
   const now = Date.now();
-  const storedMineTemplateId =
-    storedSave?.contentVersion === contentVersion ? storedSave.save.mineTemplateId : undefined;
+  const storedMineTemplateId = storedSave?.save.mineTemplateId;
   const session = createSession(content, storedMineTemplateId);
 
-  if (!storedSave || storedSave.contentVersion !== contentVersion) {
+  if (!storedSave) {
     const initialPlatformRow = findPlatformRow(session, 0);
 
     return {
@@ -1822,17 +1809,21 @@ function createRestoredMiningState(
     );
   } catch {
     const initialPlatformRow = findPlatformRow(session, 0);
+    const fallbackSession = {
+      ...session,
+      resources: { ...storedSave.save.resources }
+    };
 
     return {
-      session,
-      activeCell: findFirstPlayableCell(session),
+      session: fallbackSession,
+      activeCell: findFirstPlayableCell(fallbackSession),
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(fallbackSession, miningGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
-      builtMines: [],
-      mineCompletionNoticeSeenIds: []
+      builtMines: normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster),
+      mineCompletionNoticeSeenIds: normalizeIdList(storedSave.mineCompletionNoticeSeenIds ?? [])
     };
   }
 }
@@ -1972,11 +1963,11 @@ function applyOfflineMining(
   };
 }
 
-function createRestoredGoblinRoster(content: ContentBundle, contentVersion: string): GoblinRosterState {
+function createRestoredGoblinRoster(content: ContentBundle): GoblinRosterState {
   const goblins = createAvailableGoblins(content);
-  const storedRoster = loadGoblinRoster();
+  const storedRoster = loadStoredGoblinRoster();
 
-  if (!storedRoster || storedRoster.contentVersion !== contentVersion) {
+  if (!storedRoster) {
     return createInitialGoblinRoster(goblins);
   }
 
@@ -2173,17 +2164,120 @@ function BossStat(props: { label: string; value: string }) {
   );
 }
 
+function BaseSection(props: {
+  goblinHutProgression: GoblinHutProgressionState;
+  labels: Record<string, string>;
+  message: string | null;
+  onUpgradeGoblinHut: () => void;
+}) {
+  return (
+    <section className="base-screen management-screen" aria-label="База">
+      <header className="section-title management-title">
+        <div>
+          <p>База</p>
+          <strong>Постройки лагеря</strong>
+        </div>
+        <span>Хижина {props.goblinHutProgression.levelNow} ур.</span>
+      </header>
+
+      <div className="base-upgrade-list">
+        <GoblinHutProgressCard
+          labels={props.labels}
+          onUpgradeGoblinHut={props.onUpgradeGoblinHut}
+          state={props.goblinHutProgression}
+        />
+
+        <div className="base-upgrade-grid" aria-label="Будущие улучшения базы">
+          <article className="base-upgrade-card disabled">
+            <span className="base-upgrade-icon">
+              <Warehouse size={18} />
+            </span>
+            <div>
+              <strong>Склад</strong>
+              <span>скоро</span>
+            </div>
+          </article>
+          <article className="base-upgrade-card disabled">
+            <span className="base-upgrade-icon">
+              <Hammer size={18} />
+            </span>
+            <div>
+              <strong>Подъемник</strong>
+              <span>скоро</span>
+            </div>
+          </article>
+          <article className="base-upgrade-card disabled">
+            <span className="base-upgrade-icon">
+              <Gem size={18} />
+            </span>
+            <div>
+              <strong>Знания</strong>
+              <span>скоро</span>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      {props.message ? <p className="roster-message">{props.message}</p> : null}
+    </section>
+  );
+}
+
+function GoblinHutProgressCard(props: {
+  labels: Record<string, string>;
+  onUpgradeGoblinHut: () => void;
+  state: GoblinHutProgressionState;
+}) {
+  return (
+    <section className="goblin-hut-progress-card">
+      <div className="goblin-hut-progress-overview">
+        <GoblinHutVisual stage={props.state.visualStage} />
+        <div className="goblin-hut-progress-copy">
+          <span>{labelFromNameKey(props.state.currentLevel.nameKey, "hut", props.labels)}</span>
+          <strong>
+            Лимит {props.state.hiredCount}/{props.state.maxHiredGoblins}
+          </strong>
+        </div>
+      </div>
+      <div className="goblin-hut-progress-meta">
+        <span>{goblinHutUnlockedRolesLabel(props.state.currentLevel)}</span>
+        <span>{goblinHutBonusLabel(props.state.currentLevel)}</span>
+      </div>
+      {props.state.nextLevel ? (
+        <footer>
+          <span>Далее: {labelFromNameKey(props.state.nextLevel.nameKey, "hut", props.labels)}</span>
+          <div className="build-cost-list">
+            {props.state.costRequirements.map((requirement) => (
+              <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+              </span>
+            ))}
+          </div>
+          <button disabled={!props.state.canUpgrade} onClick={props.onUpgradeGoblinHut} type="button">
+            {goblinHutUpgradeActionLabel(props.state)}
+          </button>
+        </footer>
+      ) : (
+        <footer>
+          <span>Хижина полностью улучшена</span>
+        </footer>
+      )}
+    </section>
+  );
+}
+
 function GoblinSection(props: {
   activeRoleTab: GoblinHutRoleTabId;
   availableGoblins: GoblinConfig[];
   builtMinesCount: number;
   completedMineTemplateIds: string[];
   content: ContentBundle;
-  goblinHutProgression: GoblinHutProgressionState;
+  hutLevel: number;
+  hutLimit: number;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
   onRoleTabChange: (role: GoblinHutRoleTabId) => void;
-  onUpgradeGoblinHut: () => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
   roster: GoblinRosterState;
@@ -2200,49 +2294,13 @@ function GoblinSection(props: {
     <section className="goblin-roster management-screen" aria-label="Гоблины">
       <header className="section-title">
         <div>
-          <p>Хижина гоблинов</p>
+          <p>Гоблины</p>
           <strong>
-            {props.goblinHutProgression.levelNow} ур. · {roleSummary.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
+            Хижина {props.hutLevel} ур. · {roleSummary.hiredCount}/{props.hutLimit}
           </strong>
         </div>
         <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: minerGoblins, roster: props.roster })}/сек</span>
       </header>
-
-      <section className="goblin-hut-progress-card">
-        <div className="goblin-hut-progress-overview">
-          <GoblinHutVisual stage={props.goblinHutProgression.visualStage} />
-          <div className="goblin-hut-progress-copy">
-            <span>{labelFromNameKey(props.goblinHutProgression.currentLevel.nameKey, "hut", props.labels)}</span>
-            <strong>
-              Лимит {props.goblinHutProgression.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
-            </strong>
-          </div>
-        </div>
-        <div className="goblin-hut-progress-meta">
-          <span>{goblinHutUnlockedRolesLabel(props.goblinHutProgression.currentLevel)}</span>
-          <span>{goblinHutBonusLabel(props.goblinHutProgression.currentLevel)}</span>
-        </div>
-        {props.goblinHutProgression.nextLevel ? (
-          <footer>
-            <span>Далее: {labelFromNameKey(props.goblinHutProgression.nextLevel.nameKey, "hut", props.labels)}</span>
-            <div className="build-cost-list">
-              {props.goblinHutProgression.costRequirements.map((requirement) => (
-                <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
-                  <ResourceIcon resourceId={requirement.resourceId} size={13} />
-                  {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
-                </span>
-              ))}
-            </div>
-            <button disabled={!props.goblinHutProgression.canUpgrade} onClick={props.onUpgradeGoblinHut} type="button">
-              {goblinHutUpgradeActionLabel(props.goblinHutProgression)}
-            </button>
-          </footer>
-        ) : (
-          <footer>
-            <span>Хижина полностью улучшена</span>
-          </footer>
-        )}
-      </section>
 
       <div className="goblin-role-tabs" aria-label="Виды гоблинов">
         {roleTabs.map((tab) => (
@@ -3671,26 +3729,11 @@ function saveMiningSession(
     mineCompletionNoticeSeenIds,
     savedAt: Date.now()
   };
-  localStorage.setItem(mineSaveStorageKey, JSON.stringify(payload));
+  saveStoredMiningSession(payload);
 }
 
 function normalizeIdList(values: readonly string[]): string[] {
   return values.filter((value, index, list) => typeof value === "string" && value.length > 0 && list.indexOf(value) === index);
-}
-
-function loadMiningSessionSave(): StoredMineSave | null {
-  const raw = localStorage.getItem(mineSaveStorageKey);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as StoredMineSave;
-  } catch {
-    localStorage.removeItem(mineSaveStorageKey);
-    return null;
-  }
 }
 
 function saveGoblinRoster(contentVersion: string, roster: GoblinRosterState): void {
@@ -3698,20 +3741,5 @@ function saveGoblinRoster(contentVersion: string, roster: GoblinRosterState): vo
     contentVersion,
     roster
   };
-  localStorage.setItem(goblinRosterStorageKey, JSON.stringify(payload));
-}
-
-function loadGoblinRoster(): StoredGoblinRoster | null {
-  const raw = localStorage.getItem(goblinRosterStorageKey);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as StoredGoblinRoster;
-  } catch {
-    localStorage.removeItem(goblinRosterStorageKey);
-    return null;
-  }
+  saveStoredGoblinRoster(payload);
 }
