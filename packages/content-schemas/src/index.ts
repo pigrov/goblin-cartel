@@ -126,6 +126,23 @@ export const goblinUnlockRequirementSchema = z.discriminatedUnion("type", [
   })
 ]);
 
+export const goblinHutLevelSchema = z.object({
+  level: z.number().int().positive(),
+  nameKey: z.string().min(1),
+  maxHiredGoblins: z.number().int().positive(),
+  unlockedClasses: z.array(goblinClassSchema).min(1),
+  hireCostMultiplier: z.number().positive().default(1),
+  upgradeCostMultiplier: z.number().positive().default(1),
+  upgradeCost: z.array(resourceAmountSchema).default([]),
+  unlockRequirements: z.array(goblinUnlockRequirementSchema).default([])
+});
+
+export const goblinHutSchema = z.object({
+  id: z.literal("default").default("default"),
+  nameKey: z.string().min(1),
+  levels: z.array(goblinHutLevelSchema).min(1)
+});
+
 export const resourceSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -300,6 +317,7 @@ export const contentBundleSchema = z
     rewardChestTypes: z.array(rewardChestTypeSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
+    goblinHut: goblinHutSchema,
     localization: localizationSchema
   })
   .strict();
@@ -312,6 +330,8 @@ export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
+export type GoblinHutConfig = z.infer<typeof goblinHutSchema>;
+export type GoblinHutLevelConfig = z.infer<typeof goblinHutLevelSchema>;
 export type LocalizationConfig = z.infer<typeof localizationSchema>;
 export type ContentBundle = z.infer<typeof contentBundleSchema>;
 
@@ -1045,6 +1065,67 @@ export const starterContentBundle: ContentBundle = {
       sortOrder: 80
     }
   ],
+  goblinHut: {
+    id: "default",
+    nameKey: "goblin_hut.name",
+    levels: [
+      {
+        level: 1,
+        nameKey: "goblin_hut.level.1.name",
+        maxHiredGoblins: 2,
+        unlockedClasses: ["miner"],
+        hireCostMultiplier: 1,
+        upgradeCostMultiplier: 1,
+        upgradeCost: [],
+        unlockRequirements: []
+      },
+      {
+        level: 2,
+        nameKey: "goblin_hut.level.2.name",
+        maxHiredGoblins: 4,
+        unlockedClasses: ["miner", "builder"],
+        hireCostMultiplier: 0.98,
+        upgradeCostMultiplier: 0.97,
+        upgradeCost: [
+          { resourceId: "gold", amount: 350 },
+          { resourceId: "stone", amount: 120 }
+        ],
+        unlockRequirements: [{ type: "mine_completed", mineTemplateId: "old_well_01" }]
+      },
+      {
+        level: 3,
+        nameKey: "goblin_hut.level.3.name",
+        maxHiredGoblins: 6,
+        unlockedClasses: ["miner", "builder", "collector"],
+        hireCostMultiplier: 0.95,
+        upgradeCostMultiplier: 0.94,
+        upgradeCost: [
+          { resourceId: "gold", amount: 1200 },
+          { resourceId: "stone", amount: 260 },
+          { resourceId: "copper_ore", amount: 80 }
+        ],
+        unlockRequirements: [{ type: "built_mines_count", value: 1 }]
+      },
+      {
+        level: 4,
+        nameKey: "goblin_hut.level.4.name",
+        maxHiredGoblins: 8,
+        unlockedClasses: ["miner", "builder", "collector", "foreman"],
+        hireCostMultiplier: 0.92,
+        upgradeCostMultiplier: 0.9,
+        upgradeCost: [
+          { resourceId: "gold", amount: 3000 },
+          { resourceId: "stone", amount: 480 },
+          { resourceId: "copper_ore", amount: 160 },
+          { resourceId: "iron", amount: 80 }
+        ],
+        unlockRequirements: [
+          { type: "built_mines_count", value: 2 },
+          { type: "mine_completed", mineTemplateId: "abandoned_crosscut_02" }
+        ]
+      }
+    ]
+  },
   localization: {
     ru: {
       "resource.gold.name": "Золото",
@@ -1098,6 +1179,11 @@ export const starterContentBundle: ContentBundle = {
       "goblin.krakk.name": "Кракк",
       "goblin.krakk.nickname": "Железная Репа",
       "goblin.krakk.description": "Держит смену в движении одним тяжелым взглядом.",
+      "goblin_hut.name": "Хижина гоблинов",
+      "goblin_hut.level.1.name": "Шалаш кирок",
+      "goblin_hut.level.2.name": "Навес бригады",
+      "goblin_hut.level.3.name": "Складская хижина",
+      "goblin_hut.level.4.name": "Большая артель",
       "ability.stone_biter.name": "Камнегрыз",
       "ability.stone_biter.description": "Наносит больше урона каменным блокам.",
       "ability.cheap_shift.name": "Дешевая смена",
@@ -1230,6 +1316,9 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     }
   }
 
+  validateLocalizationKey(parsed.data.goblinHut.nameKey, "ru", ruLocalization, errors);
+  validateGoblinHut(parsed.data.goblinHut, resourceIds, mineTemplateIds, ruLocalization, errors);
+
   for (const goblin of parsed.data.goblins) {
     validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
     if (goblin.nicknameKey) {
@@ -1254,6 +1343,55 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     ok: errors.length === 0,
     errors
   };
+}
+
+function validateGoblinHut(
+  goblinHut: GoblinHutConfig,
+  resourceIds: Set<string>,
+  mineTemplateIds: Set<string>,
+  ruLocalization: Record<string, string> | undefined,
+  errors: string[]
+) {
+  const seenLevels = new Set<number>();
+  let previousMaxHiredGoblins = 0;
+  let previousUnlockedClasses = new Set<string>();
+
+  for (const level of [...goblinHut.levels].sort((left, right) => left.level - right.level)) {
+    if (seenLevels.has(level.level)) {
+      errors.push(`goblinHut.levels has duplicate level ${level.level}`);
+    }
+
+    seenLevels.add(level.level);
+    validateLocalizationKey(level.nameKey, "ru", ruLocalization, errors);
+    validateResourceAmounts(`goblinHut.levels.${level.level}.upgradeCost`, level.upgradeCost, resourceIds, errors);
+    validateUnlockRequirements(`goblinHut.levels.${level.level}.unlockRequirements`, level.unlockRequirements, resourceIds, mineTemplateIds, errors);
+
+    if (level.level === 1 && (level.upgradeCost.length > 0 || level.unlockRequirements.length > 0)) {
+      errors.push("goblinHut.levels.1 must be available without cost and requirements");
+    }
+
+    if (level.maxHiredGoblins < previousMaxHiredGoblins) {
+      errors.push(`goblinHut.levels.${level.level}.maxHiredGoblins cannot be lower than previous level`);
+    }
+
+    for (const goblinClass of previousUnlockedClasses) {
+      if (!level.unlockedClasses.includes(goblinClass as GoblinConfig["class"])) {
+        errors.push(`goblinHut.levels.${level.level}.unlockedClasses cannot remove ${goblinClass}`);
+      }
+    }
+
+    previousMaxHiredGoblins = level.maxHiredGoblins;
+    previousUnlockedClasses = new Set(level.unlockedClasses);
+  }
+
+  const sortedLevels = [...seenLevels].sort((left, right) => left - right);
+
+  for (let index = 0; index < sortedLevels.length; index += 1) {
+    if (sortedLevels[index] !== index + 1) {
+      errors.push("goblinHut.levels must start at 1 and be sequential");
+      break;
+    }
+  }
 }
 
 function validateBuiltMineUpgradeCost(

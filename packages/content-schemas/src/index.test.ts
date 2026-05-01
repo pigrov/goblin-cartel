@@ -44,6 +44,12 @@ describe("content schemas", () => {
     expect(starterContentBundle.resources.some((resource) => resource.id === "iron")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "iron_ore")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "gold_cache")).toBe(true);
+    expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.maxHiredGoblins, level.unlockedClasses])).toEqual([
+      [1, 2, ["miner"]],
+      [2, 4, ["miner", "builder"]],
+      [3, 6, ["miner", "builder", "collector"]],
+      [4, 8, ["miner", "builder", "collector", "foreman"]]
+    ]);
     expect(starterContentBundle.mineTemplates).toHaveLength(5);
     expect(starterContentBundle.mineTemplates.map((mineTemplate) => [mineTemplate.difficultyStart, mineTemplate.difficultyEnd])).toEqual([
       [1, 1.15],
@@ -228,6 +234,22 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("builtMineTypes.small_copper_mine.upgrade.cost.2 references missing resource missing_resource");
+  });
+
+  it("rejects broken goblin hut progression config", () => {
+    const broken = structuredClone(starterContentBundle);
+    const level = broken.goblinHut.levels[1];
+
+    if (level) {
+      level.level = 1;
+      level.upgradeCost = [{ resourceId: "missing_resource", amount: 10 }];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblinHut.levels has duplicate level 1");
+    expect(result.errors).toContain("goblinHut.levels.1.upgradeCost references missing resource missing_resource");
   });
 
   it("accepts legacy content without localization", () => {

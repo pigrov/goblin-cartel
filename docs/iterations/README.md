@@ -70,3 +70,4 @@
 - `0065_goblin_hut_progression` - added goblin leveling content/admin fields, a Goblin Hut screen, and level-driven miner/collector bonuses.
 - `0066_goblin_roles_construction_tabs` - split goblin roles across mining, collection, and construction support, and rebuilt the Goblin Hut screen with role tabs.
 - `0067_goblin_hut_v2_level_growth` - rebuilt Goblin Hut as compact goblin cards with details modal, split names/nicknames, gold-only upgrades, and level-scaling construction bonuses.
+- `0068_hut_upgrade_progression` - added content-driven Hut upgrades with hired-goblin limits, role unlocks, hire/leveling discounts, progress-gated requirements, game UI, and admin editing.

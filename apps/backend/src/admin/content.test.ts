@@ -63,6 +63,7 @@ class MemoryContentStore implements ContentStore {
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
       ...content.goblins.map((goblin) => this.createEntity(contentVersionId, "goblin", goblin.id, goblin)),
+      this.createEntity(contentVersionId, "goblinHut", "default", content.goblinHut),
       ...Object.entries(content.localization).map(([locale, messages]) =>
         this.createEntity(contentVersionId, "localization", locale, messages)
       )
@@ -147,6 +148,7 @@ describe("content service", () => {
     });
     expect(detail.content.resources.map((resource) => resource.id)).toContain("gold");
     expect(detail.content.goblins.map((goblin) => goblin.id)).toContain("gryzz_crooked_tooth");
+    expect(detail.content.goblinHut.levels[0]?.maxHiredGoblins).toBe(2);
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
   });
 
@@ -169,6 +171,7 @@ describe("content service", () => {
     const current = await service.getCurrentPublishedContent();
     expect(current?.version.version).toBe("0.1.0");
     expect(current?.content.mineTemplates[0]?.id).toBe("old_well_01");
+    expect(current?.content.goblinHut.id).toBe("default");
   });
 
   it("keeps published and archived versions read-only", async () => {
@@ -329,6 +332,42 @@ describe("content service", () => {
         errors: expect.arrayContaining([
           `builtMineTypes.${builtMineType.id} references missing production resource missing_resource`
         ])
+      }
+    });
+  });
+
+  it("updates goblin hut progression through the same server validation path", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const goblinHut = structuredClone(starterContentBundle.goblinHut);
+    const firstLevel = goblinHut.levels[0];
+
+    if (!firstLevel) {
+      throw new Error("Missing starter hut level");
+    }
+
+    firstLevel.maxHiredGoblins = 3;
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "goblinHut",
+      entityId: "default",
+      entity: goblinHut,
+      localization: {
+        [goblinHut.nameKey]: "Хижина проверки"
+      }
+    });
+
+    expect(result && "content" in result ? result.content.goblinHut.levels[0]?.maxHiredGoblins : null).toBe(3);
+    expect(result).toMatchObject({
+      content: {
+        localization: {
+          ru: {
+            [goblinHut.nameKey]: "Хижина проверки"
+          }
+        }
       }
     });
   });

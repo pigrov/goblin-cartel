@@ -23,10 +23,28 @@ const baseContent = {
   veinTypes: [{ id: "gold_vein", nameKey: "vein.gold.name" }],
   mineTemplates: [],
   goblins: [],
+  goblinHut: {
+    id: "default",
+    levels: [
+      {
+        hireCostMultiplier: 1,
+        level: 1,
+        maxHiredGoblins: 2,
+        nameKey: "goblin_hut.level.1.name",
+        unlockedClasses: ["miner"],
+        upgradeCost: [],
+        upgradeCostMultiplier: 1,
+        unlockRequirements: []
+      }
+    ],
+    nameKey: "goblin_hut.name"
+  },
   localization: {
     ru: {
       "block.gold.name": "Золотой блок",
       "block.stone.name": "Каменный блок",
+      "goblin_hut.level.1.name": "Стартовая Хижина",
+      "goblin_hut.name": "Хижина",
       "resource.stone.name": "Камень",
       "resource.gold.name": "Золото",
       "vein.gold.name": "Золотая жила"

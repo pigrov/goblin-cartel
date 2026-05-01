@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
+  createGoblinHirePreview,
+  createGoblinHutProgressionState,
   createGoblinIdentity,
   createGoblinHutRoleTabs,
   createGoblinRoleSummary,
@@ -103,6 +105,54 @@ const builder: GoblinConfig = {
   specialization: "construction_foreman"
 };
 
+const content: ContentBundle = {
+  blockTypes: [],
+  builtMineTypes: [],
+  goblinHut: {
+    id: "default" as const,
+    levels: [
+      {
+        hireCostMultiplier: 1,
+        level: 1,
+        maxHiredGoblins: 2,
+        nameKey: "hut.1",
+        unlockedClasses: ["miner" as const],
+        upgradeCost: [],
+        upgradeCostMultiplier: 1,
+        unlockRequirements: []
+      },
+      {
+        hireCostMultiplier: 0.9,
+        level: 2,
+        maxHiredGoblins: 4,
+        nameKey: "hut.2",
+        unlockedClasses: ["miner" as const, "builder" as const, "collector" as const],
+        upgradeCost: [{ amount: 100, resourceId: "gold" }],
+        upgradeCostMultiplier: 0.8,
+        unlockRequirements: [{ type: "built_mines_count" as const, value: 1 }]
+      }
+    ],
+    nameKey: "hut.name"
+  },
+  goblins: [builder, collector, miner],
+  localization: {
+    ru: {}
+  },
+  mineTemplates: [],
+  resources: [
+    {
+      iconAssetId: "gold",
+      id: "gold",
+      nameKey: "resource.gold.name",
+      rarity: "common" as const,
+      sortOrder: 1,
+      storageType: "global" as const
+    }
+  ],
+  rewardChestTypes: [],
+  veinTypes: []
+};
+
 describe("goblin hut client state", () => {
   it("previews upgrade cost and level-based collector slots", () => {
     const preview = createGoblinUpgradePreview(
@@ -184,15 +234,68 @@ describe("goblin hut client state", () => {
     };
 
     expect(createGoblinHutRoleTabs(goblins, roster)).toEqual([
-      { count: 3, hiredCount: 2, id: "all", label: "Все" },
-      { count: 1, hiredCount: 1, id: "miners", label: "Шахтеры" },
-      { count: 1, hiredCount: 1, id: "collectors", label: "Сборщики" },
-      { count: 1, hiredCount: 0, id: "builders", label: "Стройка" }
+      { count: 3, hiredCount: 2, id: "all", label: "Все", locked: false },
+      { count: 1, hiredCount: 1, id: "miners", label: "Шахтеры", locked: false },
+      { count: 1, hiredCount: 1, id: "collectors", label: "Сборщики", locked: false },
+      { count: 1, hiredCount: 0, id: "builders", label: "Стройка", locked: false }
     ]);
     expect(filterGoblinsByHutRole(goblins, "miners")).toEqual([miner]);
     expect(filterGoblinsByHutRole(goblins, "collectors")).toEqual([collector]);
     expect(filterGoblinsByHutRole(goblins, "builders")).toEqual([builder]);
     expect(goblins.filter(isMiningGoblin)).toEqual([miner]);
+  });
+
+  it("previews hut progression and role-locked hires", () => {
+    expect(
+      createGoblinHirePreview({
+        builtMinesCount: 0,
+        completedMineTemplateIds: [],
+        goblin: builder,
+        goblinHut: content.goblinHut,
+        goblins: content.goblins,
+        resources: {
+          gold: 1000
+        },
+        roster: {
+          hiredGoblinIds: ["miner_1"]
+        }
+      })
+    ).toMatchObject({
+      canHire: false,
+      failureReason: "role_locked"
+    });
+
+    const hutState = createGoblinHutProgressionState({
+      builtMinesCount: 1,
+      completedMineTemplateIds: [],
+      content,
+      resources: {
+        gold: 120
+      },
+      roster: {
+        hiredGoblinIds: ["miner_1"]
+      }
+    });
+
+    expect(hutState).toMatchObject({
+      canUpgrade: true,
+      levelNow: 1,
+      maxHiredGoblins: 2,
+      maxLevel: 2
+    });
+    expect(hutState.costRequirements).toEqual([
+      {
+        available: 120,
+        missing: 0,
+        ok: true,
+        required: 100,
+        resourceId: "gold"
+      }
+    ]);
+    expect(createGoblinHutRoleTabs(content.goblins, { hiredGoblinIds: ["miner_1"] }, content.goblinHut)[2]).toMatchObject({
+      id: "collectors",
+      locked: true
+    });
   });
 
   it("splits visible goblin names into name and nickname", () => {

@@ -4,7 +4,6 @@ import {
   assignBuiltMineCollector,
   buildMineFromVein,
   calculateCrewAutoDamagePerSecond,
-  canHireGoblin,
   createBossEnergyState,
   createMiningSession,
   createInitialGoblinRoster,
@@ -22,6 +21,7 @@ import {
   restoreBossEnergyState,
   restoreMiningSession,
   upgradeGoblin,
+  upgradeGoblinHut,
   upgradeBuiltMine,
   type BossEnergyConfig,
   type BossEnergyState,
@@ -79,6 +79,8 @@ import {
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
 import {
+  createGoblinHirePreview,
+  createGoblinHutProgressionState,
   createGoblinHutRoleTabs,
   createGoblinIdentity,
   createGoblinRoleSummary,
@@ -86,6 +88,8 @@ import {
   filterGoblinsByHutRole,
   isMiningGoblin,
   type GoblinHutRoleTabId,
+  type GoblinHirePreview,
+  type GoblinHutProgressionState,
   type GoblinUpgradePreview
 } from "./goblinHutClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
@@ -530,6 +534,17 @@ export function App() {
   const visibleBuiltMines = useMemo(
     () => createVisibleBuiltMines(builtMines, clockNow, hiredCollectorGoblins, goblinLevels),
     [builtMines, clockNow, goblinLevels, hiredCollectorGoblins]
+  );
+  const goblinHutProgression = useMemo(
+    () =>
+      createGoblinHutProgressionState({
+        builtMinesCount: visibleBuiltMines.length,
+        completedMineTemplateIds,
+        content: contentState.content,
+        resources: session.resources,
+        roster
+      }),
+    [completedMineTemplateIds, contentState.content, roster, session.resources, visibleBuiltMines.length]
   );
   const builtMineUpgradePreviews = useMemo(() => {
     const progressedBuiltMines = createVisibleBuiltMines(builtMines, clockNow);
@@ -1274,9 +1289,10 @@ export function App() {
 
   function handleHireGoblin(goblin: GoblinConfig) {
     const result = hireGoblin({
-      builtMinesCount: builtMines.length,
+      builtMinesCount: visibleBuiltMines.length,
       completedMineTemplateIds,
       goblinId: goblin.id,
+      goblinHut: contentState.content.goblinHut,
       goblins: availableGoblins,
       roster,
       resources: session.resources
@@ -1303,6 +1319,7 @@ export function App() {
   function handleUpgradeGoblin(goblin: GoblinConfig) {
     const result = upgradeGoblin({
       goblinId: goblin.id,
+      goblinHut: contentState.content.goblinHut,
       goblins: availableGoblins,
       resources: session.resources,
       roster
@@ -1321,6 +1338,31 @@ export function App() {
       lastRewards: {}
     }));
     setRosterMessage(`${goblinName(goblin, labels)} уровень ${getGoblinLevel(result.roster, goblin.id)}.`);
+  }
+
+  function handleUpgradeGoblinHut() {
+    const result = upgradeGoblinHut({
+      builtMinesCount: visibleBuiltMines.length,
+      completedMineTemplateIds,
+      goblinHut: contentState.content.goblinHut,
+      goblins: availableGoblins,
+      resources: session.resources,
+      roster
+    });
+
+    if (!result.ok) {
+      setRosterMessage(messageForGoblinHutUpgradeFailure(result.reason));
+      return;
+    }
+
+    setRoster(result.roster);
+    syncVisibleResourceAmounts(result.resources);
+    setSession((current) => ({
+      ...current,
+      resources: result.resources,
+      lastRewards: {}
+    }));
+    setRosterMessage(`Хижина уровень ${result.roster.hutLevel ?? 1}.`);
   }
 
   return (
@@ -1372,9 +1414,11 @@ export function App() {
             builtMinesCount={visibleBuiltMines.length}
             completedMineTemplateIds={completedMineTemplateIds}
             content={contentState.content}
+            goblinHutProgression={goblinHutProgression}
             labels={labels}
             onHireGoblin={handleHireGoblin}
             onRoleTabChange={setGoblinRoleTab}
+            onUpgradeGoblinHut={handleUpgradeGoblinHut}
             onUpgradeGoblin={handleUpgradeGoblin}
             resources={session.resources}
             roster={roster}
@@ -1924,7 +1968,7 @@ function createRestoredGoblinRoster(content: ContentBundle, contentVersion: stri
     return createInitialGoblinRoster(goblins);
   }
 
-  return normalizeGoblinRoster(storedRoster.roster, goblins);
+  return normalizeGoblinRoster(storedRoster.roster, goblins, content.goblinHut);
 }
 
 function normalizeBuiltMineCollectorAssignments(
@@ -2123,9 +2167,11 @@ function GoblinSection(props: {
   builtMinesCount: number;
   completedMineTemplateIds: string[];
   content: ContentBundle;
+  goblinHutProgression: GoblinHutProgressionState;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
   onRoleTabChange: (role: GoblinHutRoleTabId) => void;
+  onUpgradeGoblinHut: () => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
   roster: GoblinRosterState;
@@ -2133,7 +2179,7 @@ function GoblinSection(props: {
 }) {
   const [selectedGoblinId, setSelectedGoblinId] = useState<string | null>(null);
   const roleSummary = createGoblinRoleSummary(props.availableGoblins, props.roster);
-  const roleTabs = createGoblinHutRoleTabs(props.availableGoblins, props.roster);
+  const roleTabs = createGoblinHutRoleTabs(props.availableGoblins, props.roster, props.content.goblinHut);
   const visibleGoblins = filterGoblinsByHutRole(props.availableGoblins, props.activeRoleTab);
   const minerGoblins = props.availableGoblins.filter(isMiningGoblin);
   const selectedGoblin = selectedGoblinId ? props.availableGoblins.find((goblin) => goblin.id === selectedGoblinId) ?? null : null;
@@ -2143,22 +2189,58 @@ function GoblinSection(props: {
       <header className="section-title">
         <div>
           <p>Хижина гоблинов</p>
-          <strong>{roleSummary.hiredCount} нанято</strong>
+          <strong>
+            {props.goblinHutProgression.levelNow} ур. · {roleSummary.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
+          </strong>
         </div>
         <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: minerGoblins, roster: props.roster })}/сек</span>
       </header>
+
+      <section className="goblin-hut-progress-card">
+        <div>
+          <span>{labelFromNameKey(props.goblinHutProgression.currentLevel.nameKey, "hut", props.labels)}</span>
+          <strong>
+            Лимит {props.goblinHutProgression.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
+          </strong>
+        </div>
+        <div className="goblin-hut-progress-meta">
+          <span>{goblinHutUnlockedRolesLabel(props.goblinHutProgression.currentLevel)}</span>
+          <span>{goblinHutBonusLabel(props.goblinHutProgression.currentLevel)}</span>
+        </div>
+        {props.goblinHutProgression.nextLevel ? (
+          <footer>
+            <span>Далее: {labelFromNameKey(props.goblinHutProgression.nextLevel.nameKey, "hut", props.labels)}</span>
+            <div className="build-cost-list">
+              {props.goblinHutProgression.costRequirements.map((requirement) => (
+                <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                  <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                  {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                </span>
+              ))}
+            </div>
+            <button disabled={!props.goblinHutProgression.canUpgrade} onClick={props.onUpgradeGoblinHut} type="button">
+              {goblinHutUpgradeActionLabel(props.goblinHutProgression)}
+            </button>
+          </footer>
+        ) : (
+          <footer>
+            <span>Хижина полностью улучшена</span>
+          </footer>
+        )}
+      </section>
 
       <div className="goblin-role-tabs" aria-label="Виды гоблинов">
         {roleTabs.map((tab) => (
           <button
             className={props.activeRoleTab === tab.id ? "active" : ""}
+            disabled={tab.locked}
             key={tab.id}
             onClick={() => props.onRoleTabChange(tab.id)}
             type="button"
           >
             <span>{tab.label}</span>
             <strong>
-              {tab.hiredCount}/{tab.count}
+              {tab.locked ? "закрыто" : `${tab.hiredCount}/${tab.count}`}
             </strong>
           </button>
         ))}
@@ -2174,11 +2256,12 @@ function GoblinSection(props: {
       <div className="goblin-list">
         {visibleGoblins.map((goblin) => {
           const hired = isGoblinHired(props.roster, goblin.id);
-          const upgradePreview = createGoblinUpgradePreview(goblin, props.roster, props.resources);
-          const canHire = canHireGoblin({
+          const upgradePreview = createGoblinUpgradePreview(goblin, props.roster, props.resources, props.content.goblinHut);
+          const hirePreview = createGoblinHirePreview({
             builtMinesCount: props.builtMinesCount,
             completedMineTemplateIds: props.completedMineTemplateIds,
             goblin,
+            goblinHut: props.content.goblinHut,
             goblins: props.availableGoblins,
             resources: props.resources,
             roster: props.roster
@@ -2214,7 +2297,7 @@ function GoblinSection(props: {
               </div>
               <button
                 className="goblin-card-action"
-                disabled={hired ? !upgradePreview.canUpgrade : !canHire}
+                disabled={hired ? !upgradePreview.canUpgrade : !hirePreview.canHire}
                 onClick={(event) => {
                   event.stopPropagation();
                   if (hired) {
@@ -2225,7 +2308,7 @@ function GoblinSection(props: {
                 }}
                 type="button"
               >
-                {goblinCardActionLabel(hired, upgradePreview, canHire)}
+                {goblinCardActionLabel(hired, upgradePreview, hirePreview)}
               </button>
             </article>
           );
@@ -2235,10 +2318,11 @@ function GoblinSection(props: {
       {props.rosterMessage ? <p className="roster-message">{props.rosterMessage}</p> : null}
       {selectedGoblin ? (
         <GoblinDetailsModal
-          canHire={canHireGoblin({
+          hirePreview={createGoblinHirePreview({
             builtMinesCount: props.builtMinesCount,
             completedMineTemplateIds: props.completedMineTemplateIds,
             goblin: selectedGoblin,
+            goblinHut: props.content.goblinHut,
             goblins: props.availableGoblins,
             resources: props.resources,
             roster: props.roster
@@ -2284,9 +2368,9 @@ function SpecializationIcon(props: { goblin: GoblinConfig; size: number }) {
 }
 
 function GoblinDetailsModal(props: {
-  canHire: boolean;
   content: ContentBundle;
   goblin: GoblinConfig;
+  hirePreview: GoblinHirePreview;
   hired: boolean;
   labels: Record<string, string>;
   onClose: () => void;
@@ -2296,7 +2380,7 @@ function GoblinDetailsModal(props: {
   roster: GoblinRosterState;
 }) {
   const identity = createGoblinIdentity(props.goblin, props.labels);
-  const preview = createGoblinUpgradePreview(props.goblin, props.roster, props.resources);
+  const preview = createGoblinUpgradePreview(props.goblin, props.roster, props.resources, props.content.goblinHut);
   const abilityTitle = labelFromNameKey(props.goblin.ability.nameKey, props.goblin.ability.id, props.labels);
   const abilityDescription = labelFromNameKey(props.goblin.ability.descriptionKey, props.goblin.id, props.labels);
 
@@ -2356,9 +2440,9 @@ function GoblinDetailsModal(props: {
         </section>
 
         <footer>
-          <span>{props.hired ? "В бригаде" : hireCostLabel(props.goblin, props.labels, props.content)}</span>
-          <button disabled={props.hired ? !preview.canUpgrade : !props.canHire} onClick={props.hired ? props.onUpgrade : props.onHire} type="button">
-            {goblinCardActionLabel(props.hired, preview, props.canHire)}
+          <span>{props.hired ? "В бригаде" : hirePreviewCostLabel(props.hirePreview, props.labels, props.content)}</span>
+          <button disabled={props.hired ? !preview.canUpgrade : !props.hirePreview.canHire} onClick={props.hired ? props.onUpgrade : props.onHire} type="button">
+            {goblinCardActionLabel(props.hired, preview, props.hirePreview)}
           </button>
         </footer>
       </section>
@@ -2975,9 +3059,20 @@ function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
   }
 }
 
-function goblinCardActionLabel(hired: boolean, preview: GoblinUpgradePreview, canHire: boolean): string {
+function goblinCardActionLabel(hired: boolean, preview: GoblinUpgradePreview, hirePreview: GoblinHirePreview): string {
   if (!hired) {
-    return canHire ? "Нанять" : "Закрыт";
+    switch (hirePreview.failureReason) {
+      case null:
+        return "Нанять";
+      case "hut_limit":
+        return "Лимит";
+      case "not_enough_resources":
+        return "Нет ресурсов";
+      case "role_locked":
+        return "Роль закрыта";
+      default:
+        return "Закрыт";
+    }
   }
 
   if (preview.failureReason === "max_level") {
@@ -2985,6 +3080,34 @@ function goblinCardActionLabel(hired: boolean, preview: GoblinUpgradePreview, ca
   }
 
   return preview.canUpgrade ? "Улучшить" : "Нет золота";
+}
+
+function goblinHutUnlockedRolesLabel(level: GoblinHutProgressionState["currentLevel"]): string {
+  return level.unlockedClasses.map(goblinClassLabel).join(" · ");
+}
+
+function goblinHutBonusLabel(level: GoblinHutProgressionState["currentLevel"]): string {
+  const hireDiscount = Math.max(0, Math.round((1 - (level.hireCostMultiplier ?? 1)) * 100));
+  const upgradeDiscount = Math.max(0, Math.round((1 - (level.upgradeCostMultiplier ?? 1)) * 100));
+
+  if (hireDiscount === 0 && upgradeDiscount === 0) {
+    return "без скидок";
+  }
+
+  return [`найм -${hireDiscount}%`, `прокачка -${upgradeDiscount}%`].filter((item) => !item.includes("-0%")).join(" · ");
+}
+
+function goblinHutUpgradeActionLabel(state: GoblinHutProgressionState): string {
+  switch (state.failureReason) {
+    case null:
+      return "Улучшить";
+    case "locked":
+      return "Нужен прогресс";
+    case "not_enough_resources":
+      return "Нет ресурсов";
+    default:
+      return "Макс.";
+  }
 }
 
 function automationHint(
@@ -3136,13 +3259,13 @@ function pluralRu(value: number, one: string, few: string, many: string): string
   return many;
 }
 
-function hireCostLabel(goblin: GoblinConfig, labels: Record<string, string>, content: ContentBundle): string {
-  if (goblin.hireCost.length === 0) {
+function hirePreviewCostLabel(preview: GoblinHirePreview, labels: Record<string, string>, content: ContentBundle): string {
+  if (preview.costRequirements.length === 0) {
     return "Стартовый";
   }
 
-  return goblin.hireCost
-    .map((cost) => `-${cost.amount} ${resourceLabelById(cost.resourceId, labels, content)}`)
+  return preview.costRequirements
+    .map((cost) => `-${cost.required} ${resourceLabelById(cost.resourceId, labels, content)}`)
     .join(" · ");
 }
 
@@ -3180,12 +3303,29 @@ function messageForHireFailure(reason: string): string {
   switch (reason) {
     case "already_hired":
       return "Этот гоблин уже в бригаде.";
+    case "hut_limit":
+      return "Лимит Хижины заполнен. Улучши Хижину, чтобы нанять больше.";
     case "locked":
       return "Условия найма еще не выполнены.";
     case "not_enough_resources":
       return "Не хватает ресурсов для найма.";
+    case "role_locked":
+      return "Эта роль еще не открыта уровнем Хижины.";
     default:
       return "Найм не прошел.";
+  }
+}
+
+function messageForGoblinHutUpgradeFailure(reason: string): string {
+  switch (reason) {
+    case "locked":
+      return "Условия улучшения Хижины еще не выполнены.";
+    case "not_enough_resources":
+      return "Не хватает ресурсов для улучшения Хижины.";
+    case "max_level":
+      return "Хижина уже на максимальном уровне.";
+    default:
+      return "Хижина не улучшена.";
   }
 }
 

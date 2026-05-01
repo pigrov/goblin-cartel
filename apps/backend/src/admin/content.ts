@@ -15,8 +15,9 @@ export type ContentEntityType =
   | "rewardChestType"
   | "mineTemplate"
   | "goblin"
+  | "goblinHut"
   | "localization";
-export type EditableContentEntityType = "blockType" | "builtMineType" | "goblin" | "mineTemplate" | "rewardChestType";
+export type EditableContentEntityType = "blockType" | "builtMineType" | "goblin" | "goblinHut" | "mineTemplate" | "rewardChestType";
 
 export interface ContentVersionRecord {
   id: string;
@@ -428,6 +429,9 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
+    goblinHut:
+      (entities.find((entity) => entity.entityType === "goblinHut" && entity.entityId === "default")?.data as ContentBundle["goblinHut"] | undefined) ??
+      starterContentBundle.goblinHut,
     localization
   } as ContentBundle;
 }
@@ -455,6 +459,14 @@ function upsertEditableContentEntity(
         }
       }
     : content.localization;
+
+  if (input.entityType === "goblinHut") {
+    return {
+      ...content,
+      goblinHut: normalizedEntity as ContentBundle["goblinHut"],
+      localization: nextLocalization
+    };
+  }
 
   return {
     ...content,

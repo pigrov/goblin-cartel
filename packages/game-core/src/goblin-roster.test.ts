@@ -3,14 +3,18 @@ import {
   calculateCrewAutoDamagePerSecond,
   calculateCrewHitDamage,
   calculateGoblinEffectiveAbilityEffects,
+  calculateGoblinHireCost,
   calculateGoblinHitDamage,
   calculateGoblinUpgradeCost,
   canHireGoblin,
   createInitialGoblinRoster,
+  getGoblinHutLevel,
   getGoblinLevel,
   hireGoblin,
   normalizeGoblinRoster,
   upgradeGoblin,
+  upgradeGoblinHut,
+  type GoblinHutConfig,
   type GoblinRosterGoblin
 } from "./goblin-roster";
 
@@ -98,6 +102,29 @@ const goblins: GoblinRosterGoblin[] = [
     sortOrder: 30
   }
 ];
+
+const goblinHut: GoblinHutConfig = {
+  levels: [
+    {
+      hireCostMultiplier: 1,
+      level: 1,
+      maxHiredGoblins: 2,
+      unlockedClasses: ["miner"],
+      upgradeCost: [],
+      upgradeCostMultiplier: 1,
+      unlockRequirements: []
+    },
+    {
+      hireCostMultiplier: 0.9,
+      level: 2,
+      maxHiredGoblins: 4,
+      unlockedClasses: ["miner", "foreman"],
+      upgradeCost: [{ amount: 100, resourceId: "gold" }],
+      upgradeCostMultiplier: 0.8,
+      unlockRequirements: [{ type: "built_mines_count", value: 1 }]
+    }
+  ]
+};
 
 describe("goblin roster", () => {
   it("starts with the first free goblin hired", () => {
@@ -215,6 +242,68 @@ describe("goblin roster", () => {
     ).toBe(true);
   });
 
+  it("uses hut level for hire limits, role unlocks, and hire discounts", () => {
+    const extraMiner = { ...(goblins[1] as GoblinRosterGoblin), id: "extra_miner" };
+
+    expect(
+      canHireGoblin({
+        goblin: goblins[2] as GoblinRosterGoblin,
+        goblinHut,
+        goblins,
+        resources: {
+          gold: 500
+        },
+        roster: {
+          hiredGoblinIds: ["starter_miner", "second_miner"]
+        }
+      })
+    ).toBe(false);
+
+    expect(
+      hireGoblin({
+        goblinId: "extra_miner",
+        goblinHut,
+        goblins: [...goblins, extraMiner],
+        resources: {
+          gold: 500
+        },
+        roster: {
+          hiredGoblinIds: ["starter_miner", "second_miner"]
+        }
+      })
+    ).toEqual({
+      ok: false,
+      reason: "hut_limit"
+    });
+
+    const result = hireGoblin({
+      goblinId: "foreman",
+      goblinHut,
+      goblins,
+      resources: {
+        gold: 300
+      },
+      roster: {
+        hiredGoblinIds: ["starter_miner", "second_miner"],
+        hutLevel: 2
+      }
+    });
+
+    expect(calculateGoblinHireCost(goblins[2] as GoblinRosterGoblin, { hiredGoblinIds: [], hutLevel: 2 }, goblinHut)).toEqual([
+      { amount: 270, resourceId: "gold" }
+    ]);
+    expect(result).toEqual({
+      ok: true,
+      resources: {
+        gold: 30
+      },
+      roster: {
+        hiredGoblinIds: ["starter_miner", "second_miner", "foreman"],
+        hutLevel: 2
+      }
+    });
+  });
+
   it("rejects hire when resources are missing", () => {
     expect(
       hireGoblin({
@@ -258,6 +347,54 @@ describe("goblin roster", () => {
         hiredGoblinIds: ["starter_miner", "second_miner"]
       }
     });
+  });
+
+  it("upgrades the hut and applies its upgrade discount to goblin leveling", () => {
+    expect(
+      upgradeGoblinHut({
+        builtMinesCount: 0,
+        goblinHut,
+        goblins,
+        resources: {
+          gold: 200
+        },
+        roster: {
+          hiredGoblinIds: ["starter_miner"]
+        }
+      })
+    ).toEqual({
+      cost: [{ amount: 100, resourceId: "gold" }],
+      ok: false,
+      reason: "locked"
+    });
+
+    const hutUpgrade = upgradeGoblinHut({
+      builtMinesCount: 1,
+      goblinHut,
+      goblins,
+      resources: {
+        gold: 200
+      },
+      roster: {
+        hiredGoblinIds: ["starter_miner"]
+      }
+    });
+
+    expect(hutUpgrade).toEqual({
+      cost: [{ amount: 100, resourceId: "gold" }],
+      ok: true,
+      resources: {
+        gold: 100
+      },
+      roster: {
+        hiredGoblinIds: ["starter_miner"],
+        hutLevel: 2
+      }
+    });
+    expect(getGoblinHutLevel(hutUpgrade.ok ? hutUpgrade.roster : { hiredGoblinIds: [] })).toBe(2);
+    expect(calculateGoblinUpgradeCost(goblins[1] as GoblinRosterGoblin, 1, goblinHut, 2)).toEqual([
+      { amount: 64, resourceId: "gold" }
+    ]);
   });
 
   it("rejects goblin upgrades when locked by roster, level, or resources", () => {

@@ -44,8 +44,8 @@ interface CredentialItem {
 type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "push" | "json" | "secret";
 type CredentialEnvironment = "production" | "staging" | "development";
 type AdminSection = "dashboard" | "content" | "credentials";
-type ContentEntityKind = "blockTypes" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes";
-type ContentEntityApiKind = "blockType" | "builtMineType" | "goblin" | "mineTemplate" | "rewardChestType";
+type ContentEntityKind = "blockTypes" | "builtMineTypes" | "goblins" | "goblinHut" | "mineTemplates" | "rewardChestTypes";
+type ContentEntityApiKind = "blockType" | "builtMineType" | "goblin" | "goblinHut" | "mineTemplate" | "rewardChestType";
 type EntityFormState = Record<string, string>;
 
 interface ContentVersion {
@@ -69,6 +69,7 @@ interface ContentBundle {
   rewardChestTypes?: ContentRecord[];
   mineTemplates: ContentRecord[];
   goblins: ContentRecord[];
+  goblinHut: ContentRecord;
   localization?: Record<string, Record<string, string>>;
 }
 
@@ -129,6 +130,7 @@ const credentialEnvironments: Array<{ value: CredentialEnvironment; label: strin
 const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind }> = [
   { value: "blockTypes", label: "Блоки" },
   { value: "goblins", label: "Гоблины" },
+  { value: "goblinHut", label: "Хижина" },
   { value: "mineTemplates", label: "Рудники" },
   { value: "builtMineTypes", label: "Типы шахт" },
   { value: "rewardChestTypes", label: "Сундуки" }
@@ -1144,6 +1146,7 @@ function ContentSection(props: {
             <ContentEntityKpi label="Типы шахт" value={contentEntityCount(contentPreview, "builtMineTypes")} />
             <ContentEntityKpi label="Рудники" value={contentEntityCount(contentPreview, "mineTemplates")} />
             <ContentEntityKpi label="Гоблины" value={contentEntityCount(contentPreview, "goblins")} />
+            <ContentEntityKpi label="Хижина" value={contentPreview?.goblinHut ? 1 : 0} />
           </div>
 
           {contentPreview ? (
@@ -1400,6 +1403,16 @@ function renderEntityFields(
           updateField={updateField}
           updateFields={updateFields}
         />
+      </>
+    );
+  }
+
+  if (kind === "goblinHut") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <ContentGoblinHutLevelRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
       </>
     );
   }
@@ -1776,6 +1789,92 @@ function ContentGoblinLevelCostRows(props: {
             onClick={() =>
               props.updateFields(
                 removeIndexedFormRow(props.formState, props.prefix, index, ["ResourceId", "BaseAmount", "LevelMultiplier", "LevelPower"], count)
+              )
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentGoblinHutLevelRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, "levelCount", 1);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить уровень"
+      onAdd={() =>
+        props.updateFields({
+          [`levelClasses_${count}`]: "miner, builder, collector",
+          [`levelCostCopper_${count}`]: "0",
+          [`levelCostGold_${count}`]: "0",
+          [`levelCostIron_${count}`]: "0",
+          [`levelCostStone_${count}`]: "0",
+          [`levelCount`]: String(count + 1),
+          [`levelHireDiscountPercent_${count}`]: "0",
+          [`levelLevel_${count}`]: String(count + 1),
+          [`levelMaxHired_${count}`]: String((toInteger(props.formState[`levelMaxHired_${count - 1}`]) || count + 1) + 1),
+          [`levelRequiredBuiltMines_${count}`]: "0",
+          [`levelRequiredMineTemplateId_${count}`]: "",
+          [`levelTitle_${count}`]: "",
+          [`levelUpgradeDiscountPercent_${count}`]: "0"
+        })
+      }
+      title="Уровни Хижины"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row content-list-row-wide" key={`hut-level-${index}`}>
+          <ContentTextField label="Ур." name={`levelLevel_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelLevel_${index}`]} />
+          <ContentTextField label="Название RU" name={`levelTitle_${index}`} onChange={props.updateField} value={props.formState[`levelTitle_${index}`]} />
+          <ContentTextField label="Лимит" name={`levelMaxHired_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelMaxHired_${index}`]} />
+          <ContentTextField label="Роли" name={`levelClasses_${index}`} onChange={props.updateField} value={props.formState[`levelClasses_${index}`]} />
+          <ContentTextField label="Скидка найма %" name={`levelHireDiscountPercent_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelHireDiscountPercent_${index}`]} />
+          <ContentTextField label="Скидка прокачки %" name={`levelUpgradeDiscountPercent_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelUpgradeDiscountPercent_${index}`]} />
+          <ContentTextField label="Золото" name={`levelCostGold_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostGold_${index}`]} />
+          <ContentTextField label="Камень" name={`levelCostStone_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostStone_${index}`]} />
+          <ContentTextField label="Медь" name={`levelCostCopper_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostCopper_${index}`]} />
+          <ContentTextField label="Железо" name={`levelCostIron_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostIron_${index}`]} />
+          <ContentTextField label="Нужно шахт" name={`levelRequiredBuiltMines_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelRequiredBuiltMines_${index}`]} />
+          <ContentSelectField
+            label="Нужен рудник"
+            name={`levelRequiredMineTemplateId_${index}`}
+            onChange={props.updateField}
+            options={[{ value: "", label: "Не задан" }, ...mineTemplateSelectOptions(props.content)]}
+            value={props.formState[`levelRequiredMineTemplateId_${index}`]}
+          />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(
+                removeIndexedFormRow(
+                  props.formState,
+                  "level",
+                  index,
+                  [
+                    "Level",
+                    "Title",
+                    "MaxHired",
+                    "Classes",
+                    "HireDiscountPercent",
+                    "UpgradeDiscountPercent",
+                    "CostGold",
+                    "CostStone",
+                    "CostCopper",
+                    "CostIron",
+                    "RequiredBuiltMines",
+                    "RequiredMineTemplateId"
+                  ],
+                  count
+                )
               )
             }
             type="button"
@@ -2525,6 +2624,8 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
       return content.blockTypes;
     case "builtMineTypes":
       return content.builtMineTypes ?? [];
+    case "goblinHut":
+      return [content.goblinHut ?? { id: "default", nameKey: "goblin_hut.name", levels: [] }];
     case "mineTemplates":
       return content.mineTemplates;
     case "rewardChestTypes":
@@ -2541,6 +2642,10 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
 
   if (kind === "goblins") {
     return createGoblinFormState(entity, content);
+  }
+
+  if (kind === "goblinHut") {
+    return createGoblinHutFormState(entity, content);
   }
 
   if (kind === "mineTemplates") {
@@ -2613,6 +2718,39 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     ...createGoblinLevelCostFormState("levelCost", arrayField(leveling, "cost"), content),
     ...createResourceAmountFormState("hireCost", hireCost, content, "gold")
   };
+}
+
+function createGoblinHutFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const levels = arrayField(entity, "levels");
+  const count = Math.max(1, levels.length);
+  const state: EntityFormState = {
+    id: stringField(entity, "id") || "default",
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    levelCount: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const level = recordAt(levels, index);
+    const upgradeCost = arrayField(level, "upgradeCost");
+    const unlockRequirements = arrayField(level, "unlockRequirements");
+    const requiredBuiltMines = unlockRequirements.find((requirement) => stringField(requirement, "type") === "built_mines_count");
+    const requiredMine = unlockRequirements.find((requirement) => stringField(requirement, "type") === "mine_completed");
+
+    state[`levelLevel_${index}`] = numberString(numberField(level, "level", index + 1));
+    state[`levelTitle_${index}`] = localizationValue(content, stringField(level, "nameKey"));
+    state[`levelMaxHired_${index}`] = numberString(numberField(level, "maxHiredGoblins", 1));
+    state[`levelClasses_${index}`] = arrayStringField(level, "unlockedClasses").join(", ");
+    state[`levelHireDiscountPercent_${index}`] = numberString(multiplierReductionToPercent(numberField(level, "hireCostMultiplier", 1)));
+    state[`levelUpgradeDiscountPercent_${index}`] = numberString(multiplierReductionToPercent(numberField(level, "upgradeCostMultiplier", 1)));
+    state[`levelCostGold_${index}`] = numberString(resourceAmountField(upgradeCost, "gold"));
+    state[`levelCostStone_${index}`] = numberString(resourceAmountField(upgradeCost, "stone"));
+    state[`levelCostCopper_${index}`] = numberString(resourceAmountField(upgradeCost, "copper_ore"));
+    state[`levelCostIron_${index}`] = numberString(resourceAmountField(upgradeCost, "iron"));
+    state[`levelRequiredBuiltMines_${index}`] = numberString(numberField(requiredBuiltMines ?? {}, "value", 0));
+    state[`levelRequiredMineTemplateId_${index}`] = stringField(requiredMine ?? {}, "mineTemplateId");
+  }
+
+  return state;
 }
 
 function createMineTemplateFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
@@ -2807,6 +2945,8 @@ function validateEntityForm(
     validateBlockTypeForm(state, content, errors);
   } else if (kind === "goblins") {
     validateGoblinForm(state, content, errors);
+  } else if (kind === "goblinHut") {
+    validateGoblinHutForm(state, content, errors);
   } else if (kind === "mineTemplates") {
     validateMineTemplateForm(state, content, errors);
   } else if (kind === "rewardChestTypes") {
@@ -2891,6 +3031,50 @@ function validateGoblinForm(state: EntityFormState, content: ContentBundle, erro
 
   if (productionBonusResourceId && !resourceIdSet(content).has(productionBonusResourceId)) {
     errors.push("Ресурс бонуса добычи не найден.");
+  }
+}
+
+function validateGoblinHutForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  const count = formCount(state, "levelCount", 1);
+  const seenLevels = new Set<number>();
+  const validClasses = new Set(goblinClassOptions.map((option) => option.value));
+  const validMineTemplateIds = new Set(content.mineTemplates.map((mineTemplate) => stringField(mineTemplate, "id")));
+
+  for (let index = 0; index < count; index += 1) {
+    const rowLabel = `Уровень Хижины ${index + 1}`;
+    const level = toInteger(state[`levelLevel_${index}`]);
+    const classes = formValue(state, `levelClasses_${index}`)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const requiredMineTemplateId = formValue(state, `levelRequiredMineTemplateId_${index}`);
+
+    validateIntegerField(state, `levelLevel_${index}`, `${rowLabel}: номер`, errors, { min: 1 });
+    validateIntegerField(state, `levelMaxHired_${index}`, `${rowLabel}: лимит`, errors, { min: 1 });
+    validateNumberField(state, `levelHireDiscountPercent_${index}`, `${rowLabel}: скидка найма`, errors, { min: 0 });
+    validateNumberField(state, `levelUpgradeDiscountPercent_${index}`, `${rowLabel}: скидка прокачки`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostGold_${index}`, `${rowLabel}: золото`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostStone_${index}`, `${rowLabel}: камень`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostCopper_${index}`, `${rowLabel}: медь`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostIron_${index}`, `${rowLabel}: железо`, errors, { min: 0 });
+    validateIntegerField(state, `levelRequiredBuiltMines_${index}`, `${rowLabel}: нужно шахт`, errors, { min: 0 });
+
+    if (!formValue(state, `levelTitle_${index}`).trim()) {
+      errors.push(`${rowLabel}: название RU обязательно.`);
+    }
+
+    if (seenLevels.has(level)) {
+      errors.push(`${rowLabel}: номер уровня должен быть уникальным.`);
+    }
+    seenLevels.add(level);
+
+    if (classes.length === 0 || classes.some((item) => !validClasses.has(item))) {
+      errors.push(`${rowLabel}: роли должны быть из списка miner, builder, collector, foreman.`);
+    }
+
+    if (requiredMineTemplateId && !validMineTemplateIds.has(requiredMineTemplateId)) {
+      errors.push(`${rowLabel}: рудник условия не найден.`);
+    }
   }
 }
 
@@ -3104,6 +3288,10 @@ function applyEntityForm(
     return applyGoblinForm(content, selectedId, state);
   }
 
+  if (kind === "goblinHut") {
+    return applyGoblinHutForm(content, selectedId, state);
+  }
+
   if (kind === "mineTemplates") {
     return applyMineTemplateForm(content, selectedId, state);
   }
@@ -3227,6 +3415,34 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
       [nicknameKey]: formValue(state, "nickname").trim()
     },
     message: `Гоблин ${id} сохранен как draft.`
+  };
+}
+
+function applyGoblinHutForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const current = content.goblinHut;
+  const id = formValue(state, "id") || "default";
+  const nameKey = stringField(current, "nameKey") || "goblin_hut.name";
+  const currentLevels = arrayField(current, "levels");
+  const levels = createGoblinHutLevelsFromForm(state, currentLevels);
+  const localization: Record<string, string> = {
+    [nameKey]: formValue(state, "title").trim()
+  };
+
+  for (let index = 0; index < levels.length; index += 1) {
+    const levelNameKey = stringField(levels[index] ?? {}, "nameKey") || `goblin_hut.level.${index + 1}.name`;
+    localization[levelNameKey] = formValue(state, `levelTitle_${index}`).trim();
+  }
+
+  return {
+    entity: {
+      id,
+      levels,
+      nameKey
+    },
+    entityId: selectedId,
+    entityType: "goblinHut",
+    localization,
+    message: `Хижина ${id} сохранена как draft.`
   };
 }
 
@@ -3379,6 +3595,65 @@ function createResourceAmountsFromForm(state: EntityFormState, prefix: string): 
   }
 
   return rows;
+}
+
+function createGoblinHutLevelsFromForm(state: EntityFormState, currentLevels: ContentRecord[]): ContentRecord[] {
+  const count = formCount(state, "levelCount", 1);
+
+  return Array.from({ length: count }, (_, index) => {
+    const level = toInteger(state[`levelLevel_${index}`]) || index + 1;
+    const current = currentLevels.find((item) => numberField(item, "level", 0) === level) ?? currentLevels[index] ?? {};
+    const nameKey = stringField(current, "nameKey") || `goblin_hut.level.${level}.name`;
+    const unlockedClasses = formValue(state, `levelClasses_${index}`)
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+    const upgradeCost = createGoblinHutUpgradeCostFromForm(state, index);
+    const unlockRequirements = createGoblinHutUnlockRequirementsFromForm(state, index);
+
+    return {
+      hireCostMultiplier: percentToReductionMultiplier(toNumber(state[`levelHireDiscountPercent_${index}`])),
+      level,
+      maxHiredGoblins: toInteger(state[`levelMaxHired_${index}`]),
+      nameKey,
+      unlockRequirements,
+      unlockedClasses,
+      upgradeCost,
+      upgradeCostMultiplier: percentToReductionMultiplier(toNumber(state[`levelUpgradeDiscountPercent_${index}`]))
+    };
+  }).sort((left, right) => numberField(left, "level", 0) - numberField(right, "level", 0));
+}
+
+function createGoblinHutUpgradeCostFromForm(state: EntityFormState, index: number): Array<{ amount: number; resourceId: string }> {
+  const resources: Array<[string, string]> = [
+    ["gold", "Gold"],
+    ["stone", "Stone"],
+    ["copper_ore", "Copper"],
+    ["iron", "Iron"]
+  ];
+
+  return resources
+    .map(([resourceId, suffix]) => ({
+      amount: toInteger(state[`levelCost${suffix}_${index}`]),
+      resourceId
+    }))
+    .filter((cost) => cost.amount > 0);
+}
+
+function createGoblinHutUnlockRequirementsFromForm(state: EntityFormState, index: number): ContentRecord[] {
+  const requirements: ContentRecord[] = [];
+  const requiredBuiltMines = toInteger(state[`levelRequiredBuiltMines_${index}`]);
+  const requiredMineTemplateId = formValue(state, `levelRequiredMineTemplateId_${index}`);
+
+  if (requiredBuiltMines > 0) {
+    requirements.push({ type: "built_mines_count", value: requiredBuiltMines });
+  }
+
+  if (requiredMineTemplateId) {
+    requirements.push({ type: "mine_completed", mineTemplateId: requiredMineTemplateId });
+  }
+
+  return requirements;
 }
 
 function createMineUpgradeCostFromForm(
@@ -3576,6 +3851,13 @@ function blockTypeSelectOptions(content: ContentBundle): Array<{ label: string; 
   }));
 }
 
+function mineTemplateSelectOptions(content: ContentBundle): Array<{ label: string; value: string }> {
+  return content.mineTemplates.map((mineTemplate) => ({
+    label: contentEntityTitle(mineTemplate, content.localization?.ru ?? {}),
+    value: stringField(mineTemplate, "id")
+  }));
+}
+
 function localizationValue(content: ContentBundle, key: string): string {
   return key ? content.localization?.ru?.[key] ?? "" : "";
 }
@@ -3597,6 +3879,11 @@ function arrayStringField(record: ContentRecord, key: string): string[] {
 
 function recordAt(items: ContentRecord[], index: number): ContentRecord {
   return items[index] ?? {};
+}
+
+function resourceAmountField(rows: ContentRecord[], resourceId: string): number {
+  const row = rows.find((item) => stringField(item, "resourceId") === resourceId);
+  return numberField(row ?? {}, "amount", 0);
 }
 
 function numberField(record: ContentRecord, key: string, fallback: number): number {
@@ -3656,12 +3943,20 @@ function multiplierDeltaToPercent(value: number): number {
   return Math.max(0, Math.round(value * 100));
 }
 
+function multiplierReductionToPercent(value: number): number {
+  return Math.max(0, Math.round((1 - value) * 100));
+}
+
 function percentToMultiplier(percent: number): number {
   return Math.round((1 + Math.max(0, percent) / 100) * 1000) / 1000;
 }
 
 function percentToMultiplierDelta(percent: number): number {
   return Math.round((Math.max(0, percent) / 100) * 1000) / 1000;
+}
+
+function percentToReductionMultiplier(percent: number): number {
+  return Math.round(Math.max(0.01, 1 - Math.max(0, percent) / 100) * 1000) / 1000;
 }
 
 function toNumber(value: string | undefined): number {
