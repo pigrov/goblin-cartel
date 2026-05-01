@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   advanceBuiltMineProduction,
   assignBuiltMineCollector,
+  builtMineMaxLevel,
   buildMineFromVein,
+  calculateBuiltMineUpgradeCost,
+  calculateBuiltMineUpgradeStats,
   canBuildMineFromVein,
   collectAutomatedBuiltMineIncome,
   collectBuiltMineIncome,
+  upgradeBuiltMine,
   type BuiltMineType
 } from "./built-mines";
 
@@ -224,6 +228,143 @@ describe("built mines", () => {
       assignedCollectorGoblinId: "pip_dry_book",
       status: "active",
       storedAmount: 0
+    });
+  });
+
+  it("upgrades an active mine and deducts upgrade resources", () => {
+    const result = buildMineFromVein({
+      builtMineTypes,
+      now: 0,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    const activeMine = advanceBuiltMineProduction(result.builtMine, result.builtMine.completesAt + 30 * 60 * 1000);
+    const cost = calculateBuiltMineUpgradeCost(activeMine);
+    const nextStats = calculateBuiltMineUpgradeStats(activeMine);
+    const upgraded = upgradeBuiltMine({
+      builtMine: activeMine,
+      now: activeMine.lastProducedAt + 1000,
+      resources: {
+        ...result.resources,
+        copper_ore: 80
+      }
+    });
+
+    expect(cost).toEqual([
+      {
+        amount: 60,
+        resourceId: "copper_ore"
+      },
+      {
+        amount: 100,
+        resourceId: "gold"
+      }
+    ]);
+    expect(nextStats).toEqual({
+      capacity: 420,
+      level: 2,
+      productionPerHour: 162
+    });
+    expect(upgraded).toMatchObject({
+      ok: true,
+      resources: {
+        copper_ore: 20,
+        gold: 200,
+        stone: 80
+      }
+    });
+
+    if (!upgraded.ok) {
+      throw new Error("Expected upgrade to succeed");
+    }
+
+    expect(upgraded.builtMine).toMatchObject({
+      capacity: 420,
+      level: 2,
+      productionPerHour: 162,
+      status: "active"
+    });
+  });
+
+  it("rejects mine upgrades while building, without resources, or at max level", () => {
+    const result = buildMineFromVein({
+      builtMineTypes,
+      now: 0,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    expect(
+      upgradeBuiltMine({
+        builtMine: result.builtMine,
+        now: 1000,
+        resources: {
+          copper_ore: 500,
+          gold: 500
+        }
+      })
+    ).toEqual({
+      ok: false,
+      cost: [
+        {
+          amount: 60,
+          resourceId: "copper_ore"
+        },
+        {
+          amount: 100,
+          resourceId: "gold"
+        }
+      ],
+      reason: "mine_not_active"
+    });
+
+    const activeMine = advanceBuiltMineProduction(result.builtMine, result.builtMine.completesAt);
+
+    expect(
+      upgradeBuiltMine({
+        builtMine: activeMine,
+        now: activeMine.lastProducedAt,
+        resources: {
+          copper_ore: 10,
+          gold: 500
+        }
+      })
+    ).toMatchObject({
+      ok: false,
+      reason: "not_enough_resources"
+    });
+
+    expect(
+      upgradeBuiltMine({
+        builtMine: {
+          ...activeMine,
+          level: builtMineMaxLevel
+        },
+        now: activeMine.lastProducedAt,
+        resources: {
+          copper_ore: 500,
+          gold: 500
+        }
+      })
+    ).toEqual({
+      ok: false,
+      cost: [],
+      reason: "max_level"
     });
   });
 });

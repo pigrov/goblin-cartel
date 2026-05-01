@@ -1259,6 +1259,21 @@ body,
   font-weight: 800;
 }
 
+.mine-progress-card .mine-route-status {
+  color: #9ee18b;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.mine-progress-card .mine-route-status.digging,
+.mine-progress-card .mine-route-status.mine_building {
+  color: var(--gc-gold);
+}
+
+.mine-progress-card .mine-route-status.vein_found {
+  color: var(--gc-copper);
+}
+
 .mine-progress-card strong {
   color: var(--gc-text);
   font-size: 14px;
@@ -1503,6 +1518,54 @@ body,
 .built-mine-stat-row strong {
   color: var(--gc-text);
   font-size: 13px;
+}
+
+.built-mine-upgrade-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px 9px;
+  padding: 8px;
+  border: 1px solid rgb(242 184 75 / 24%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(242 184 75 / 8%), rgb(255 255 255 / 3%)),
+    rgb(255 255 255 / 4%);
+}
+
+.built-mine-upgrade-row > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.built-mine-upgrade-row strong,
+.built-mine-upgrade-row small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.built-mine-upgrade-row strong {
+  color: var(--gc-text);
+  font-size: 12px;
+}
+
+.built-mine-upgrade-row small {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.built-mine-upgrade-row .build-cost-list {
+  grid-column: 1 / -1;
+}
+
+.built-mine-upgrade-row button {
+  min-height: 30px;
+  padding: 0 9px;
+  font-size: 11px;
 }
 
 .built-mine-automation-row {

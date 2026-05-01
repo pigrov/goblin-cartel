@@ -5,6 +5,8 @@ import {
   canMoveToNextMine,
   findMineTemplateIndex,
   findNextMineTemplate,
+  getMineProgressionStatus,
+  hasActiveBuiltMineFromSession,
   hasBuiltMineFromSession,
   markMineCompletionNoticeSeen,
   shouldShowMineCompletionNotice
@@ -31,6 +33,7 @@ const secondMine = {
 } satisfies MineTemplateConfig;
 
 const session = {
+  foundVeins: [],
   mine: {
     depthMeters: 60,
     height: 12,
@@ -38,10 +41,11 @@ const session = {
     templateId: "first_mine",
     width: 8
   }
-} as MiningSession;
+} as unknown as MiningSession;
 
 const builtMine = {
-  sourceVeinId: "first_mine:player-1:9:3:copper_vein_small"
+  sourceVeinId: "first_mine:player-1:9:3:copper_vein_small",
+  status: "active"
 } as BuiltMineState;
 
 describe("mine progression client state", () => {
@@ -53,9 +57,54 @@ describe("mine progression client state", () => {
 
   it("requires a built mine from the current session before moving next", () => {
     expect(hasBuiltMineFromSession(session, [builtMine])).toBe(true);
+    expect(hasActiveBuiltMineFromSession(session, [builtMine])).toBe(true);
     expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session })).toBe(true);
     expect(canMoveToNextMine({ builtMines: [], mineTemplates: [firstMine, secondMine], session })).toBe(false);
     expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine], session })).toBe(false);
+  });
+
+  it("requires an active built mine before moving next", () => {
+    const buildingMine = {
+      ...builtMine,
+      status: "building" as const
+    };
+
+    expect(hasBuiltMineFromSession(session, [buildingMine])).toBe(true);
+    expect(hasActiveBuiltMineFromSession(session, [buildingMine])).toBe(false);
+    expect(canMoveToNextMine({ builtMines: [buildingMine], mineTemplates: [firstMine, secondMine], session })).toBe(false);
+  });
+
+  it("describes the current mine progression status", () => {
+    expect(getMineProgressionStatus({ builtMines: [], mineTemplates: [firstMine, secondMine], session })).toBe("digging");
+    expect(
+      getMineProgressionStatus({
+        builtMines: [],
+        mineTemplates: [firstMine, secondMine],
+        session: {
+          ...session,
+          foundVeins: [
+            {
+              id: "first_mine:player-1:9:3:copper_vein_small",
+              veinTypeId: "copper_vein_small"
+            }
+          ]
+        } as unknown as MiningSession
+      })
+    ).toBe("vein_found");
+    expect(
+      getMineProgressionStatus({
+        builtMines: [
+          {
+            ...builtMine,
+            status: "building" as const
+          }
+        ],
+        mineTemplates: [firstMine, secondMine],
+        session
+      })
+    ).toBe("mine_building");
+    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session })).toBe("next_available");
+    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine], session })).toBe("complete_no_next");
   });
 
   it("shows mine completion notice once per mine", () => {

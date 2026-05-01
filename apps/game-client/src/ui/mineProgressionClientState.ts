@@ -1,6 +1,8 @@
 import type { MineTemplateConfig } from "@goblin-cartel/content-schemas";
 import type { BuiltMineState, MiningSession } from "@goblin-cartel/game-core";
 
+export type MineProgressionStatus = "digging" | "vein_found" | "mine_building" | "next_available" | "complete_no_next";
+
 export function findMineTemplateIndex(mineTemplates: readonly MineTemplateConfig[], mineTemplateId: string): number {
   return mineTemplates.findIndex((mineTemplate) => mineTemplate.id === mineTemplateId);
 }
@@ -19,8 +21,19 @@ export function findNextMineTemplate(
 }
 
 export function hasBuiltMineFromSession(session: MiningSession, builtMines: readonly BuiltMineState[]): boolean {
+  return Boolean(findBuiltMineFromSession(session, builtMines));
+}
+
+export function hasActiveBuiltMineFromSession(session: MiningSession, builtMines: readonly BuiltMineState[]): boolean {
+  return Boolean(findBuiltMineFromSession(session, builtMines)?.status === "active");
+}
+
+export function findBuiltMineFromSession(
+  session: MiningSession,
+  builtMines: readonly BuiltMineState[]
+): BuiltMineState | undefined {
   const sourcePrefix = `${session.mine.templateId}:${session.mine.seed}:`;
-  return builtMines.some((builtMine) => builtMine.sourceVeinId.startsWith(sourcePrefix));
+  return builtMines.find((builtMine) => builtMine.sourceVeinId.startsWith(sourcePrefix));
 }
 
 export function canMoveToNextMine(input: {
@@ -28,7 +41,26 @@ export function canMoveToNextMine(input: {
   mineTemplates: readonly MineTemplateConfig[];
   session: MiningSession;
 }): boolean {
-  return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasBuiltMineFromSession(input.session, input.builtMines);
+  return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasActiveBuiltMineFromSession(input.session, input.builtMines);
+}
+
+export function getMineProgressionStatus(input: {
+  builtMines: readonly BuiltMineState[];
+  mineTemplates: readonly MineTemplateConfig[];
+  session: MiningSession;
+}): MineProgressionStatus {
+  const hasNextMine = Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId));
+  const builtMine = findBuiltMineFromSession(input.session, input.builtMines);
+
+  if (!builtMine) {
+    return hasFoundVeinFromSession(input.session) ? "vein_found" : "digging";
+  }
+
+  if (builtMine.status !== "active") {
+    return "mine_building";
+  }
+
+  return hasNextMine ? "next_available" : "complete_no_next";
 }
 
 export function shouldShowMineCompletionNotice(input: {
@@ -48,4 +80,9 @@ export function markMineCompletionNoticeSeen(
   }
 
   return [...seenMineCompletionNoticeIds, mineTemplateId];
+}
+
+function hasFoundVeinFromSession(session: MiningSession): boolean {
+  const sourcePrefix = `${session.mine.templateId}:${session.mine.seed}:`;
+  return (session.foundVeins ?? []).some((vein) => vein.id.startsWith(sourcePrefix));
 }

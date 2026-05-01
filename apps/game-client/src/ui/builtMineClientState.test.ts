@@ -7,6 +7,7 @@ import {
   countCollectorAssignedMines,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
+  createBuiltMineUpgradePreview,
   createVisibleBuiltMines,
   findAssignableCollector,
   findUnbuiltFoundVeins,
@@ -171,6 +172,79 @@ describe("built mine client state", () => {
     expect(getBuiltMineBuildProgressPercent(builtMine, 30_000)).toBe(50);
     expect(getBuiltMineBuildRemainingMs(builtMine, 30_000)).toBe(30_000);
     expect(getBuiltMineStoragePercent({ ...builtMine, capacity: 300, storedAmount: 75 })).toBe(25);
+  });
+
+  it("previews built mine upgrades for the UI", () => {
+    expect(
+      createBuiltMineUpgradePreview(
+        {
+          ...builtMine,
+          completesAt: 0,
+          lastProducedAt: 0,
+          status: "active"
+        },
+        {
+          copper_ore: 80,
+          gold: 120
+        }
+      )
+    ).toEqual({
+      canUpgrade: true,
+      capacityAfter: 420,
+      costRequirements: [
+        {
+          available: 80,
+          missing: 0,
+          ok: true,
+          required: 60,
+          resourceId: "copper_ore"
+        },
+        {
+          available: 120,
+          missing: 0,
+          ok: true,
+          required: 100,
+          resourceId: "gold"
+        }
+      ],
+      failureReason: null,
+      levelAfter: 2,
+      maxLevel: 5,
+      productionPerHourAfter: 162
+    });
+  });
+
+  it("explains why built mine upgrade is unavailable", () => {
+    expect(createBuiltMineUpgradePreview(builtMine, { copper_ore: 500, gold: 500 }).failureReason).toBe("mine_not_active");
+    expect(
+      createBuiltMineUpgradePreview(
+        {
+          ...builtMine,
+          completesAt: 0,
+          lastProducedAt: 0,
+          status: "active"
+        },
+        {
+          copper_ore: 10,
+          gold: 500
+        }
+      ).failureReason
+    ).toBe("not_enough_resources");
+    expect(
+      createBuiltMineUpgradePreview(
+        {
+          ...builtMine,
+          completesAt: 0,
+          lastProducedAt: 0,
+          level: 5,
+          status: "active"
+        },
+        {
+          copper_ore: 500,
+          gold: 500
+        }
+      ).failureReason
+    ).toBe("max_level");
   });
 
   it("summarizes permanent mines for the dashboard screen", () => {

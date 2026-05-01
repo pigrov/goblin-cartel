@@ -19,6 +19,7 @@ import {
   regenerateBossEnergy,
   restoreBossEnergyState,
   restoreMiningSession,
+  upgradeBuiltMine,
   type BossEnergyConfig,
   type BossEnergyState,
   type BuiltMineState,
@@ -48,6 +49,7 @@ import {
   collectBuiltMineIncomeWithCollector,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
+  createBuiltMineUpgradePreview,
   createVisibleBuiltMines,
   countCollectorAssignedMines,
   findAssignableCollector,
@@ -58,12 +60,15 @@ import {
   getGoblinAutoCollectSlots,
   hasCollectorSlotAvailable,
   hasBuiltMineForVein,
-  isBuiltMineStorageFull
+  isBuiltMineStorageFull,
+  type BuiltMineUpgradePreview
 } from "./builtMineClientState";
 import {
   canMoveToNextMine,
   findMineTemplateIndex,
   findNextMineTemplate,
+  getMineProgressionStatus,
+  type MineProgressionStatus,
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
@@ -491,6 +496,13 @@ export function App() {
     () => createVisibleBuiltMines(builtMines, clockNow, hiredCollectorGoblins),
     [builtMines, clockNow, hiredCollectorGoblins]
   );
+  const builtMineUpgradePreviews = useMemo(() => {
+    const progressedBuiltMines = createVisibleBuiltMines(builtMines, clockNow);
+
+    return new Map(
+      progressedBuiltMines.map((builtMine) => [builtMine.id, createBuiltMineUpgradePreview(builtMine, session.resources)])
+    );
+  }, [builtMines, clockNow, session.resources]);
   const collectorPickerBuiltMine = useMemo(
     () => visibleBuiltMines.find((builtMine) => builtMine.id === collectorPickerMineId) ?? null,
     [collectorPickerMineId, visibleBuiltMines]
@@ -510,6 +522,15 @@ export function App() {
   const canStartNextMine = useMemo(
     () =>
       canMoveToNextMine({
+        builtMines: visibleBuiltMines,
+        mineTemplates: contentState.content.mineTemplates,
+        session
+      }),
+    [contentState.content.mineTemplates, session, visibleBuiltMines]
+  );
+  const mineProgressionStatus = useMemo(
+    () =>
+      getMineProgressionStatus({
         builtMines: visibleBuiltMines,
         mineTemplates: contentState.content.mineTemplates,
         session
@@ -1136,6 +1157,34 @@ export function App() {
     );
   }
 
+  function handleUpgradeBuiltMine(builtMineId: string) {
+    const builtMine = builtMinesRef.current.find((mine) => mine.id === builtMineId);
+
+    if (!builtMine) {
+      return;
+    }
+
+    const result = upgradeBuiltMine({
+      builtMine,
+      now: Date.now(),
+      resources: sessionRef.current.resources
+    });
+
+    if (!result.ok) {
+      setBuiltMineMessage(messageForUpgradeBuiltMineFailure(result.reason));
+      return;
+    }
+
+    setBuiltMines((current) => current.map((mine) => (mine.id === builtMineId ? result.builtMine : mine)));
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: result.resources
+    }));
+    syncVisibleResourceAmounts(result.resources);
+    setBuiltMineMessage(`${builtMineTypeName(result.builtMine.typeId, contentState.content, labels)} улучшена до уровня ${result.builtMine.level}.`);
+  }
+
   function handleAssignBuiltMineCollector(builtMineId: string, goblinId: string | null) {
     const builtMine = builtMines.find((mine) => mine.id === builtMineId);
 
@@ -1251,6 +1300,7 @@ export function App() {
           <BuiltMinesSection
             builtMines={visibleBuiltMines}
             builtMineTypes={contentState.content.builtMineTypes}
+            upgradePreviews={builtMineUpgradePreviews}
             canStartNextMine={canStartNextMine}
             collectorGoblins={hiredCollectorGoblins}
             content={contentState.content}
@@ -1258,12 +1308,14 @@ export function App() {
             foundVeins={unbuiltFoundVeins}
             labels={labels}
             message={builtMineMessage}
+            progressionStatus={mineProgressionStatus}
             nextMineTemplate={nextMineTemplate}
             onOpenCollectorPicker={setCollectorPickerMineId}
             onCollectAllMines={handleCollectAllBuiltMines}
             onBuildMine={handleBuildMineFromVein}
             onCollectMine={handleCollectBuiltMine}
             onStartNextMine={handleStartNextMine}
+            onUpgradeMine={handleUpgradeBuiltMine}
             now={clockNow}
             resources={session.resources}
           />
@@ -2042,7 +2094,10 @@ function BuiltMinesSection(props: {
   onCollectMine: (builtMineId: string) => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
   onStartNextMine: () => void;
+  onUpgradeMine: (builtMineId: string) => void;
+  progressionStatus: MineProgressionStatus;
   resources: Record<string, number>;
+  upgradePreviews: ReadonlyMap<string, BuiltMineUpgradePreview>;
 }) {
   const dashboard = createBuiltMineDashboardState(props.builtMines);
   const hasBuiltMines = props.builtMines.length > 0;
@@ -2116,6 +2171,7 @@ function BuiltMinesSection(props: {
               {currentMineIndex >= 0 ? `№${currentMineIndex + 1} · ` : ""}
               {mineTitle(props.currentMineTemplate, props.labels)}
             </strong>
+            <small className={`mine-route-status ${props.progressionStatus}`}>{mineProgressionStatusText(props.progressionStatus)}</small>
           </div>
           {props.nextMineTemplate ? (
             <button disabled={!props.canStartNextMine} onClick={props.onStartNextMine} type="button">
@@ -2221,6 +2277,7 @@ function BuiltMinesSection(props: {
                   ? props.collectorGoblins.find((goblin) => goblin.id === builtMine.assignedCollectorGoblinId)
                   : undefined;
                 const assignableCollector = findAssignableCollector(props.collectorGoblins, props.builtMines, builtMine.id);
+                const upgradePreview = props.upgradePreviews.get(builtMine.id);
 
                 return (
                   <article className={`built-mine-card ${builtMine.status}${storageFull ? " full" : ""}`} key={builtMine.id}>
@@ -2246,6 +2303,34 @@ function BuiltMinesSection(props: {
                         <small>{builtMine.status === "building" ? "Стройка" : "Хранилище"}</small>
                       </span>
                     </div>
+                    {upgradePreview ? (
+                      <div className="built-mine-upgrade-row">
+                        <span>
+                          <strong>
+                            Уровень {builtMine.level} → {upgradePreview.levelAfter}
+                          </strong>
+                          <small>
+                            {formatNumber(builtMine.productionPerHour)} → {formatNumber(upgradePreview.productionPerHourAfter)}/ч ·{" "}
+                            {formatNumber(builtMine.capacity)} → {formatNumber(upgradePreview.capacityAfter)}
+                          </small>
+                        </span>
+                        <div className="build-cost-list">
+                          {upgradePreview.costRequirements.length > 0 ? (
+                            upgradePreview.costRequirements.map((requirement) => (
+                              <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                                <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                                {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="ok">Максимум</span>
+                          )}
+                        </div>
+                        <button disabled={!upgradePreview.canUpgrade} onClick={() => props.onUpgradeMine(builtMine.id)} type="button">
+                          {upgradePreview.failureReason === "max_level" ? "Максимум" : "Улучшить"}
+                        </button>
+                      </div>
+                    ) : null}
                     <div className={builtMine.status === "building" ? "built-mine-progress building" : "built-mine-progress storage"}>
                       <span style={{ width: `${progressPercent}%` }} />
                     </div>
@@ -2489,6 +2574,23 @@ function builtMineStateText(builtMine: BuiltMineState, now: number): string {
   return isBuiltMineStorageFull(builtMine) ? "Заполнена" : "Работает";
 }
 
+function mineProgressionStatusText(status: MineProgressionStatus): string {
+  switch (status) {
+    case "digging":
+      return "Расчисти рудник до жилы";
+    case "vein_found":
+      return "Построй шахту на найденной жиле";
+    case "mine_building":
+      return "Шахта строится, следующий рудник закрыт";
+    case "next_available":
+      return "Следующий рудник открыт";
+    case "complete_no_next":
+      return "Все доступные рудники освоены";
+    default:
+      return "Рудник в работе";
+  }
+}
+
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
   return labels[nameKey] ?? fallback;
 }
@@ -2663,6 +2765,19 @@ function messageForBuildMineFailure(reason: string): string {
       return "Не хватает ресурсов для строительства шахты.";
     default:
       return "Шахта не построена.";
+  }
+}
+
+function messageForUpgradeBuiltMineFailure(reason: string): string {
+  switch (reason) {
+    case "max_level":
+      return "Шахта уже на максимальном уровне.";
+    case "mine_not_active":
+      return "Сначала дождись завершения строительства шахты.";
+    case "not_enough_resources":
+      return "Не хватает ресурсов для улучшения шахты.";
+    default:
+      return "Шахта не улучшена.";
   }
 }
 

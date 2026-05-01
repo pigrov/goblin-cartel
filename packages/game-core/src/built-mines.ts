@@ -52,6 +52,33 @@ export type BuildMineResult =
       reason: BuildMineFailureReason;
     };
 
+export const builtMineMaxLevel = 5;
+
+export interface BuiltMineUpgradeCostOptions {
+  goldResourceId?: string;
+}
+
+export interface BuiltMineUpgradeStats {
+  capacity: number;
+  level: number;
+  productionPerHour: number;
+}
+
+export type UpgradeBuiltMineFailureReason = "max_level" | "mine_not_active" | "not_enough_resources";
+
+export type UpgradeBuiltMineResult =
+  | {
+      ok: true;
+      builtMine: BuiltMineState;
+      cost: BuiltMineResourceAmount[];
+      resources: Record<string, number>;
+    }
+  | {
+      ok: false;
+      cost: BuiltMineResourceAmount[];
+      reason: UpgradeBuiltMineFailureReason;
+    };
+
 export interface BuildMineFromVeinInput {
   builtMineTypes: BuiltMineType[];
   id?: string;
@@ -82,6 +109,13 @@ export interface CollectAutomatedBuiltMineIncomeResult {
   builtMines: BuiltMineState[];
   collectedAmount: number;
   collectedResources: Record<string, number>;
+  resources: Record<string, number>;
+}
+
+export interface UpgradeBuiltMineInput {
+  builtMine: BuiltMineState;
+  goldResourceId?: string;
+  now: number;
   resources: Record<string, number>;
 }
 
@@ -252,6 +286,86 @@ export function assignBuiltMineCollector(builtMine: BuiltMineState, goblinId: st
   };
 }
 
+export function calculateBuiltMineUpgradeCost(
+  builtMine: BuiltMineState,
+  options: BuiltMineUpgradeCostOptions = {}
+): BuiltMineResourceAmount[] {
+  if (builtMine.level >= builtMineMaxLevel) {
+    return [];
+  }
+
+  const levelFactor = Math.max(1, builtMine.level);
+  const productionResourceCost = Math.ceil(Math.max(25, builtMine.productionPerHour * 0.5) * levelFactor);
+  const goldCost = Math.ceil(100 * levelFactor ** 1.35);
+  const goldResourceId = options.goldResourceId ?? "gold";
+
+  return normalizeResourceCost([
+    {
+      amount: productionResourceCost,
+      resourceId: builtMine.productionResourceId
+    },
+    {
+      amount: goldCost,
+      resourceId: goldResourceId
+    }
+  ]);
+}
+
+export function calculateBuiltMineUpgradeStats(builtMine: BuiltMineState): BuiltMineUpgradeStats {
+  return {
+    capacity: Math.ceil(builtMine.capacity * 1.4),
+    level: builtMine.level + 1,
+    productionPerHour: Math.ceil(builtMine.productionPerHour * 1.35)
+  };
+}
+
+export function upgradeBuiltMine(input: UpgradeBuiltMineInput): UpgradeBuiltMineResult {
+  const producedBuiltMine = advanceBuiltMineProduction(input.builtMine, input.now);
+  const cost = calculateBuiltMineUpgradeCost(producedBuiltMine, {
+    goldResourceId: input.goldResourceId
+  });
+
+  if (producedBuiltMine.status !== "active") {
+    return {
+      ok: false,
+      cost,
+      reason: "mine_not_active"
+    };
+  }
+
+  if (producedBuiltMine.level >= builtMineMaxLevel) {
+    return {
+      ok: false,
+      cost,
+      reason: "max_level"
+    };
+  }
+
+  if (!hasEnoughResources(input.resources, cost)) {
+    return {
+      ok: false,
+      cost,
+      reason: "not_enough_resources"
+    };
+  }
+
+  const nextStats = calculateBuiltMineUpgradeStats(producedBuiltMine);
+
+  return {
+    ok: true,
+    cost,
+    resources: deductResources(input.resources, cost),
+    builtMine: {
+      ...producedBuiltMine,
+      capacity: nextStats.capacity,
+      level: nextStats.level,
+      productionPerHour: nextStats.productionPerHour,
+      storedAmount: Math.min(producedBuiltMine.storedAmount, nextStats.capacity),
+      lastProducedAt: input.now
+    }
+  };
+}
+
 function hasEnoughResources(resources: Record<string, number>, cost: BuiltMineResourceAmount[]): boolean {
   return cost.every((item) => (resources[item.resourceId] ?? 0) >= item.amount);
 }
@@ -264,4 +378,21 @@ function deductResources(resources: Record<string, number>, cost: BuiltMineResou
   }
 
   return result;
+}
+
+function normalizeResourceCost(cost: BuiltMineResourceAmount[]): BuiltMineResourceAmount[] {
+  const amounts = new Map<string, number>();
+
+  for (const item of cost) {
+    if (item.amount <= 0) {
+      continue;
+    }
+
+    amounts.set(item.resourceId, (amounts.get(item.resourceId) ?? 0) + item.amount);
+  }
+
+  return Array.from(amounts.entries()).map(([resourceId, amount]) => ({
+    amount,
+    resourceId
+  }));
 }

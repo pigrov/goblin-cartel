@@ -1,11 +1,15 @@
 import type { BuiltMineTypeConfig, GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
   advanceBuiltMineProduction,
+  builtMineMaxLevel,
+  calculateBuiltMineUpgradeCost,
+  calculateBuiltMineUpgradeStats,
   canBuildMineFromVein,
   collectBuiltMineIncome,
   type BuiltMineState,
   type CollectBuiltMineIncomeResult,
-  type MiningFoundVein
+  type MiningFoundVein,
+  type UpgradeBuiltMineFailureReason
 } from "@goblin-cartel/game-core";
 
 export interface BuildCostRequirement {
@@ -28,6 +32,16 @@ export interface BuiltMineDashboardState {
   collectableResources: BuiltMineResourceSummary[];
   fullCount: number;
   productionPerHour: BuiltMineResourceSummary[];
+}
+
+export interface BuiltMineUpgradePreview {
+  canUpgrade: boolean;
+  capacityAfter: number;
+  costRequirements: BuildCostRequirement[];
+  failureReason: UpgradeBuiltMineFailureReason | null;
+  levelAfter: number;
+  maxLevel: number;
+  productionPerHourAfter: number;
 }
 
 export function createVisibleBuiltMines(
@@ -156,6 +170,41 @@ export function getBuiltMineStoragePercent(builtMine: BuiltMineState): number {
 
 export function isBuiltMineStorageFull(builtMine: BuiltMineState): boolean {
   return builtMine.capacity > 0 && builtMine.storedAmount >= builtMine.capacity;
+}
+
+export function createBuiltMineUpgradePreview(
+  builtMine: BuiltMineState,
+  resources: Record<string, number>
+): BuiltMineUpgradePreview {
+  const isMaxLevel = builtMine.level >= builtMineMaxLevel;
+  const cost = calculateBuiltMineUpgradeCost(builtMine);
+  const nextStats = isMaxLevel
+    ? {
+        capacity: builtMine.capacity,
+        level: builtMine.level,
+        productionPerHour: builtMine.productionPerHour
+      }
+    : calculateBuiltMineUpgradeStats(builtMine);
+  const costRequirements = createBuildCostRequirements(cost, resources);
+  const hasEnoughResources = costRequirements.every((requirement) => requirement.ok);
+  const failureReason =
+    isMaxLevel
+      ? "max_level"
+      : builtMine.status !== "active"
+        ? "mine_not_active"
+        : !hasEnoughResources
+          ? "not_enough_resources"
+          : null;
+
+  return {
+    canUpgrade: failureReason === null,
+    capacityAfter: nextStats.capacity,
+    costRequirements,
+    failureReason,
+    levelAfter: Math.min(nextStats.level, builtMineMaxLevel),
+    maxLevel: builtMineMaxLevel,
+    productionPerHourAfter: nextStats.productionPerHour
+  };
 }
 
 export function getGoblinAutoCollectSlots(goblin: GoblinConfig): number {
