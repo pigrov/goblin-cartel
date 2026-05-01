@@ -701,10 +701,10 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", min: 90, max: 150, chance: 1 },
         { resourceId: "stone", min: 45, max: 90, chance: 1 },
         { resourceId: "copper_ore", min: 15, max: 35, chance: 0.8 },
-        { resourceId: "elixir", min: 4, max: 8, chance: 1 },
-        { resourceId: "boss_card_hit_damage", min: 1, max: 2, chance: 0.8 },
-        { resourceId: "boss_card_crit_chance", min: 1, max: 1, chance: 0.45 },
-        { resourceId: "boss_card_max_energy", min: 1, max: 1, chance: 0.35 }
+        { resourceId: "elixir", min: 5, max: 9, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 1, max: 2, chance: 1 },
+        { resourceId: "boss_card_max_energy", min: 1, max: 1, chance: 0.75 },
+        { resourceId: "boss_card_crit_chance", min: 1, max: 1, chance: 0.18 }
       ],
       assetId: "reward_chest_wooden_v1"
     },
@@ -717,11 +717,11 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "stone", min: 90, max: 160, chance: 1 },
         { resourceId: "copper_ore", min: 35, max: 80, chance: 1 },
         { resourceId: "iron", min: 12, max: 28, chance: 0.35 },
-        { resourceId: "elixir", min: 8, max: 16, chance: 1 },
-        { resourceId: "boss_card_hit_damage", min: 1, max: 3, chance: 1 },
-        { resourceId: "boss_card_crit_chance", min: 1, max: 2, chance: 0.75 },
-        { resourceId: "boss_card_crit_multiplier", min: 1, max: 1, chance: 0.45 },
-        { resourceId: "boss_card_max_energy", min: 1, max: 2, chance: 0.65 }
+        { resourceId: "elixir", min: 10, max: 18, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 2, max: 3, chance: 1 },
+        { resourceId: "boss_card_max_energy", min: 1, max: 2, chance: 0.9 },
+        { resourceId: "boss_card_crit_chance", min: 1, max: 2, chance: 0.7 },
+        { resourceId: "boss_card_crit_multiplier", min: 1, max: 1, chance: 0.2 }
       ],
       assetId: "reward_chest_iron_v1"
     },
@@ -734,11 +734,11 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "stone", min: 160, max: 260, chance: 1 },
         { resourceId: "copper_ore", min: 90, max: 150, chance: 1 },
         { resourceId: "iron", min: 35, max: 90, chance: 0.75 },
-        { resourceId: "elixir", min: 16, max: 28, chance: 1 },
-        { resourceId: "boss_card_hit_damage", min: 2, max: 4, chance: 1 },
-        { resourceId: "boss_card_crit_chance", min: 1, max: 3, chance: 0.9 },
-        { resourceId: "boss_card_crit_multiplier", min: 1, max: 2, chance: 0.65 },
-        { resourceId: "boss_card_max_energy", min: 2, max: 4, chance: 0.9 }
+        { resourceId: "elixir", min: 18, max: 32, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 3, max: 5, chance: 1 },
+        { resourceId: "boss_card_max_energy", min: 2, max: 4, chance: 1 },
+        { resourceId: "boss_card_crit_chance", min: 2, max: 3, chance: 0.9 },
+        { resourceId: "boss_card_crit_multiplier", min: 1, max: 2, chance: 0.55 }
       ],
       assetId: "reward_chest_steel_v1"
     }

@@ -2136,7 +2136,7 @@ function ResourceChip(props: {
 
 function ResourceIcon(props: { resourceId: string; size: number }) {
   if (isBossCardResourceId(props.resourceId)) {
-    return <Sparkles size={props.size} />;
+    return <BossCardResourceIcon resourceId={props.resourceId} size={props.size} />;
   }
 
   if (props.resourceId.includes("elixir")) {
@@ -2162,6 +2162,26 @@ function ResourceIcon(props: { resourceId: string; size: number }) {
   return <Mountain size={props.size} />;
 }
 
+function BossCardResourceIcon(props: { resourceId: string; size: number }) {
+  if (props.resourceId.includes("hit_damage")) {
+    return <Hammer size={props.size} />;
+  }
+
+  if (props.resourceId.includes("crit_chance")) {
+    return <Zap size={props.size} />;
+  }
+
+  if (props.resourceId.includes("crit_multiplier")) {
+    return <Sparkles size={props.size} />;
+  }
+
+  if (props.resourceId.includes("max_energy")) {
+    return <Gem size={props.size} />;
+  }
+
+  return <Sparkles size={props.size} />;
+}
+
 function RewardChestScreen(props: {
   chestType: RewardChestTypeConfig;
   content: ContentBundle;
@@ -2178,9 +2198,10 @@ function RewardChestScreen(props: {
   const chestName = labelFromNameKey(props.chestType.nameKey, props.chestType.id, props.labels);
   const rewardDrops = rewardDropsFromMap(props.rewards, props.content, props.labels);
   const isSummary = props.stage === "summary";
+  const chestAssetClass = rewardChestAssetClass(props.chestType);
 
   return (
-    <section className={`reward-chest-screen ${props.chestType.tier}`} aria-label="Открытие сундука">
+    <section className={`reward-chest-screen ${props.chestType.tier} ${chestAssetClass}`} aria-label="Открытие сундука">
       <div className="reward-chest-sky" aria-hidden="true">
         <span />
         <span />
@@ -2218,15 +2239,18 @@ function RewardChestScreen(props: {
         ))}
 
         <button
-          className={`reward-chest-box ${props.chestType.tier} ${props.stage}`}
+          className={`reward-chest-box ${props.chestType.tier} ${chestAssetClass} ${props.stage}`}
           disabled={props.stage !== "closed"}
           onClick={props.onOpen}
           type="button"
           aria-label={`Открыть ${chestName}`}
         >
           <span className="reward-chest-lid" />
+          <span className="reward-chest-hinge" />
           <span className="reward-chest-lock" />
+          <span className="reward-chest-rune" />
           <span className="reward-chest-body" />
+          <span className="reward-chest-bands" />
         </button>
 
         <div className={isSummary ? "reward-chest-summary show" : "reward-chest-summary"} aria-hidden={!isSummary}>
@@ -2258,6 +2282,22 @@ function RewardChestScreen(props: {
   );
 }
 
+function rewardChestAssetClass(chestType: RewardChestTypeConfig): string {
+  if (chestType.assetId.includes("steel")) {
+    return "asset-steel";
+  }
+
+  if (chestType.assetId.includes("iron")) {
+    return "asset-iron";
+  }
+
+  if (chestType.assetId.includes("golden")) {
+    return "asset-golden";
+  }
+
+  return "asset-wooden";
+}
+
 function BossStat(props: { label: string; value: string }) {
   return (
     <div className="boss-stat">
@@ -2274,25 +2314,37 @@ function BossCardArt(props: { card: BossCardDefinition }) {
     case "critChance":
       return (
         <div className={className} aria-hidden="true">
-          <Zap size={22} />
+          <span className="boss-card-art-face">
+            <span className="boss-card-art-rune" />
+            <Zap size={22} />
+          </span>
         </div>
       );
     case "critMultiplier":
       return (
         <div className={className} aria-hidden="true">
-          <Sparkles size={22} />
+          <span className="boss-card-art-face">
+            <span className="boss-card-art-rune" />
+            <Sparkles size={22} />
+          </span>
         </div>
       );
     case "maxEnergy":
       return (
         <div className={className} aria-hidden="true">
-          <Gem size={22} />
+          <span className="boss-card-art-face">
+            <span className="boss-card-art-rune" />
+            <Gem size={22} />
+          </span>
         </div>
       );
     default:
       return (
         <div className={className} aria-hidden="true">
-          <Hammer size={22} />
+          <span className="boss-card-art-face">
+            <span className="boss-card-art-rune" />
+            <Hammer size={22} />
+          </span>
         </div>
       );
   }
@@ -3249,7 +3301,15 @@ function clearRewardChestSummaryTimer(timeoutRef: { current: number | null }): v
 
 function resourceClassName(resourceId: string): string {
   if (isBossCardResourceId(resourceId)) {
-    return "card";
+    if (resourceId.includes("crit_multiplier")) {
+      return "card card-golden";
+    }
+
+    if (resourceId.includes("crit_chance")) {
+      return "card card-rare";
+    }
+
+    return "card card-common";
   }
 
   if (resourceId.includes("elixir")) {

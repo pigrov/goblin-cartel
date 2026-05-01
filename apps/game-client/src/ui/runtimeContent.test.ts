@@ -111,4 +111,28 @@ describe("runtime content", () => {
       "boss_card_max_energy_v1"
     ]);
   });
+
+  it("migrates only known legacy boss card chest reward balance", () => {
+    const content = structuredClone(starterContentBundle);
+    const woodenChest = content.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
+    const ironChest = content.rewardChestTypes.find((chestType) => chestType.id === "iron_completion_chest");
+
+    if (!woodenChest || !ironChest) {
+      throw new Error("Missing starter chests");
+    }
+
+    woodenChest.rewardTable = woodenChest.rewardTable.map((reward) =>
+      reward.resourceId === "boss_card_crit_chance" ? { ...reward, chance: 0.45 } : reward
+    );
+    ironChest.rewardTable = ironChest.rewardTable.map((reward) =>
+      reward.resourceId === "boss_card_crit_multiplier" ? { ...reward, chance: 0.33 } : reward
+    );
+
+    const runtimeContent = createRuntimeContentBundle(content);
+    const runtimeWoodenChest = runtimeContent.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
+    const runtimeIronChest = runtimeContent.rewardChestTypes.find((chestType) => chestType.id === "iron_completion_chest");
+
+    expect(runtimeWoodenChest?.rewardTable.find((reward) => reward.resourceId === "boss_card_crit_chance")?.chance).toBe(0.18);
+    expect(runtimeIronChest?.rewardTable.find((reward) => reward.resourceId === "boss_card_crit_multiplier")?.chance).toBe(0.33);
+  });
 });

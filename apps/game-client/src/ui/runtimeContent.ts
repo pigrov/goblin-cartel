@@ -1,5 +1,31 @@
 import { starterContentBundle, type ContentBundle } from "@goblin-cartel/content-schemas";
 
+type RewardChestType = ContentBundle["rewardChestTypes"][number];
+type RewardEntry = RewardChestType["rewardTable"][number];
+
+const legacyRewardChestRewardSignatures: Record<string, Record<string, string>> = {
+  iron_completion_chest: {
+    boss_card_crit_chance: "1:2:0.75",
+    boss_card_crit_multiplier: "1:1:0.45",
+    boss_card_hit_damage: "1:3:1",
+    boss_card_max_energy: "1:2:0.65",
+    elixir: "8:16:1"
+  },
+  steel_completion_chest: {
+    boss_card_crit_chance: "1:3:0.9",
+    boss_card_crit_multiplier: "1:2:0.65",
+    boss_card_hit_damage: "2:4:1",
+    boss_card_max_energy: "2:4:0.9",
+    elixir: "16:28:1"
+  },
+  wooden_completion_chest: {
+    boss_card_crit_chance: "1:1:0.45",
+    boss_card_hit_damage: "1:2:0.8",
+    boss_card_max_energy: "1:1:0.35",
+    elixir: "4:8:1"
+  }
+};
+
 export function createRuntimeContentBundle(content: ContentBundle): ContentBundle {
   const sortedMineTemplates = sortMineTemplates(content.mineTemplates);
   const contentWithBossCards = ensureBossCardRuntimeContent(content);
@@ -70,15 +96,16 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
       starterChest?.rewardTable.filter(
         (reward) => bossCardResourceIds.has(reward.resourceId) && !chestType.rewardTable.some((item) => item.resourceId === reward.resourceId)
       ) ?? [];
+    const migratedChestType = migrateKnownRewardChestBalance(chestType, starterChest);
 
-    if (missingBossCardRewards.length === 0) {
+    if (missingBossCardRewards.length === 0 && !migratedChestType.changed) {
       return chestType;
     }
 
     changed = true;
     return {
-      ...chestType,
-      rewardTable: [...chestType.rewardTable, ...missingBossCardRewards]
+      ...migratedChestType.chestType,
+      rewardTable: [...migratedChestType.chestType.rewardTable, ...missingBossCardRewards]
     };
   });
   let bossCards = contentBossCards.length > 0 ? contentBossCards : starterContentBundle.bossCards;
@@ -138,4 +165,46 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
     resources: resources.sort((left, right) => left.sortOrder - right.sortOrder),
     rewardChestTypes
   };
+}
+
+function migrateKnownRewardChestBalance(
+  chestType: RewardChestType,
+  starterChest: RewardChestType | undefined
+): { changed: boolean; chestType: RewardChestType } {
+  const legacySignatures = legacyRewardChestRewardSignatures[chestType.id];
+
+  if (!starterChest || !legacySignatures) {
+    return { changed: false, chestType };
+  }
+
+  const starterRewardById = new Map(starterChest.rewardTable.map((reward) => [reward.resourceId, reward]));
+  let changed = false;
+  const rewardTable = chestType.rewardTable.map((reward) => {
+    const starterReward = starterRewardById.get(reward.resourceId);
+
+    if (!starterReward || legacySignatures[reward.resourceId] !== rewardSignature(reward)) {
+      return reward;
+    }
+
+    if (rewardSignature(starterReward) === rewardSignature(reward)) {
+      return reward;
+    }
+
+    changed = true;
+    return starterReward;
+  });
+
+  return changed
+    ? {
+        changed,
+        chestType: {
+          ...chestType,
+          rewardTable
+        }
+      }
+    : { changed, chestType };
+}
+
+function rewardSignature(reward: RewardEntry): string {
+  return `${reward.min}:${reward.max}:${reward.chance}`;
 }

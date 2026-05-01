@@ -2030,10 +2030,11 @@ function ContentBossCardDropSummary(props: { content: ContentBundle; formState: 
   const rowByResourceId = new Map<string, { chancePercent: number; max: number; min: number }>();
   const bossCards = props.content.bossCards ?? [];
   const elixirResourceId = stringField(bossCards[0] ?? {}, "elixirResourceId") || findResourceId(props.content, "elixir");
-  const targets: Array<{ label: string; resourceId: string }> = [
-    { label: resourceLabel(props.content, elixirResourceId), resourceId: elixirResourceId },
+  const targets: Array<{ label: string; rarity: string; resourceId: string }> = [
+    { label: resourceLabel(props.content, elixirResourceId), rarity: "rare", resourceId: elixirResourceId },
     ...bossCards.map((card) => ({
       label: contentEntityTitle(card, props.content.localization?.ru ?? {}),
+      rarity: stringField(card, "rarity") || "common",
       resourceId: stringField(card, "cardResourceId")
     }))
   ].filter((target) => target.resourceId);
@@ -2055,22 +2056,35 @@ function ContentBossCardDropSummary(props: { content: ContentBundle; formState: 
   return (
     <section className="content-nested-section content-drop-summary">
       <header>
-        <strong>Boss card drop balance</strong>
+        <strong>Баланс карт и эликсира</strong>
       </header>
       <div className="content-drop-summary-grid">
         {targets.map((target) => {
           const row = rowByResourceId.get(target.resourceId);
 
           return (
-            <span className={row ? "content-drop-summary-item" : "content-drop-summary-item missing"} key={target.resourceId}>
+            <span className={row ? `content-drop-summary-item ${target.rarity}` : `content-drop-summary-item ${target.rarity} missing`} key={target.resourceId}>
               <b>{target.label}</b>
-              <small>{row ? `${row.min}-${row.max} / ${row.chancePercent}%` : "not added"}</small>
+              <small>
+                {adminBossCardRarityLabel(target.rarity)} · {row ? `${row.min}-${row.max} / ${row.chancePercent}%` : "не добавлено"}
+              </small>
             </span>
           );
         })}
       </div>
     </section>
   );
+}
+
+function adminBossCardRarityLabel(rarity: string): string {
+  switch (rarity) {
+    case "golden":
+      return "золотая";
+    case "rare":
+      return "редкая";
+    default:
+      return "обычная";
+  }
 }
 
 function ContentMineVisualEditor(props: {

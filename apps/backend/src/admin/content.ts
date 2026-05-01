@@ -435,7 +435,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     blockTypes: sortContentItems(entities, "blockType", starterContentBundle.blockTypes),
     veinTypes: sortContentItems(entities, "veinType", starterContentBundle.veinTypes),
     builtMineTypes: sortContentItems(entities, "builtMineType", starterContentBundle.builtMineTypes),
-    rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
+    rewardChestTypes: normalizeRewardChestBalance(sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes)),
     bossCards: bossCards.length > 0 ? bossCards : starterContentBundle.bossCards,
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
@@ -444,6 +444,82 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
       starterContentBundle.goblinHut,
     localization
   } as ContentBundle;
+}
+
+type RewardChestType = ContentBundle["rewardChestTypes"][number];
+type RewardEntry = RewardChestType["rewardTable"][number];
+
+const legacyRewardChestRewardSignatures: Record<string, Record<string, string>> = {
+  iron_completion_chest: {
+    boss_card_crit_chance: "1:2:0.75",
+    boss_card_crit_multiplier: "1:1:0.45",
+    boss_card_hit_damage: "1:3:1",
+    boss_card_max_energy: "1:2:0.65",
+    elixir: "8:16:1"
+  },
+  steel_completion_chest: {
+    boss_card_crit_chance: "1:3:0.9",
+    boss_card_crit_multiplier: "1:2:0.65",
+    boss_card_hit_damage: "2:4:1",
+    boss_card_max_energy: "2:4:0.9",
+    elixir: "16:28:1"
+  },
+  wooden_completion_chest: {
+    boss_card_crit_chance: "1:1:0.45",
+    boss_card_hit_damage: "1:2:0.8",
+    boss_card_max_energy: "1:1:0.35",
+    elixir: "4:8:1"
+  }
+};
+
+const bossCardRewardResourceIds = new Set(["elixir", "boss_card_hit_damage", "boss_card_crit_chance", "boss_card_crit_multiplier", "boss_card_max_energy"]);
+
+function normalizeRewardChestBalance(rewardChestTypes: RewardChestType[]): RewardChestType[] {
+  const starterChestById = new Map(starterContentBundle.rewardChestTypes.map((chestType) => [chestType.id, chestType]));
+
+  return rewardChestTypes.map((chestType) => {
+    const starterChest = starterChestById.get(chestType.id);
+    const legacySignatures = legacyRewardChestRewardSignatures[chestType.id];
+
+    if (!starterChest) {
+      return chestType;
+    }
+
+    const starterRewardById = new Map(starterChest.rewardTable.map((reward) => [reward.resourceId, reward]));
+    let changed = false;
+    const rewardTable = chestType.rewardTable.map((reward) => {
+      const starterReward = starterRewardById.get(reward.resourceId);
+
+      if (!starterReward || legacySignatures?.[reward.resourceId] !== rewardSignature(reward)) {
+        return reward;
+      }
+
+      if (rewardSignature(starterReward) === rewardSignature(reward)) {
+        return reward;
+      }
+
+      changed = true;
+      return starterReward;
+    });
+    const missingRewards = starterChest.rewardTable.filter(
+      (reward) => bossCardRewardResourceIds.has(reward.resourceId) && !rewardTable.some((item) => item.resourceId === reward.resourceId)
+    );
+
+    if (missingRewards.length > 0) {
+      changed = true;
+    }
+
+    return changed
+      ? {
+          ...chestType,
+          rewardTable: [...rewardTable, ...missingRewards]
+        }
+      : chestType;
+  });
+}
+
+function rewardSignature(reward: RewardEntry): string {
+  return `${reward.min}:${reward.max}:${reward.chance}`;
 }
 
 function upsertEditableContentEntity(

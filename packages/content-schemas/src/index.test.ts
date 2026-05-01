@@ -54,6 +54,12 @@ describe("content schemas", () => {
         chestType.rewardTable.some((reward) => reward.resourceId.startsWith("boss_card_"))
       )
     ).toBe(true);
+    expect(rewardChance("wooden_completion_chest", "boss_card_hit_damage")).toBe(1);
+    expect(rewardChance("wooden_completion_chest", "boss_card_max_energy")).toBe(0.75);
+    expect(rewardChance("wooden_completion_chest", "boss_card_crit_chance")).toBe(0.18);
+    expect(rewardChance("wooden_completion_chest", "boss_card_crit_multiplier")).toBeNull();
+    expect(rewardChance("iron_completion_chest", "boss_card_crit_multiplier")).toBe(0.2);
+    expect(rewardChance("steel_completion_chest", "boss_card_crit_multiplier")).toBe(0.55);
     expect(starterContentBundle.bossCards.map((card) => [card.id, card.assetId, card.cardResourceId, card.effectType])).toEqual([
       ["hit_damage", "boss_card_hit_damage_v1", "boss_card_hit_damage", "damagePerTap"],
       ["crit_chance", "boss_card_crit_chance_v1", "boss_card_crit_chance", "critChance"],
@@ -427,3 +433,10 @@ describe("content schemas", () => {
     expect(result.errors).toContain("goblins.nokk_copper_quill.ability.effects references missing resource missing_resource");
   });
 });
+
+function rewardChance(chestTypeId: string, resourceId: string): number | null {
+  const chestType = starterContentBundle.rewardChestTypes.find((item) => item.id === chestTypeId);
+  const reward = chestType?.rewardTable.find((item) => item.resourceId === resourceId);
+
+  return reward?.chance ?? null;
+}
