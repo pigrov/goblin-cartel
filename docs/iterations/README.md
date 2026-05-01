@@ -77,3 +77,4 @@
 - `0072_content_driven_boss_cards` - moved Boss card balance into content/admin and rebuilt the Boss cards modal as a compact 3-column card grid.
 - `0073_boss_card_visuals_goblin_grab` - added content-driven Boss card asset IDs, effect-specific card visuals, chest drop balance summary, and a larger Pixi goblin grab area.
 - `0074_chest_card_art_balance` - improved card/chest art, split card reward visuals by rarity, and rebalanced chest drops with safe legacy normalization.
+- `0075_chest_card_reveal_no_legacy_versions` - added a large Boss card reveal during chest opening and removed old runtime/backend/save fallbacks for previous content versions.

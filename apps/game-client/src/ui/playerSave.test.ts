@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  legacyGoblinRosterStorageKey,
-  legacyMineSaveStorageKey,
+  loadStoredBossCards,
   loadStoredGoblinRoster,
   loadStoredMiningSession,
-  loadStoredBossCards,
   playerSaveStorageKey,
   readPlayerSave,
   saveStoredBossCards,
@@ -30,7 +28,7 @@ function createMemoryStorage(initial: Record<string, string> = {}): PlayerSaveSt
   };
 }
 
-function createMineSave(contentVersion = "0.0.14"): StoredMineSave {
+function createMineSave(contentVersion = "0.0.15"): StoredMineSave {
   return {
     activeCell: { row: 1, col: 2 },
     bossEnergy: { currentEnergy: 300, updatedAt: 1000 },
@@ -50,7 +48,7 @@ function createMineSave(contentVersion = "0.0.14"): StoredMineSave {
   };
 }
 
-function createRosterSave(contentVersion = "0.0.14"): StoredGoblinRoster {
+function createRosterSave(contentVersion = "0.0.15"): StoredGoblinRoster {
   return {
     contentVersion,
     roster: {
@@ -61,22 +59,22 @@ function createRosterSave(contentVersion = "0.0.14"): StoredGoblinRoster {
   };
 }
 
-describe("player save migration", () => {
-  it("writes a combined player save while keeping legacy keys readable", () => {
+describe("player save", () => {
+  it("writes only the stable combined player save", () => {
     const storage = createMemoryStorage();
     const mine = createMineSave();
     const roster = createRosterSave();
 
     saveStoredMiningSession(mine, storage);
     saveStoredGoblinRoster(roster, storage);
-    saveStoredBossCards({ levels: { hit_damage: 1 } }, storage);
+    saveStoredBossCards({ levels: { hit_damage: 1 } }, storage, undefined, "0.0.15");
 
-    expect(loadStoredMiningSession(storage)).toEqual(mine);
-    expect(loadStoredGoblinRoster(storage)).toEqual(roster);
-    expect(loadStoredBossCards(storage)).toEqual({ levels: { hit_damage: 1 } });
-    expect(JSON.parse(storage.values[legacyMineSaveStorageKey] ?? "{}")).toMatchObject({ contentVersion: "0.0.14" });
-    expect(JSON.parse(storage.values[legacyGoblinRosterStorageKey] ?? "{}")).toMatchObject({ contentVersion: "0.0.14" });
+    expect(loadStoredMiningSession(storage, "0.0.15")).toEqual(mine);
+    expect(loadStoredGoblinRoster(storage, "0.0.15")).toEqual(roster);
+    expect(loadStoredBossCards(storage, undefined, "0.0.15")).toEqual({ levels: { hit_damage: 1 } });
+    expect(Object.keys(storage.values)).toEqual([playerSaveStorageKey]);
     expect(JSON.parse(storage.values[playerSaveStorageKey] ?? "{}")).toMatchObject({
+      contentVersion: "0.0.15",
       mine,
       roster,
       bossCards: { levels: { hit_damage: 1 } },
@@ -84,40 +82,33 @@ describe("player save migration", () => {
     });
   });
 
-  it("migrates old split saves into the stable player save key", () => {
-    const mine = createMineSave("0.0.13");
-    const roster = createRosterSave("0.0.13");
-    const storage = createMemoryStorage({
-      [legacyMineSaveStorageKey]: JSON.stringify(mine),
-      [legacyGoblinRosterStorageKey]: JSON.stringify(roster)
-    });
-
-    expect(readPlayerSave(storage)).toMatchObject({
-      contentVersion: "0.0.13",
-      mine,
-      roster,
-      schemaVersion: 1
-    });
-    expect(loadStoredMiningSession(storage)).toEqual(mine);
-    expect(loadStoredGoblinRoster(storage)).toEqual(roster);
-    expect(JSON.parse(storage.values[playerSaveStorageKey] ?? "{}")).toMatchObject({ mine, roster, schemaVersion: 1 });
-  });
-
-  it("does not reject progress only because content version changed", () => {
+  it("ignores saves from older content versions", () => {
     const storage = createMemoryStorage();
-    const mine = createMineSave("0.0.13");
-    const roster = createRosterSave("0.0.13");
+    const mine = createMineSave("0.0.14");
+    const roster = createRosterSave("0.0.14");
 
     saveStoredMiningSession(mine, storage);
     saveStoredGoblinRoster(roster, storage);
+    saveStoredBossCards({ levels: { hit_damage: 3 } }, storage, undefined, "0.0.14");
 
-    expect(loadStoredMiningSession(storage)?.contentVersion).toBe("0.0.13");
-    expect(loadStoredMiningSession(storage)?.save.resources).toEqual({ gold: 600, stone: 40 });
-    expect(loadStoredGoblinRoster(storage)?.roster).toEqual({
-      goblinLevels: { miner_1: 2 },
-      hiredGoblinIds: ["miner_1", "collector_1"],
-      hutLevel: 2
+    expect(readPlayerSave(storage)?.contentVersion).toBe("0.0.14");
+    expect(loadStoredMiningSession(storage, "0.0.15")).toBeNull();
+    expect(loadStoredGoblinRoster(storage, "0.0.15")).toBeNull();
+    expect(loadStoredBossCards(storage, undefined, "0.0.15")).toEqual({ levels: {} });
+  });
+
+  it("does not migrate old split save keys", () => {
+    const mine = createMineSave("0.0.14");
+    const roster = createRosterSave("0.0.14");
+    const storage = createMemoryStorage({
+      "goblin-cartel.player.mine-save.v2": JSON.stringify(mine),
+      "goblin-cartel.player.goblin-roster.v1": JSON.stringify(roster)
     });
+
+    expect(readPlayerSave(storage)).toBeNull();
+    expect(loadStoredMiningSession(storage, "0.0.14")).toBeNull();
+    expect(loadStoredGoblinRoster(storage, "0.0.14")).toBeNull();
+    expect(storage.values[playerSaveStorageKey]).toBeUndefined();
   });
 
   it("normalizes boss cards from the stable save", () => {
@@ -129,13 +120,13 @@ describe("player save migration", () => {
             missing: 10
           }
         },
-        contentVersion: "0.0.14",
+        contentVersion: "0.0.15",
         savedAt: 5000,
         schemaVersion: 1
       })
     });
 
-    expect(loadStoredBossCards(storage)).toEqual({
+    expect(loadStoredBossCards(storage, undefined, "0.0.15")).toEqual({
       levels: {
         hit_damage: 3
       }

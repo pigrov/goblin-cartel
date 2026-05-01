@@ -176,7 +176,7 @@ describe("content service", () => {
     expect(current?.content.goblinHut.id).toBe("default");
   });
 
-  it("backfills boss cards when reading legacy content entity rows", async () => {
+  it("reads content entities without legacy boss card backfill", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({ store });
     const detail = await service.createVersion("admin-1", {
@@ -189,57 +189,7 @@ describe("content service", () => {
 
     const restored = await service.getVersion("admin-1", detail.version.id);
 
-    expect(restored?.content.bossCards.map((card) => card.id)).toEqual(["hit_damage", "crit_chance", "crit_multiplier", "max_energy"]);
-  });
-
-  it("normalizes legacy boss card chest reward balance when reading content entities", async () => {
-    const store = new MemoryContentStore();
-    const service = createContentService({ store });
-    const legacyContent = structuredClone(starterContentBundle);
-    const woodenChest = legacyContent.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
-
-    if (!woodenChest) {
-      throw new Error("Missing wooden chest");
-    }
-
-    woodenChest.rewardTable = woodenChest.rewardTable.map((reward) =>
-      reward.resourceId === "boss_card_crit_chance" ? { ...reward, chance: 0.45 } : reward
-    );
-    const detail = await service.createVersion("admin-1", {
-      content: legacyContent,
-      version: "0.1.0"
-    });
-
-    const restored = await service.getVersion("admin-1", detail.version.id);
-    const restoredWoodenChest = restored?.content.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
-
-    expect(restoredWoodenChest?.rewardTable.find((reward) => reward.resourceId === "boss_card_crit_chance")?.chance).toBe(0.18);
-  });
-
-  it("backfills missing boss card chest rewards when reading legacy content entities", async () => {
-    const store = new MemoryContentStore();
-    const service = createContentService({ store });
-    const legacyContent = structuredClone(starterContentBundle);
-    const woodenChest = legacyContent.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
-
-    if (!woodenChest) {
-      throw new Error("Missing wooden chest");
-    }
-
-    woodenChest.rewardTable = woodenChest.rewardTable.filter(
-      (reward) => reward.resourceId !== "elixir" && !reward.resourceId.startsWith("boss_card_")
-    );
-    const detail = await service.createVersion("admin-1", {
-      content: legacyContent,
-      version: "0.1.0"
-    });
-
-    const restored = await service.getVersion("admin-1", detail.version.id);
-    const restoredWoodenChest = restored?.content.rewardChestTypes.find((chestType) => chestType.id === "wooden_completion_chest");
-
-    expect(restoredWoodenChest?.rewardTable.map((reward) => reward.resourceId)).toEqual(
-      expect.arrayContaining(["elixir", "boss_card_hit_damage", "boss_card_max_energy", "boss_card_crit_chance"])
-    );
+    expect(restored?.content.bossCards).toEqual([]);
   });
 
   it("keeps published and archived versions read-only", async () => {

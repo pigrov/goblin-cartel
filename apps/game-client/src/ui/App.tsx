@@ -208,6 +208,10 @@ interface RewardDrop {
   resourceId: string;
 }
 
+interface FeaturedCardReward extends RewardDrop {
+  card: BossCardDefinition;
+}
+
 interface ResourceTooltip {
   id: number;
   label: string;
@@ -329,11 +333,12 @@ export function App() {
             source: "published" as const,
             message: "Опубликованный контент"
           };
-          const nextRoster = createRestoredGoblinRoster(runtimeContent);
+          const nextRoster = createRestoredGoblinRoster(runtimeContent, runtimeVersion);
           const nextBossCardDefinitions = createBossCardDefinitions(runtimeContent.bossCards);
-          const nextBossCards = loadStoredBossCards(localStorage, nextBossCardDefinitions);
+          const nextBossCards = loadStoredBossCards(localStorage, nextBossCardDefinitions, runtimeVersion);
           const restoredMining = createRestoredMiningState(
             runtimeContent,
+            runtimeVersion,
             nextRoster,
             applyBossCardBonuses(baseBossEnergyConfig, nextBossCards, nextBossCardDefinitions)
           );
@@ -437,8 +442,8 @@ export function App() {
       return;
     }
 
-    saveStoredBossCards(bossCards, localStorage, bossCardDefinitions);
-  }, [bossCardDefinitions, bossCards, sessionReady]);
+    saveStoredBossCards(bossCards, localStorage, bossCardDefinitions, contentState.version);
+  }, [bossCardDefinitions, bossCards, contentState.version, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -1838,10 +1843,11 @@ function createSession(
 
 function createRestoredMiningState(
   content: ContentBundle,
+  contentVersion: string,
   roster: GoblinRosterState,
   bossEnergyConfig: BossEnergyConfig
 ): RestoredMiningState {
-  const storedSave = loadStoredMiningSession();
+  const storedSave = loadStoredMiningSession(localStorage, contentVersion);
   const hiredGoblins = createHiredGoblins(content, roster);
   const hiredCollectorGoblins = hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0);
   const miningGoblins = hiredGoblins.filter(isMiningGoblin);
@@ -1904,21 +1910,17 @@ function createRestoredMiningState(
     );
   } catch {
     const initialPlatformRow = findPlatformRow(session, 0);
-    const fallbackSession = {
-      ...session,
-      resources: { ...storedSave.save.resources }
-    };
 
     return {
-      session: fallbackSession,
-      activeCell: findFirstPlayableCell(fallbackSession),
+      session,
+      activeCell: findFirstPlayableCell(session),
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(fallbackSession, miningGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
-      builtMines: normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster),
-      mineCompletionNoticeSeenIds: normalizeIdList(storedSave.mineCompletionNoticeSeenIds ?? [])
+      builtMines: [],
+      mineCompletionNoticeSeenIds: []
     };
   }
 }
@@ -2058,9 +2060,9 @@ function applyOfflineMining(
   };
 }
 
-function createRestoredGoblinRoster(content: ContentBundle): GoblinRosterState {
+function createRestoredGoblinRoster(content: ContentBundle, contentVersion: string): GoblinRosterState {
   const goblins = createAvailableGoblins(content);
-  const storedRoster = loadStoredGoblinRoster();
+  const storedRoster = loadStoredGoblinRoster(localStorage, contentVersion);
 
   if (!storedRoster) {
     return createInitialGoblinRoster(goblins);
@@ -2197,7 +2199,9 @@ function RewardChestScreen(props: {
 }) {
   const chestName = labelFromNameKey(props.chestType.nameKey, props.chestType.id, props.labels);
   const rewardDrops = rewardDropsFromMap(props.rewards, props.content, props.labels);
+  const featuredCardReward = findFeaturedCardReward(rewardDrops, props.content);
   const isSummary = props.stage === "summary";
+  const isCardRevealVisible = props.stage === "opening" && Boolean(featuredCardReward);
   const chestAssetClass = rewardChestAssetClass(props.chestType);
 
   return (
@@ -2237,6 +2241,20 @@ function RewardChestScreen(props: {
             +{formatInteger(reward.amount)}
           </span>
         ))}
+
+        {featuredCardReward ? (
+          <div
+            className={`reward-card-reveal ${featuredCardReward.card.rarity} ${isCardRevealVisible ? "show" : ""}`}
+            aria-hidden={!isCardRevealVisible}
+          >
+            <span>{bossCardRarityLabel(featuredCardReward.card.rarity)}</span>
+            <BossCardArt card={featuredCardReward.card} />
+            <strong>{bossCardName(featuredCardReward.card, props.labels)}</strong>
+            <small>
+              +{formatInteger(featuredCardReward.amount)} {featuredCardReward.label}
+            </small>
+          </div>
+        ) : null}
 
         <button
           className={`reward-chest-box ${props.chestType.tier} ${chestAssetClass} ${props.stage}`}
@@ -3755,6 +3773,39 @@ function rewardDropsFromMap(rewards: Record<string, number>, content: ContentBun
       label: resourceLabelById(resourceId, labels, content),
       resourceId
     }));
+}
+
+function findFeaturedCardReward(rewards: RewardDrop[], content: ContentBundle): FeaturedCardReward | null {
+  const cardByResourceId = new Map<string, BossCardDefinition>(content.bossCards.map((card) => [card.cardResourceId, card]));
+  const cardRewards: FeaturedCardReward[] = [];
+
+  for (const reward of rewards) {
+    const card = cardByResourceId.get(reward.resourceId);
+
+    if (card) {
+      cardRewards.push({ ...reward, card });
+    }
+  }
+
+  if (cardRewards.length === 0) {
+    return null;
+  }
+
+  return cardRewards.sort((left, right) => {
+    const rarityDelta = bossCardRarityRank(right.card.rarity) - bossCardRarityRank(left.card.rarity);
+    return rarityDelta !== 0 ? rarityDelta : right.amount - left.amount;
+  })[0] ?? null;
+}
+
+function bossCardRarityRank(rarity: BossCardDefinition["rarity"]): number {
+  switch (rarity) {
+    case "golden":
+      return 3;
+    case "rare":
+      return 2;
+    case "common":
+      return 1;
+  }
 }
 
 function resourceAmountSummaryLabel(

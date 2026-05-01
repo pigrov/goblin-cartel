@@ -9,8 +9,6 @@ import {
 } from "@goblin-cartel/game-core";
 
 export const playerSaveStorageKey = "goblin-cartel.player.save.v1";
-export const legacyMineSaveStorageKey = "goblin-cartel.player.mine-save.v2";
-export const legacyGoblinRosterStorageKey = "goblin-cartel.player.goblin-roster.v1";
 
 export interface StoredMineSave {
   contentVersion: string;
@@ -52,10 +50,9 @@ export function saveStoredMiningSession(
   storage: PlayerSaveStorage = localStorage,
   bossCardDefinitions?: BossCardDefinition[]
 ): void {
-  storage.setItem(legacyMineSaveStorageKey, JSON.stringify(payload));
   writePlayerSave(
     {
-      ...readPlayerSave(storage, bossCardDefinitions),
+      ...readCurrentPlayerSave(storage, bossCardDefinitions, payload.contentVersion),
       contentVersion: payload.contentVersion,
       mine: payload,
       savedAt: payload.savedAt ?? Date.now()
@@ -65,8 +62,14 @@ export function saveStoredMiningSession(
   );
 }
 
-export function loadStoredMiningSession(storage: PlayerSaveStorage = localStorage): StoredMineSave | null {
-  return readPlayerSave(storage)?.mine ?? readLegacyMiningSession(storage);
+export function loadStoredMiningSession(storage: PlayerSaveStorage = localStorage, contentVersion?: string): StoredMineSave | null {
+  const save = readPlayerSave(storage);
+
+  if (!save || !isCurrentContentVersion(save, contentVersion) || !isCurrentContentVersion(save.mine, contentVersion)) {
+    return null;
+  }
+
+  return save.mine ?? null;
 }
 
 export function saveStoredGoblinRoster(
@@ -74,10 +77,9 @@ export function saveStoredGoblinRoster(
   storage: PlayerSaveStorage = localStorage,
   bossCardDefinitions?: BossCardDefinition[]
 ): void {
-  storage.setItem(legacyGoblinRosterStorageKey, JSON.stringify(payload));
   writePlayerSave(
     {
-      ...readPlayerSave(storage, bossCardDefinitions),
+      ...readCurrentPlayerSave(storage, bossCardDefinitions, payload.contentVersion),
       contentVersion: payload.contentVersion,
       roster: payload,
       savedAt: Date.now()
@@ -87,19 +89,27 @@ export function saveStoredGoblinRoster(
   );
 }
 
-export function loadStoredGoblinRoster(storage: PlayerSaveStorage = localStorage): StoredGoblinRoster | null {
-  return readPlayerSave(storage)?.roster ?? readLegacyGoblinRoster(storage);
+export function loadStoredGoblinRoster(storage: PlayerSaveStorage = localStorage, contentVersion?: string): StoredGoblinRoster | null {
+  const save = readPlayerSave(storage);
+
+  if (!save || !isCurrentContentVersion(save, contentVersion) || !isCurrentContentVersion(save.roster, contentVersion)) {
+    return null;
+  }
+
+  return save.roster ?? null;
 }
 
 export function saveStoredBossCards(
   bossCards: BossCardState,
   storage: PlayerSaveStorage = localStorage,
-  definitions?: BossCardDefinition[]
+  definitions?: BossCardDefinition[],
+  contentVersion?: string
 ): void {
   writePlayerSave(
     {
-      ...readPlayerSave(storage, definitions),
+      ...readCurrentPlayerSave(storage, definitions, contentVersion),
       bossCards: normalizeBossCardState(bossCards, definitions),
+      ...(contentVersion ? { contentVersion } : {}),
       savedAt: Date.now()
     },
     storage,
@@ -107,8 +117,18 @@ export function saveStoredBossCards(
   );
 }
 
-export function loadStoredBossCards(storage: PlayerSaveStorage = localStorage, definitions?: BossCardDefinition[]): BossCardState {
-  return normalizeBossCardState(readPlayerSave(storage, definitions)?.bossCards, definitions);
+export function loadStoredBossCards(
+  storage: PlayerSaveStorage = localStorage,
+  definitions?: BossCardDefinition[],
+  contentVersion?: string
+): BossCardState {
+  const save = readPlayerSave(storage, definitions);
+
+  if (!isCurrentContentVersion(save, contentVersion)) {
+    return createEmptyBossCardState();
+  }
+
+  return normalizeBossCardState(save?.bossCards, definitions);
 }
 
 export function readPlayerSave(storage: PlayerSaveStorage = localStorage, definitions?: BossCardDefinition[]): StoredPlayerSaveV1 | null {
@@ -123,22 +143,16 @@ export function readPlayerSave(storage: PlayerSaveStorage = localStorage, defini
     storage.removeItem(playerSaveStorageKey);
   }
 
-  const legacyMine = readLegacyMiningSession(storage);
-  const legacyRoster = readLegacyGoblinRoster(storage);
+  return null;
+}
 
-  if (!legacyMine && !legacyRoster) {
-    return null;
-  }
-
-  const migrated: StoredPlayerSaveV1 = {
-    schemaVersion: 1,
-    contentVersion: legacyMine?.contentVersion ?? legacyRoster?.contentVersion ?? "",
-    ...(legacyMine ? { mine: legacyMine } : {}),
-    ...(legacyRoster ? { roster: legacyRoster } : {}),
-    savedAt: Math.max(legacyMine?.savedAt ?? 0, Date.now())
-  };
-  writePlayerSave(migrated, storage);
-  return migrated;
+function readCurrentPlayerSave(
+  storage: PlayerSaveStorage,
+  definitions: BossCardDefinition[] | undefined,
+  contentVersion: string | undefined
+): StoredPlayerSaveV1 | null {
+  const save = readPlayerSave(storage, definitions);
+  return isCurrentContentVersion(save, contentVersion) ? save : null;
 }
 
 function writePlayerSave(payload: Partial<StoredPlayerSaveV1>, storage: PlayerSaveStorage, definitions?: BossCardDefinition[]): void {
@@ -182,28 +196,6 @@ function normalizePlayerSave(value: unknown, definitions?: BossCardDefinition[])
   };
 }
 
-function readLegacyMiningSession(storage: PlayerSaveStorage): StoredMineSave | null {
-  const value = readJson(storage, legacyMineSaveStorageKey);
-  const normalized = normalizeMineSave(value);
-
-  if (value !== null && !normalized) {
-    storage.removeItem(legacyMineSaveStorageKey);
-  }
-
-  return normalized;
-}
-
-function readLegacyGoblinRoster(storage: PlayerSaveStorage): StoredGoblinRoster | null {
-  const value = readJson(storage, legacyGoblinRosterStorageKey);
-  const normalized = normalizeGoblinRosterSave(value);
-
-  if (value !== null && !normalized) {
-    storage.removeItem(legacyGoblinRosterStorageKey);
-  }
-
-  return normalized;
-}
-
 function normalizeMineSave(value: unknown): StoredMineSave | null {
   if (!isRecord(value) || typeof value.contentVersion !== "string" || !isRecord(value.save)) {
     return null;
@@ -236,6 +228,14 @@ function normalizeBossCards(value: unknown, definitions?: BossCardDefinition[]):
   }
 
   return normalizeBossCardState(value as unknown as BossCardState, definitions);
+}
+
+function createEmptyBossCardState(): BossCardState {
+  return { levels: {} };
+}
+
+function isCurrentContentVersion(save: { contentVersion: string } | null | undefined, contentVersion: string | undefined): boolean {
+  return !contentVersion || save?.contentVersion === contentVersion;
 }
 
 function readJson(storage: PlayerSaveStorage, key: string): unknown {
