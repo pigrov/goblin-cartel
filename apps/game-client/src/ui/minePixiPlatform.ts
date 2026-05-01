@@ -32,6 +32,7 @@ export function drawPlatform(input: {
   animatedGoblins: MinePixiAnimatedItem[];
   blocks: MiningSession["blocks"];
   currentPlatformRow: number;
+  dragState: MinePixiDragState | null;
   goblins: MinePixiPlatformGoblin[];
   layout: MinePixiLayout;
   mineWidth: number;
@@ -69,9 +70,13 @@ export function drawPlatform(input: {
       continue;
     }
 
+    if (input.dragState?.goblinId === goblin.id) {
+      continue;
+    }
+
     const x = input.layout.gridX + goblin.col * input.layout.rowStep + input.layout.cellSize / 2;
     const y = input.layout.platformHeight - 40;
-    const goblinNode = drawGoblin(input.layout.cellSize, goblin.working, false);
+    const goblinNode = drawGoblin(input.layout.cellSize, goblin.working, false, { showGrabArea: true });
     goblinNode.position.set(x, y);
     goblinNode.eventMode = "static";
     goblinNode.cursor = "grab";
@@ -126,9 +131,9 @@ export function drawDragPreview(input: {
   }
 
   const preview = drawGoblin(input.layout.cellSize, sourceGoblin.working, true);
-  preview.alpha = 0.82;
+  preview.alpha = 0.94;
   preview.position.set(input.dragState.point.x, input.dragState.point.y - input.layout.platformHeight * 0.55);
-  preview.scale.set(preview.scale.x * 1.08);
+  preview.scale.set(preview.scale.x * 1.16);
   input.root.addChild(preview);
 
   if (input.dragState.targetCell) {

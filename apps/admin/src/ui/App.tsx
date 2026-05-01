@@ -196,6 +196,12 @@ const bossCardRarityOptions = [
   { value: "golden", label: "Золотая" }
 ];
 
+const bossCardDropRarityBalanceOptions = [
+  { value: "common", label: "Обычные карты" },
+  { value: "rare", label: "Редкие карты" },
+  { value: "golden", label: "Золотые карты" }
+] as const;
+
 const bossCardEffectOptions = [
   { value: "damagePerTap", label: "Урон за тап" },
   { value: "critChance", label: "Шанс крита" },
@@ -1497,6 +1503,7 @@ function renderEntityFields(
           <ContentSelectField label="Tier" name="tier" onChange={updateField} options={rewardChestTierOptions} value={formState.tier} />
           <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
         </div>
+        <ContentBossCardDropBalancer content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
         <ContentRewardRows content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
         <ContentBossCardDropSummary content={content} formState={formState} prefix="reward" />
       </>
@@ -2022,6 +2029,86 @@ function ContentRewardRows(props: {
         </div>
       ))}
     </ContentNestedSection>
+  );
+}
+
+function ContentBossCardDropBalancer(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  prefix: string;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const cardsByRarity = bossCardsByRarity(props.content);
+
+  return (
+    <section className="content-nested-section content-card-balance">
+      <header>
+        <div>
+          <span>Баланс сундука</span>
+          <strong>Карты босса и эликсир</strong>
+        </div>
+        <button onClick={() => props.updateFields(applyBossCardDropBalanceToFormState(props.content, props.formState, props.prefix))} type="button">
+          Применить к таблице
+        </button>
+      </header>
+      <div className="content-card-balance-grid">
+        <div className="content-card-balance-row rare">
+          <div className="content-card-balance-title">
+            <strong>Эликсир</strong>
+            <small>{resourceLabel(props.content, bossCardElixirResourceId(props.content))}</small>
+          </div>
+          <div className="content-form-grid">
+            <ContentTextField
+              label="Шанс %"
+              name="cardDropElixirChancePercent"
+              onChange={props.updateField}
+              type="number"
+              value={props.formState.cardDropElixirChancePercent}
+            />
+            <ContentTextField label="Min" name="cardDropElixirMin" onChange={props.updateField} type="number" value={props.formState.cardDropElixirMin} />
+            <ContentTextField label="Max" name="cardDropElixirMax" onChange={props.updateField} type="number" value={props.formState.cardDropElixirMax} />
+          </div>
+        </div>
+
+        {bossCardDropRarityBalanceOptions.map((option) => {
+          const segment = bossCardDropRaritySegment(option.value);
+          const cards = cardsByRarity.get(option.value) ?? [];
+
+          return (
+            <div className={`content-card-balance-row ${option.value}`} key={option.value}>
+              <div className="content-card-balance-title">
+                <strong>{option.label}</strong>
+                <small>{cards.length > 0 ? cards.map((card) => contentEntityTitle(card, props.content.localization?.ru ?? {})).join(", ") : "карт нет"}</small>
+              </div>
+              <div className="content-form-grid">
+                <ContentTextField
+                  label="Шанс %"
+                  name={bossCardDropField(segment, "ChancePercent")}
+                  onChange={props.updateField}
+                  type="number"
+                  value={props.formState[bossCardDropField(segment, "ChancePercent")]}
+                />
+                <ContentTextField
+                  label="Min"
+                  name={bossCardDropField(segment, "Min")}
+                  onChange={props.updateField}
+                  type="number"
+                  value={props.formState[bossCardDropField(segment, "Min")]}
+                />
+                <ContentTextField
+                  label="Max"
+                  name={bossCardDropField(segment, "Max")}
+                  onChange={props.updateField}
+                  type="number"
+                  value={props.formState[bossCardDropField(segment, "Max")]}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -2988,6 +3075,7 @@ function createRewardChestTypeFormState(entity: ContentRecord, content: ContentB
     id: stringField(entity, "id"),
     tier: stringField(entity, "tier") || "wooden",
     title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createBossCardDropBalanceFormState(entity, content),
     ...createRewardTableFormState("reward", arrayField(entity, "rewardTable"), content)
   };
 }
@@ -3101,6 +3189,30 @@ function createRewardTableFormState(prefix: string, rows: ContentRecord[], conte
     state[`${prefix}Max_${index}`] = numberString(numberField(row, "max", 1));
     state[`${prefix}Min_${index}`] = numberString(numberField(row, "min", 1));
     state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, "gold");
+  }
+
+  return state;
+}
+
+function createBossCardDropBalanceFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const rows = arrayField(entity, "rewardTable");
+  const state: EntityFormState = {};
+  const elixirRow = rewardRowByResourceId(rows, bossCardElixirResourceId(content));
+
+  state.cardDropElixirChancePercent = rewardChancePercentString(elixirRow, 100);
+  state.cardDropElixirMin = numberString(numberField(elixirRow ?? {}, "min", 1));
+  state.cardDropElixirMax = numberString(numberField(elixirRow ?? {}, "max", 1));
+
+  for (const option of bossCardDropRarityBalanceOptions) {
+    const segment = bossCardDropRaritySegment(option.value);
+    const firstCardRow = bossCardsByRarity(content)
+      .get(option.value)
+      ?.map((card) => rewardRowByResourceId(rows, stringField(card, "cardResourceId")))
+      .find((row): row is ContentRecord => Boolean(row));
+
+    state[bossCardDropField(segment, "ChancePercent")] = rewardChancePercentString(firstCardRow, 0);
+    state[bossCardDropField(segment, "Min")] = numberString(numberField(firstCardRow ?? {}, "min", 1));
+    state[bossCardDropField(segment, "Max")] = numberString(numberField(firstCardRow ?? {}, "max", 1));
   }
 
   return state;
@@ -3344,6 +3456,7 @@ function validateRewardChestTypeForm(state: EntityFormState, content: ContentBun
   }
 
   validateRewardRows(state, "reward", content, errors);
+  validateBossCardDropBalanceFields(state, errors);
 }
 
 function validateBossCardForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -3487,6 +3600,32 @@ function validateRewardRows(state: EntityFormState, prefix: string, content: Con
     if (!resourceIdSet(content).has(resourceId)) {
       errors.push(`${rowLabel}: ресурс не найден.`);
     }
+  }
+}
+
+function validateBossCardDropBalanceFields(state: EntityFormState, errors: string[]) {
+  validateBossCardDropBalanceRow(state, "cardDropElixir", "Эликсир", errors);
+
+  for (const option of bossCardDropRarityBalanceOptions) {
+    validateBossCardDropBalanceRow(state, bossCardDropFieldPrefix(bossCardDropRaritySegment(option.value)), option.label, errors);
+  }
+}
+
+function validateBossCardDropBalanceRow(state: EntityFormState, prefix: string, label: string, errors: string[]) {
+  const min = toNumber(state[`${prefix}Min`]);
+  const max = toNumber(state[`${prefix}Max`]);
+  const chance = toNumber(state[`${prefix}ChancePercent`]);
+
+  validateNumberField(state, `${prefix}ChancePercent`, `${label}: шанс`, errors, { min: 0 });
+  validateIntegerField(state, `${prefix}Min`, `${label}: min`, errors, { min: 0 });
+  validateIntegerField(state, `${prefix}Max`, `${label}: max`, errors, { min: 0 });
+
+  if (chance > 100) {
+    errors.push(`${label}: шанс не может быть больше 100%.`);
+  }
+
+  if (min > max) {
+    errors.push(`${label}: min не может быть больше max.`);
   }
 }
 
@@ -4025,6 +4164,76 @@ function createRewardTableFromForm(state: EntityFormState, prefix: string): Arra
   return rows;
 }
 
+export function applyBossCardDropBalanceToFormState(
+  content: ContentBundle,
+  formState: EntityFormState,
+  prefix = "reward"
+): EntityFormState {
+  const managedResourceIds = bossCardManagedRewardResourceIds(content);
+  const preservedRows = createRewardTableFromForm(formState, prefix).filter(
+    (row) => row.resourceId && !managedResourceIds.has(row.resourceId)
+  );
+  const nextRows = [...preservedRows, ...createBossCardDropBalanceRows(content, formState)];
+
+  return createRewardTableFormState(prefix, nextRows, content);
+}
+
+function createBossCardDropBalanceRows(
+  content: ContentBundle,
+  state: EntityFormState
+): Array<{ chance: number; max: number; min: number; resourceId: string }> {
+  const rows: Array<{ chance: number; max: number; min: number; resourceId: string }> = [];
+  const elixirResourceId = bossCardElixirResourceId(content);
+  const elixirRow = createBossCardDropRewardRow(elixirResourceId, {
+    chancePercent: toNumber(state.cardDropElixirChancePercent),
+    max: toInteger(state.cardDropElixirMax),
+    min: toInteger(state.cardDropElixirMin)
+  });
+
+  if (elixirRow) {
+    rows.push(elixirRow);
+  }
+
+  const cardsByRarity = bossCardsByRarity(content);
+
+  for (const option of bossCardDropRarityBalanceOptions) {
+    const segment = bossCardDropRaritySegment(option.value);
+    const chancePercent = toNumber(state[bossCardDropField(segment, "ChancePercent")]);
+    const min = toInteger(state[bossCardDropField(segment, "Min")]);
+    const max = toInteger(state[bossCardDropField(segment, "Max")]);
+
+    for (const card of cardsByRarity.get(option.value) ?? []) {
+      const row = createBossCardDropRewardRow(stringField(card, "cardResourceId"), {
+        chancePercent,
+        max,
+        min
+      });
+
+      if (row) {
+        rows.push(row);
+      }
+    }
+  }
+
+  return rows;
+}
+
+function createBossCardDropRewardRow(
+  resourceId: string,
+  balance: { chancePercent: number; max: number; min: number }
+): { chance: number; max: number; min: number; resourceId: string } | null {
+  if (!resourceId || balance.chancePercent <= 0 || balance.max <= 0) {
+    return null;
+  }
+
+  return {
+    chance: Math.round((balance.chancePercent / 100) * 1000) / 1000,
+    max: balance.max,
+    min: balance.min,
+    resourceId
+  };
+}
+
 function createCellMapFromForm(state: EntityFormState, content: ContentBundle): ContentRecord[] {
   const height = Math.max(1, toInteger(state.height));
   const width = Math.max(1, toInteger(state.width));
@@ -4118,6 +4327,48 @@ function resourceLabel(content: ContentBundle, resourceId: string): string {
   const resource = content.resources.find((item) => stringField(item, "id") === resourceId);
 
   return resource ? contentEntityTitle(resource, content.localization?.ru ?? {}) : resourceId;
+}
+
+function bossCardElixirResourceId(content: ContentBundle): string {
+  return stringField((content.bossCards ?? [])[0] ?? {}, "elixirResourceId") || findResourceId(content, "elixir");
+}
+
+function bossCardsByRarity(content: ContentBundle): Map<string, ContentRecord[]> {
+  const cardsByRarity = new Map<string, ContentRecord[]>();
+
+  for (const card of content.bossCards ?? []) {
+    const rarity = stringField(card, "rarity") || "common";
+    cardsByRarity.set(rarity, [...(cardsByRarity.get(rarity) ?? []), card]);
+  }
+
+  return cardsByRarity;
+}
+
+function bossCardManagedRewardResourceIds(content: ContentBundle): Set<string> {
+  return new Set([
+    bossCardElixirResourceId(content),
+    ...(content.bossCards ?? []).map((card) => stringField(card, "cardResourceId")).filter(Boolean)
+  ]);
+}
+
+function rewardRowByResourceId(rows: ContentRecord[], resourceId: string): ContentRecord | undefined {
+  return rows.find((row) => stringField(row, "resourceId") === resourceId);
+}
+
+function rewardChancePercentString(row: ContentRecord | undefined, fallback: number): string {
+  return numberString(Math.round(numberField(row ?? {}, "chance", fallback / 100) * 1000) / 10);
+}
+
+function bossCardDropRaritySegment(rarity: string): string {
+  return rarity.charAt(0).toUpperCase() + rarity.slice(1);
+}
+
+function bossCardDropField(segment: string, suffix: "ChancePercent" | "Max" | "Min"): string {
+  return `${bossCardDropFieldPrefix(segment)}${suffix}`;
+}
+
+function bossCardDropFieldPrefix(segment: string): string {
+  return `cardDrop${segment}`;
 }
 
 function mineUpgradeCostSourceOptions(content: ContentBundle): Array<{ label: string; value: string }> {

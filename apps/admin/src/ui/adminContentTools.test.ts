@@ -6,6 +6,7 @@ import {
   addDraftRewardChestTypeTemplate,
   adminContentVersionPath,
   adminSectionPath,
+  applyBossCardDropBalanceToFormState,
   createMineVisualRows,
   getMineVisualCell,
   readAdminRoutePath
@@ -153,6 +154,69 @@ describe("admin draft templates", () => {
     expect(createdCellMap).toHaveLength(80);
     expect(createdCellMap[0]).toMatchObject({ blockTypeId: "stone_block", col: 0, row: 0 });
     expect(result.content.localization?.ru?.["mine.draft_mine_02.name"]).toBe("Новый рудник");
+  });
+});
+
+describe("admin chest and card balance tools", () => {
+  it("applies elixir and boss card rarity balance to the reward table", () => {
+    const content = {
+      ...baseContent,
+      resources: [
+        ...baseContent.resources,
+        { id: "elixir", nameKey: "resource.elixir.name" },
+        { id: "boss_card_hit_damage", nameKey: "resource.boss_card_hit_damage.name" },
+        { id: "boss_card_max_energy", nameKey: "resource.boss_card_max_energy.name" },
+        { id: "boss_card_crit_chance", nameKey: "resource.boss_card_crit_chance.name" },
+        { id: "boss_card_crit_multiplier", nameKey: "resource.boss_card_crit_multiplier.name" }
+      ],
+      bossCards: [
+        { cardResourceId: "boss_card_hit_damage", elixirResourceId: "elixir", id: "hit_damage", nameKey: "boss_card.hit_damage.name", rarity: "common" },
+        { cardResourceId: "boss_card_max_energy", elixirResourceId: "elixir", id: "max_energy", nameKey: "boss_card.max_energy.name", rarity: "common" },
+        { cardResourceId: "boss_card_crit_chance", elixirResourceId: "elixir", id: "crit_chance", nameKey: "boss_card.crit_chance.name", rarity: "rare" },
+        { cardResourceId: "boss_card_crit_multiplier", elixirResourceId: "elixir", id: "crit_multiplier", nameKey: "boss_card.crit_multiplier.name", rarity: "golden" }
+      ]
+    };
+    const result = applyBossCardDropBalanceToFormState(content, {
+      cardDropCommonChancePercent: "75",
+      cardDropCommonMax: "2",
+      cardDropCommonMin: "1",
+      cardDropElixirChancePercent: "100",
+      cardDropElixirMax: "12",
+      cardDropElixirMin: "8",
+      cardDropGoldenChancePercent: "15",
+      cardDropGoldenMax: "1",
+      cardDropGoldenMin: "1",
+      cardDropRareChancePercent: "35",
+      cardDropRareMax: "1",
+      cardDropRareMin: "1",
+      rewardChancePercent_0: "100",
+      rewardCount: "3",
+      rewardMax_0: "50",
+      rewardMin_0: "30",
+      rewardResourceId_0: "gold",
+      rewardChancePercent_1: "1",
+      rewardMax_1: "1",
+      rewardMin_1: "1",
+      rewardResourceId_1: "boss_card_hit_damage",
+      rewardChancePercent_2: "100",
+      rewardMax_2: "1",
+      rewardMin_2: "1",
+      rewardResourceId_2: "elixir"
+    });
+
+    expect(result.rewardCount).toBe("6");
+    expect(result.rewardResourceId_0).toBe("gold");
+    expect(result.rewardChancePercent_0).toBe("100");
+    expect(result.rewardResourceId_1).toBe("elixir");
+    expect(result.rewardMin_1).toBe("8");
+    expect(result.rewardMax_1).toBe("12");
+    expect(result.rewardResourceId_2).toBe("boss_card_hit_damage");
+    expect(result.rewardChancePercent_2).toBe("75");
+    expect(result.rewardResourceId_3).toBe("boss_card_max_energy");
+    expect(result.rewardResourceId_4).toBe("boss_card_crit_chance");
+    expect(result.rewardChancePercent_4).toBe("35");
+    expect(result.rewardResourceId_5).toBe("boss_card_crit_multiplier");
+    expect(result.rewardChancePercent_5).toBe("15");
   });
 });
 

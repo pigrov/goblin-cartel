@@ -118,6 +118,7 @@ export function renderMinePixiPlatform(input: {
   animatedGoblinsRef: MutableRefObject<MinePixiAnimatedItem[]>;
   blocks: MiningSession["blocks"];
   currentPlatformRow: number;
+  dragState: MinePixiDragState | null;
   goblins: MinePixiPlatformGoblin[];
   layers: MinePixiSceneLayers;
   layout: MinePixiLayout;
@@ -134,6 +135,7 @@ export function renderMinePixiPlatform(input: {
     animatedGoblins: input.animatedGoblinsRef.current,
     blocks: input.blocks,
     currentPlatformRow: input.currentPlatformRow,
+    dragState: input.dragState,
     goblins: input.goblins,
     layout: input.layout,
     mineWidth: input.mineWidth,

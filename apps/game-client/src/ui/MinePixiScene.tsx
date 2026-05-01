@@ -240,6 +240,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       animatedGoblinsRef: runtime.animatedGoblinsRef,
       blocks: props.session.blocks,
       currentPlatformRow: props.currentPlatformRow,
+      dragState,
       goblins: props.goblins,
       layers,
       layout,
@@ -253,6 +254,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
   }, [
     layout,
     props.currentPlatformRow,
+    dragState?.goblinId,
     props.goblins,
     props.platformCellKeys,
     props.platformDropAnimating,

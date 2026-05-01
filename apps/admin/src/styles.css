@@ -869,6 +869,43 @@
   background: rgb(242 184 75 / 10%);
 }
 
+.content-card-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+}
+
+.content-card-balance-row {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 5%);
+}
+
+.content-card-balance-row.rare {
+  border-color: rgb(93 167 225 / 24%);
+  background: rgb(63 119 168 / 10%);
+}
+
+.content-card-balance-row.golden {
+  border-color: rgb(242 184 75 / 28%);
+  background: rgb(242 184 75 / 10%);
+}
+
+.content-card-balance-title {
+  display: grid;
+  gap: 2px;
+}
+
+.content-card-balance-title small {
+  color: var(--gc-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .content-upgrade-cost-row {
   grid-template-columns: minmax(150px, 1.2fr) repeat(3, minmax(86px, 0.7fr)) auto;
 }

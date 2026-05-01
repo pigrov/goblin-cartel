@@ -1,11 +1,20 @@
 import { Container, Graphics, Rectangle } from "pixi.js";
 
-export function drawGoblin(cellSize: number, working: boolean, dragging: boolean): Container {
+export function drawGoblin(
+  cellSize: number,
+  working: boolean,
+  dragging: boolean,
+  options: { showGrabArea?: boolean } = {}
+): Container {
   const goblin = new Container();
   const scale = calculateGoblinScale(cellSize);
   goblin.scale.set(scale);
-  goblin.alpha = dragging ? 0.55 : 1;
+  goblin.alpha = dragging ? 0.92 : 1;
   goblin.hitArea = createGoblinGrabHitArea(cellSize);
+
+  if (options.showGrabArea) {
+    goblin.addChild(drawGoblinGrabArea(cellSize));
+  }
 
   goblin.addChild(
     new Graphics()
@@ -39,14 +48,17 @@ export function drawGoblin(cellSize: number, working: boolean, dragging: boolean
 
 export function createGoblinGrabHitArea(cellSize: number): Rectangle {
   const scale = calculateGoblinScale(cellSize);
-  const grabScale = 1.5;
-  const targetWidth = Math.max(68, cellSize * 1.35) * grabScale;
-  const targetHeight = Math.max(116, cellSize * 2.55) * grabScale;
-  const targetTop = -Math.max(42, cellSize * 0.92) * grabScale;
-  const width = targetWidth / scale;
-  const height = targetHeight / scale;
+  const size = cellSize / scale;
 
-  return new Rectangle(-width / 2, targetTop / scale, width, height);
+  return new Rectangle(-size / 2, 0, size, size);
+}
+
+function drawGoblinGrabArea(cellSize: number): Graphics {
+  const area = createGoblinGrabHitArea(cellSize);
+
+  return new Graphics()
+    .rect(area.x, area.y, area.width, area.height)
+    .stroke({ color: 0xf2b84b, alpha: 0.72, width: 1.5 });
 }
 
 function calculateGoblinScale(cellSize: number): number {

@@ -3,6 +3,7 @@ import type { MineTemplateConfig } from "@goblin-cartel/content-schemas";
 import type { BuiltMineState, MiningSession } from "@goblin-cartel/game-core";
 import {
   canMoveToNextMine,
+  carryFoundVeinsToNextMineSession,
   findMineTemplateIndex,
   findNextMineTemplate,
   getMineProgressionStatus,
@@ -91,6 +92,29 @@ describe("mine progression client state", () => {
     expect(hasBuiltMineFromSession(session, [buildingMine])).toBe(true);
     expect(hasActiveBuiltMineFromSession(session, [buildingMine])).toBe(false);
     expect(canMoveToNextMine({ builtMines: [buildingMine], mineTemplates: [firstMine, secondMine], session: clearedSession })).toBe(true);
+  });
+
+  it("keeps unbuilt found veins when moving into the next mine", () => {
+    const previousSession = {
+      ...session,
+      foundVeins: [
+        {
+          id: "first_mine:player-1:completion:copper_vein_small",
+          mineTemplateId: "first_mine",
+          veinTypeId: "copper_vein_small"
+        }
+      ]
+    } as unknown as MiningSession;
+    const nextSession = {
+      ...session,
+      foundVeins: [],
+      mine: {
+        ...session.mine,
+        templateId: "second_mine"
+      }
+    } as MiningSession;
+
+    expect(carryFoundVeinsToNextMineSession(nextSession, previousSession).foundVeins).toEqual(previousSession.foundVeins);
   });
 
   it("describes the current mine progression status", () => {

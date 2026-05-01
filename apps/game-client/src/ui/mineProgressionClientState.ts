@@ -44,6 +44,19 @@ export function canMoveToNextMine(input: {
   return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasFoundVeinFromSession(input.session);
 }
 
+export function carryFoundVeinsToNextMineSession(nextSession: MiningSession, previousSession: MiningSession): MiningSession {
+  const foundVeinsById = new Map(nextSession.foundVeins.map((vein) => [vein.id, vein]));
+
+  for (const vein of previousSession.foundVeins) {
+    foundVeinsById.set(vein.id, vein);
+  }
+
+  return {
+    ...nextSession,
+    foundVeins: Array.from(foundVeinsById.values())
+  };
+}
+
 export function getMineProgressionStatus(input: {
   builtMines: readonly BuiltMineState[];
   mineTemplates: readonly MineTemplateConfig[];

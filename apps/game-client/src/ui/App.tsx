@@ -79,10 +79,9 @@ import {
 } from "./builtMineClientState";
 import {
   canMoveToNextMine,
+  carryFoundVeinsToNextMineSession,
   findMineTemplateIndex,
   findNextMineTemplate,
-  getMineProgressionStatus,
-  type MineProgressionStatus,
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
 import {
@@ -621,15 +620,6 @@ export function App() {
       }),
     [contentState.content.mineTemplates, session, visibleBuiltMines]
   );
-  const mineProgressionStatus = useMemo(
-    () =>
-      getMineProgressionStatus({
-        builtMines: visibleBuiltMines,
-        mineTemplates: contentState.content.mineTemplates,
-        session
-      }),
-    [contentState.content.mineTemplates, session, visibleBuiltMines]
-  );
   const pendingRewardChestType = useMemo(
     () => (pendingRewardChest ? findRewardChestType(contentState.content, pendingRewardChest.chestTypeId) : null),
     [contentState.content, pendingRewardChest]
@@ -996,7 +986,7 @@ export function App() {
       return;
     }
 
-    const nextSession = createSession(contentState.content, nextMine.id, session.resources);
+    const nextSession = carryFoundVeinsToNextMineSession(createSession(contentState.content, nextMine.id, session.resources), session);
     const nextPlatformRow = findPlatformRow(nextSession, 0);
     const nextActiveCell = findFirstPlayableCell(nextSession);
     const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, miningGoblins, nextPlatformRow);
@@ -1509,12 +1499,10 @@ export function App() {
             constructionSupport={constructionSupport}
             collectorGoblins={hiredCollectorGoblins}
             content={contentState.content}
-            currentMineTemplate={mineTemplate}
             foundVeins={unbuiltFoundVeins}
             goblinLevels={goblinLevels}
             labels={labels}
             message={builtMineMessage}
-            progressionStatus={mineProgressionStatus}
             nextMineTemplate={nextMineTemplate}
             onOpenCollectorPicker={setCollectorPickerMineId}
             onCollectAllMines={handleCollectAllBuiltMines}
@@ -1688,7 +1676,7 @@ export function App() {
               </div>
               <div className="mine-complete-actions">
                 <button onClick={handleStartNextMine} type="button">
-                  В следующий рудник
+                  Новый рудник
                 </button>
                 <button onClick={handleDismissMineCompletionNotice} type="button">
                   Остаться
@@ -2870,7 +2858,6 @@ function BuiltMinesSection(props: {
   constructionSupport: ConstructionSupportState;
   collectorGoblins: GoblinConfig[];
   content: ContentBundle;
-  currentMineTemplate: MineTemplateConfig | undefined;
   foundVeins: MiningFoundVein[];
   goblinLevels: Record<string, number>;
   labels: Record<string, string>;
@@ -2883,7 +2870,6 @@ function BuiltMinesSection(props: {
   onOpenCollectorPicker: (builtMineId: string) => void;
   onStartNextMine: () => void;
   onUpgradeMine: (builtMineId: string) => void;
-  progressionStatus: MineProgressionStatus;
   resources: Record<string, number>;
   upgradePreviews: ReadonlyMap<string, BuiltMineUpgradePreview>;
 }) {
@@ -2896,7 +2882,6 @@ function BuiltMinesSection(props: {
     (total, goblin) => total + getGoblinAutoCollectSlots(goblin, props.goblinLevels[goblin.id] ?? 1),
     0
   );
-  const currentMineIndex = props.currentMineTemplate ? findMineTemplateIndex(props.content.mineTemplates, props.currentMineTemplate.id) : -1;
 
   return (
     <section className="built-mines management-screen" aria-label="Шахты">
@@ -2965,23 +2950,18 @@ function BuiltMinesSection(props: {
           </div>
         </section>
 
-        <article className="mine-progress-card mine-route-card">
-          <div>
-            <span>Текущий рудник</span>
-            <strong>
-              {currentMineIndex >= 0 ? `№${currentMineIndex + 1} · ` : ""}
-              {mineTitle(props.currentMineTemplate, props.labels)}
-            </strong>
-            <small className={`mine-route-status ${props.progressionStatus}`}>{mineProgressionStatusText(props.progressionStatus)}</small>
-          </div>
-          {props.nextMineTemplate ? (
-            <button disabled={!props.canStartNextMine} onClick={props.onStartNextMine} type="button">
-              Рудник №{currentMineIndex + 2}
+        {props.canStartNextMine && props.nextMineTemplate ? (
+          <article className="mine-progress-card mine-route-card">
+            <div>
+              <span>Рудник расчищен</span>
+              <strong>Новый рудник</strong>
+              <small>{mineTitle(props.nextMineTemplate, props.labels)}</small>
+            </div>
+            <button onClick={props.onStartNextMine} type="button">
+              Новый рудник
             </button>
-          ) : (
-            <span>Следующий скоро</span>
-          )}
-        </article>
+          </article>
+        ) : null}
 
         {hasFoundVeins ? (
           <section className="built-mine-group" aria-label="Найденные жилы">
@@ -3497,23 +3477,6 @@ function builtMineStateText(builtMine: BuiltMineState, now: number): string {
   }
 
   return isBuiltMineStorageFull(builtMine) ? "Заполнена" : "Работает";
-}
-
-function mineProgressionStatusText(status: MineProgressionStatus): string {
-  switch (status) {
-    case "digging":
-      return "Расчисти рудник до жилы";
-    case "vein_found":
-      return "Построй шахту на найденной жиле";
-    case "mine_building":
-      return "Шахта строится, следующий рудник закрыт";
-    case "next_available":
-      return "Следующий рудник открыт";
-    case "complete_no_next":
-      return "Все доступные рудники освоены";
-    default:
-      return "Рудник в работе";
-  }
 }
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {

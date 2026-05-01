@@ -1,20 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { createGoblinGrabHitArea } from "./minePixiGoblins";
 
-describe("mine Pixi goblins", () => {
-  it("uses a wider grab area than the drawn goblin body", () => {
-    const hitArea = createGoblinGrabHitArea(42);
+describe("minePixiGoblins", () => {
+  it("keeps the goblin grab area the same screen size as a mine cell", () => {
+    const cellSize = 44;
+    const area = createGoblinGrabHitArea(cellSize);
+    const scale = cellSize / 42;
 
-    expect(hitArea.width).toBeGreaterThanOrEqual(102);
-    expect(hitArea.height).toBeGreaterThanOrEqual(174);
-    expect(hitArea.x).toBeLessThanOrEqual(-51);
-    expect(hitArea.y).toBeLessThan(0);
-  });
-
-  it("keeps the grab area practical on compact cells", () => {
-    const hitArea = createGoblinGrabHitArea(28);
-
-    expect(hitArea.width).toBeGreaterThanOrEqual(127);
-    expect(hitArea.height).toBeGreaterThanOrEqual(217);
+    expect(Math.round(area.width * scale)).toBe(cellSize);
+    expect(Math.round(area.height * scale)).toBe(cellSize);
   });
 });
