@@ -31,6 +31,22 @@ export interface GoblinRoleSummary {
   totalAutoCollectSlots: number;
 }
 
+export type GoblinHutRoleTabId = "all" | "builders" | "collectors" | "miners";
+
+export interface GoblinHutRoleTab {
+  count: number;
+  hiredCount: number;
+  id: GoblinHutRoleTabId;
+  label: string;
+}
+
+const goblinHutRoleTabs: Array<{ id: GoblinHutRoleTabId; label: string }> = [
+  { id: "all", label: "Все" },
+  { id: "miners", label: "Шахтеры" },
+  { id: "collectors", label: "Сборщики" },
+  { id: "builders", label: "Стройка" }
+];
+
 export function createGoblinUpgradePreview(
   goblin: GoblinConfig,
   roster: GoblinRosterState,
@@ -90,4 +106,44 @@ export function createGoblinRoleSummary(goblins: readonly GoblinConfig[], roster
       0
     )
   };
+}
+
+export function createGoblinHutRoleTabs(goblins: readonly GoblinConfig[], roster: GoblinRosterState): GoblinHutRoleTab[] {
+  return goblinHutRoleTabs.map((tab) => {
+    const tabGoblins = filterGoblinsByHutRole(goblins, tab.id);
+
+    return {
+      ...tab,
+      count: tabGoblins.length,
+      hiredCount: tabGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)).length
+    };
+  });
+}
+
+export function filterGoblinsByHutRole(
+  goblins: readonly GoblinConfig[],
+  role: GoblinHutRoleTabId
+): GoblinConfig[] {
+  switch (role) {
+    case "builders":
+      return goblins.filter(isBuilderGoblin);
+    case "collectors":
+      return goblins.filter(isCollectorGoblin);
+    case "miners":
+      return goblins.filter(isMiningGoblin);
+    default:
+      return [...goblins];
+  }
+}
+
+export function isBuilderGoblin(goblin: GoblinConfig): boolean {
+  return goblin.class === "builder" || goblin.class === "foreman";
+}
+
+export function isCollectorGoblin(goblin: GoblinConfig): boolean {
+  return goblin.class === "collector";
+}
+
+export function isMiningGoblin(goblin: GoblinConfig): boolean {
+  return goblin.class === "miner";
 }

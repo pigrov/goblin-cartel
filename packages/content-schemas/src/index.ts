@@ -1004,7 +1004,10 @@ export const starterContentBundle: ContentBundle = {
         id: "no_idle_picks",
         nameKey: "ability.no_idle_picks.name",
         descriptionKey: "ability.no_idle_picks.description",
-        effects: [{ type: "auto_select_next_block", enabled: true }]
+        effects: [
+          { type: "auto_select_next_block", enabled: true },
+          { type: "build_time_multiplier", value: 0.9 }
+        ]
       },
       hireCost: [
         { resourceId: "gold", amount: 4000 },

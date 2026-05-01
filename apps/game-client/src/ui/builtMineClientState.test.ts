@@ -7,13 +7,17 @@ import {
   countCollectorAssignedMines,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
+  createBuildCostWithMultiplier,
   createBuiltMineUpgradePreview,
+  createConstructionSupportState,
   createVisibleBuiltMines,
   findAssignableCollector,
   findUnbuiltFoundVeins,
   getBuiltMineBuildProgressPercent,
   getBuiltMineBuildRemainingMs,
   getBuiltMineStoragePercent,
+  getGoblinBuildCostMultiplier,
+  getGoblinBuildTimeMultiplier,
   getGoblinAutoCollectSlots,
   hasCollectorSlotAvailable,
   hasBuiltMineForVein
@@ -111,6 +115,23 @@ const collector = {
   unlockRequirements: []
 };
 
+const builder = {
+  ...collector,
+  ability: {
+    descriptionKey: "ability.build.description",
+    effects: [
+      { type: "build_cost_multiplier" as const, value: 0.9 },
+      { type: "build_time_multiplier" as const, value: 0.75 }
+    ],
+    id: "build",
+    nameKey: "ability.build.name"
+  },
+  class: "builder" as const,
+  id: "builder_1",
+  nameKey: "goblin.builder.name",
+  specialization: "construction_foreman" as const
+};
+
 describe("built mine client state", () => {
   it("hides found veins that already have a built mine", () => {
     expect(hasBuiltMineForVein([builtMine], vein.id)).toBe(true);
@@ -193,6 +214,37 @@ describe("built mine client state", () => {
     ]);
   });
 
+  it("applies construction support to build costs and durations", () => {
+    const support = createConstructionSupportState([collector, builder], {
+      builder_1: 3
+    });
+
+    expect(support).toEqual({
+      buildCostMultiplier: 0.9,
+      buildTimeMultiplier: 0.75,
+      supporterCount: 1,
+      upgradeCostMultiplier: 0.9
+    });
+    expect(getGoblinBuildCostMultiplier(builder)).toBe(0.9);
+    expect(getGoblinBuildTimeMultiplier(builder)).toBe(0.75);
+    expect(createBuildCostWithMultiplier(builtMineType.buildCost, support.buildCostMultiplier)).toEqual([
+      { amount: 450, resourceId: "gold" },
+      { amount: 108, resourceId: "stone" }
+    ]);
+    expect(
+      canBuildFoundVein({
+        buildCostMultiplier: support.buildCostMultiplier,
+        builtMineTypes: [builtMineType],
+        builtMines: [],
+        resources: {
+          gold: 470,
+          stone: 110
+        },
+        vein
+      })
+    ).toBe(true);
+  });
+
   it("calculates build and storage progress for mine cards", () => {
     expect(getBuiltMineBuildProgressPercent(builtMine, 30_000)).toBe(50);
     expect(getBuiltMineBuildRemainingMs(builtMine, 30_000)).toBe(30_000);
@@ -211,7 +263,9 @@ describe("built mine client state", () => {
         {
           copper_ore: 80,
           gold: 120
-        }
+        },
+        undefined,
+        0.9
       )
     ).toEqual({
       canUpgrade: true,
@@ -221,14 +275,14 @@ describe("built mine client state", () => {
           available: 80,
           missing: 0,
           ok: true,
-          required: 60,
+          required: 54,
           resourceId: "copper_ore"
         },
         {
           available: 120,
           missing: 0,
           ok: true,
-          required: 100,
+          required: 90,
           resourceId: "gold"
         }
       ],

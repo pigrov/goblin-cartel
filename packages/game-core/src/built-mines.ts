@@ -71,6 +71,7 @@ export interface BuiltMineUpgradeConfig {
 }
 
 export interface BuiltMineUpgradeCostOptions {
+  costMultiplier?: number;
   goldResourceId?: string;
   upgrade?: BuiltMineUpgradeConfig;
 }
@@ -97,6 +98,8 @@ export type UpgradeBuiltMineResult =
     };
 
 export interface BuildMineFromVeinInput {
+  buildCostMultiplier?: number;
+  buildTimeMultiplier?: number;
   builtMineTypes: BuiltMineType[];
   id?: string;
   now: number;
@@ -131,6 +134,7 @@ export interface CollectAutomatedBuiltMineIncomeResult {
 
 export interface UpgradeBuiltMineInput {
   builtMine: BuiltMineState;
+  costMultiplier?: number;
   goldResourceId?: string;
   now: number;
   resources: Record<string, number>;
@@ -166,13 +170,15 @@ export function findBuiltMineTypeForVein(
 }
 
 export function canBuildMineFromVein(input: {
+  buildCostMultiplier?: number;
   builtMineTypes: BuiltMineType[];
   resources: Record<string, number>;
   veinTypeId: string;
 }): boolean {
   const builtMineType = findBuiltMineTypeForVein(input.builtMineTypes, input.veinTypeId);
+  const buildCost = builtMineType ? applyResourceCostMultiplier(builtMineType.buildCost, input.buildCostMultiplier) : [];
 
-  return Boolean(builtMineType && hasEnoughResources(input.resources, builtMineType.buildCost));
+  return Boolean(builtMineType && hasEnoughResources(input.resources, buildCost));
 }
 
 export function buildMineFromVein(input: BuildMineFromVeinInput): BuildMineResult {
@@ -185,20 +191,22 @@ export function buildMineFromVein(input: BuildMineFromVeinInput): BuildMineResul
     };
   }
 
-  if (!hasEnoughResources(input.resources, builtMineType.buildCost)) {
+  const buildCost = applyResourceCostMultiplier(builtMineType.buildCost, input.buildCostMultiplier);
+
+  if (!hasEnoughResources(input.resources, buildCost)) {
     return {
       ok: false,
       reason: "not_enough_resources"
     };
   }
 
-  const buildTimeMs = Math.max(0, builtMineType.buildTimeSec) * 1000;
+  const buildTimeMs = Math.ceil(Math.max(0, builtMineType.buildTimeSec) * normalizeMultiplier(input.buildTimeMultiplier) * 1000);
   const completesAt = input.now + buildTimeMs;
   const status = buildTimeMs > 0 ? "building" : "active";
 
   return {
     ok: true,
-    resources: deductResources(input.resources, builtMineType.buildCost),
+    resources: deductResources(input.resources, buildCost),
     builtMine: {
       id: input.id ?? `${builtMineType.id}:${input.vein.id}`,
       typeId: builtMineType.id,
@@ -333,11 +341,12 @@ export function calculateBuiltMineUpgradeCost(
     return [];
   }
 
-  return normalizeResourceCost(
+  return applyResourceCostMultiplier(
     upgrade.cost.map((cost) => ({
       amount: Math.ceil(cost.baseAmount * (Math.max(1, builtMine.level) * cost.levelMultiplier) ** cost.levelPower),
       resourceId: cost.useProductionResource ? builtMine.productionResourceId : cost.resourceId ?? options.goldResourceId ?? "gold"
-    }))
+    })),
+    options.costMultiplier
   );
 }
 
@@ -358,6 +367,7 @@ export function upgradeBuiltMine(input: UpgradeBuiltMineInput): UpgradeBuiltMine
   const producedBuiltMine = advanceBuiltMineProduction(input.builtMine, input.now);
   const upgrade = normalizeBuiltMineUpgradeConfig(input.upgrade, input.goldResourceId);
   const cost = calculateBuiltMineUpgradeCost(producedBuiltMine, {
+    costMultiplier: input.costMultiplier,
     goldResourceId: input.goldResourceId,
     upgrade
   });
@@ -432,6 +442,32 @@ function normalizeResourceCost(cost: BuiltMineResourceAmount[]): BuiltMineResour
     amount,
     resourceId
   }));
+}
+
+function applyResourceCostMultiplier(
+  cost: BuiltMineResourceAmount[],
+  multiplier: number | undefined
+): BuiltMineResourceAmount[] {
+  const normalizedMultiplier = normalizeMultiplier(multiplier);
+
+  if (normalizedMultiplier === 1) {
+    return normalizeResourceCost(cost);
+  }
+
+  return normalizeResourceCost(
+    cost.map((item) => ({
+      ...item,
+      amount: Math.ceil(Math.max(0, item.amount) * normalizedMultiplier)
+    }))
+  );
+}
+
+function normalizeMultiplier(multiplier: number | undefined): number {
+  if (typeof multiplier !== "number" || !Number.isFinite(multiplier)) {
+    return 1;
+  }
+
+  return Math.max(0, multiplier);
 }
 
 function normalizeBuiltMineUpgradeConfig(

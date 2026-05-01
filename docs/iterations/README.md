@@ -68,3 +68,4 @@
 - `0063_mine_progression_upgrades` - added the first permanent-mine upgrade loop and initial stricter mine progression.
 - `0064_content_driven_mine_upgrades` - moved mine-upgrade balance into content/admin, made next-mine transition available after clearing, and expanded starter mines to five.
 - `0065_goblin_hut_progression` - added goblin leveling content/admin fields, a Goblin Hut screen, and level-driven miner/collector bonuses.
+- `0066_goblin_roles_construction_tabs` - split goblin roles across mining, collection, and construction support, and rebuilt the Goblin Hut screen with role tabs.

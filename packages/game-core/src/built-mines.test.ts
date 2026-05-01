@@ -172,6 +172,50 @@ describe("built mines", () => {
     ).toBe(true);
   });
 
+  it("applies construction support multipliers to build cost and duration", () => {
+    expect(
+      canBuildMineFromVein({
+        buildCostMultiplier: 0.9,
+        builtMineTypes,
+        resources: {
+          gold: 460,
+          stone: 110
+        },
+        veinTypeId: "copper_vein_small"
+      })
+    ).toBe(true);
+
+    const result = buildMineFromVein({
+      buildCostMultiplier: 0.9,
+      buildTimeMultiplier: 0.5,
+      builtMineTypes,
+      now: 1000,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    expect(result).toMatchObject({
+      ok: true,
+      resources: {
+        gold: 350,
+        stone: 92
+      }
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    expect(result.builtMine).toMatchObject({
+      completesAt: 31000,
+      lastProducedAt: 31000,
+      status: "building"
+    });
+  });
+
   it("assigns a collector goblin without changing production state", () => {
     const result = buildMineFromVein({
       builtMineTypes,
@@ -443,6 +487,54 @@ describe("built mines", () => {
       capacity: 375,
       level: 2,
       productionPerHour: 144
+    });
+  });
+
+  it("applies construction support multipliers to upgrade cost", () => {
+    const result = buildMineFromVein({
+      builtMineTypes,
+      now: 0,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    const activeMine = advanceBuiltMineProduction(result.builtMine, result.builtMine.completesAt);
+
+    expect(calculateBuiltMineUpgradeCost(activeMine, { costMultiplier: 0.8 })).toEqual([
+      {
+        amount: 48,
+        resourceId: "copper_ore"
+      },
+      {
+        amount: 80,
+        resourceId: "gold"
+      }
+    ]);
+
+    const upgraded = upgradeBuiltMine({
+      builtMine: activeMine,
+      costMultiplier: 0.8,
+      now: activeMine.lastProducedAt,
+      resources: {
+        ...result.resources,
+        copper_ore: 60
+      }
+    });
+
+    expect(upgraded).toMatchObject({
+      ok: true,
+      resources: {
+        copper_ore: 12,
+        gold: 220,
+        stone: 80
+      }
     });
   });
 });

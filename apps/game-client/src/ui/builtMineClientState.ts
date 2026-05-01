@@ -46,6 +46,13 @@ export interface BuiltMineUpgradePreview {
   productionPerHourAfter: number;
 }
 
+export interface ConstructionSupportState {
+  buildCostMultiplier: number;
+  buildTimeMultiplier: number;
+  supporterCount: number;
+  upgradeCostMultiplier: number;
+}
+
 export function createVisibleBuiltMines(
   builtMines: BuiltMineState[],
   now: number,
@@ -117,6 +124,7 @@ export function findUnbuiltFoundVeins(
 }
 
 export function canBuildFoundVein(input: {
+  buildCostMultiplier?: number;
   builtMineTypes: BuiltMineTypeConfig[];
   builtMines: readonly BuiltMineState[];
   resources: Record<string, number>;
@@ -127,6 +135,7 @@ export function canBuildFoundVein(input: {
   }
 
   return canBuildMineFromVein({
+    buildCostMultiplier: input.buildCostMultiplier,
     builtMineTypes: input.builtMineTypes,
     resources: input.resources,
     veinTypeId: input.vein.veinTypeId
@@ -185,11 +194,12 @@ export function isBuiltMineStorageFull(builtMine: BuiltMineState): boolean {
 export function createBuiltMineUpgradePreview(
   builtMine: BuiltMineState,
   resources: Record<string, number>,
-  upgrade?: BuiltMineUpgradeConfig
+  upgrade?: BuiltMineUpgradeConfig,
+  costMultiplier = 1
 ): BuiltMineUpgradePreview {
   const maxLevel = upgrade?.maxLevel ?? builtMineMaxLevel;
   const isMaxLevel = builtMine.level >= maxLevel;
-  const cost = calculateBuiltMineUpgradeCost(builtMine, { upgrade });
+  const cost = calculateBuiltMineUpgradeCost(builtMine, { costMultiplier, upgrade });
   const nextStats = isMaxLevel
     ? {
         capacity: builtMine.capacity,
@@ -229,6 +239,72 @@ export function getGoblinAutoCollectSlots(goblin: GoblinConfig, level = 1): numb
     calculateGoblinEffectiveAbilityEffects(goblin, level)
       .filter((effect) => effect.type === "auto_collect_slots")
       .reduce((total, effect) => total + effect.value, 0)
+  );
+}
+
+export function createConstructionSupportState(
+  goblins: readonly GoblinConfig[],
+  goblinLevels: Readonly<Record<string, number>> = {}
+): ConstructionSupportState {
+  const supporters = goblins.filter(isConstructionSupportGoblin);
+
+  return {
+    buildCostMultiplier: supporters.reduce(
+      (multiplier, goblin) => multiplier * getGoblinBuildCostMultiplier(goblin, getRosterGoblinLevel(goblin, goblinLevels)),
+      1
+    ),
+    buildTimeMultiplier: supporters.reduce(
+      (multiplier, goblin) => multiplier * getGoblinBuildTimeMultiplier(goblin, getRosterGoblinLevel(goblin, goblinLevels)),
+      1
+    ),
+    supporterCount: supporters.length,
+    upgradeCostMultiplier: supporters.reduce(
+      (multiplier, goblin) => multiplier * getGoblinBuildCostMultiplier(goblin, getRosterGoblinLevel(goblin, goblinLevels)),
+      1
+    )
+  };
+}
+
+export function createBuildCostWithMultiplier(
+  buildCost: Array<{ amount: number; resourceId: string }>,
+  multiplier: number
+): Array<{ amount: number; resourceId: string }> {
+  const normalizedMultiplier = normalizeMultiplier(multiplier);
+  const amounts = new Map<string, number>();
+
+  for (const item of buildCost) {
+    const amount = Math.ceil(Math.max(0, item.amount) * normalizedMultiplier);
+
+    if (amount <= 0) {
+      continue;
+    }
+
+    amounts.set(item.resourceId, (amounts.get(item.resourceId) ?? 0) + amount);
+  }
+
+  return Array.from(amounts.entries()).map(([resourceId, amount]) => ({
+    amount,
+    resourceId
+  }));
+}
+
+export function getGoblinBuildCostMultiplier(goblin: GoblinConfig, level = 1): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level)
+    .filter((effect) => effect.type === "build_cost_multiplier")
+    .reduce((multiplier, effect) => multiplier * effect.value, 1);
+}
+
+export function getGoblinBuildTimeMultiplier(goblin: GoblinConfig, level = 1): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level)
+    .filter((effect) => effect.type === "build_time_multiplier")
+    .reduce((multiplier, effect) => multiplier * effect.value, 1);
+}
+
+export function isConstructionSupportGoblin(goblin: GoblinConfig): boolean {
+  return (
+    goblin.class === "builder" ||
+    goblin.class === "foreman" ||
+    goblin.ability.effects.some((effect) => effect.type === "build_cost_multiplier" || effect.type === "build_time_multiplier")
   );
 }
 
@@ -376,6 +452,10 @@ function getCollectorLevel(collector: GoblinConfig | undefined, goblinLevels: Re
   return collector ? Math.max(1, Math.floor(goblinLevels[collector.id] ?? 1)) : 1;
 }
 
+function getRosterGoblinLevel(goblin: GoblinConfig, goblinLevels: Readonly<Record<string, number>>): number {
+  return Math.max(1, Math.floor(goblinLevels[goblin.id] ?? 1));
+}
+
 function restoreBaseMineStats(effectiveBuiltMine: BuiltMineState, baseBuiltMine: BuiltMineState): BuiltMineState {
   return {
     ...effectiveBuiltMine,
@@ -390,6 +470,14 @@ function clampPercent(value: number): number {
   }
 
   return Math.min(100, Math.max(0, value));
+}
+
+function normalizeMultiplier(multiplier: number): number {
+  if (!Number.isFinite(multiplier)) {
+    return 1;
+  }
+
+  return Math.max(0, multiplier);
 }
 
 function addResourceAmount(amounts: Map<string, number>, resourceId: string, amount: number): void {

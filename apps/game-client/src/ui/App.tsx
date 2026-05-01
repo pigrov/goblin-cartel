@@ -52,7 +52,9 @@ import {
   collectBuiltMineIncomeWithCollector,
   createBuiltMineDashboardState,
   createBuildCostRequirements,
+  createBuildCostWithMultiplier,
   createBuiltMineUpgradePreview,
+  createConstructionSupportState,
   createVisibleBuiltMines,
   countCollectorAssignedMines,
   findAssignableCollector,
@@ -63,7 +65,9 @@ import {
   getGoblinAutoCollectSlots,
   hasCollectorSlotAvailable,
   hasBuiltMineForVein,
+  isConstructionSupportGoblin,
   isBuiltMineStorageFull,
+  type ConstructionSupportState,
   type BuiltMineUpgradePreview
 } from "./builtMineClientState";
 import {
@@ -74,7 +78,15 @@ import {
   type MineProgressionStatus,
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
-import { createGoblinRoleSummary, createGoblinUpgradePreview, type GoblinUpgradePreview } from "./goblinHutClientState";
+import {
+  createGoblinHutRoleTabs,
+  createGoblinRoleSummary,
+  createGoblinUpgradePreview,
+  filterGoblinsByHutRole,
+  isMiningGoblin,
+  type GoblinHutRoleTabId,
+  type GoblinUpgradePreview
+} from "./goblinHutClientState";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import { useDelayedResourceDisplay } from "./useDelayedResourceDisplay";
 
@@ -227,6 +239,7 @@ export function App() {
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [platformRow, setPlatformRow] = useState(0);
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
+  const [goblinRoleTab, setGoblinRoleTab] = useState<GoblinHutRoleTabId>("all");
   const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(initialContentBundle.goblins));
   const [rosterMessage, setRosterMessage] = useState<string | null>(null);
   const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
@@ -264,7 +277,8 @@ export function App() {
   const builtMinesRef = useRef(builtMines);
   const contentBlockTypesRef = useRef(contentState.content.blockTypes);
   const goblinPlacementsRef = useRef(goblinPlacements);
-  const hiredGoblinsRef = useRef<GoblinConfig[]>([]);
+  const hiredCollectorGoblinsRef = useRef<GoblinConfig[]>([]);
+  const miningGoblinsRef = useRef<GoblinConfig[]>([]);
   const pendingOfflineFinalHitRef = useRef(pendingOfflineFinalHit);
   const platformRowRef = useRef(platformRow);
   const previousPlatformRowRef = useRef(0);
@@ -418,7 +432,7 @@ export function App() {
 
       const result = collectAutomatedBuiltMineIncomeWithCollectors({
         builtMines: builtMinesRef.current,
-        collectors: hiredGoblinsRef.current,
+        collectors: hiredCollectorGoblinsRef.current,
         goblinLevels: rosterRef.current.goblinLevels ?? {},
         now: Date.now(),
         resources: sessionRef.current.resources
@@ -497,6 +511,7 @@ export function App() {
     [availableGoblins, roster]
   );
   const goblinLevels = roster.goblinLevels ?? {};
+  const miningGoblins = useMemo(() => hiredGoblins.filter(isMiningGoblin), [hiredGoblins]);
   const completedMineTemplateIds = useMemo(
     () => Array.from(new Set(session.foundVeins.map((vein) => vein.mineTemplateId))),
     [session.foundVeins]
@@ -504,6 +519,11 @@ export function App() {
   const hiredCollectorGoblins = useMemo(
     () => hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0),
     [hiredGoblins, roster]
+  );
+  const constructionSupportGoblins = useMemo(() => hiredGoblins.filter(isConstructionSupportGoblin), [hiredGoblins]);
+  const constructionSupport = useMemo(
+    () => createConstructionSupportState(constructionSupportGoblins, goblinLevels),
+    [constructionSupportGoblins, goblinLevels]
   );
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
   const visibleBuiltMines = useMemo(
@@ -517,10 +537,15 @@ export function App() {
     return new Map(
       progressedBuiltMines.map((builtMine) => [
         builtMine.id,
-        createBuiltMineUpgradePreview(builtMine, session.resources, builtMineTypesById.get(builtMine.typeId)?.upgrade)
+        createBuiltMineUpgradePreview(
+          builtMine,
+          session.resources,
+          builtMineTypesById.get(builtMine.typeId)?.upgrade,
+          constructionSupport.upgradeCostMultiplier
+        )
       ])
     );
-  }, [builtMines, clockNow, contentState.content.builtMineTypes, session.resources]);
+  }, [builtMines, clockNow, constructionSupport.upgradeCostMultiplier, contentState.content.builtMineTypes, session.resources]);
   const collectorPickerBuiltMine = useMemo(
     () => visibleBuiltMines.find((builtMine) => builtMine.id === collectorPickerMineId) ?? null,
     [collectorPickerMineId, visibleBuiltMines]
@@ -565,6 +590,7 @@ export function App() {
   );
   const canBuildFoundVeinNotice = foundVeinNotice
     ? canBuildFoundVein({
+        buildCostMultiplier: constructionSupport.buildCostMultiplier,
         builtMineTypes: contentState.content.builtMineTypes,
         builtMines,
         resources: session.resources,
@@ -578,8 +604,8 @@ export function App() {
   const exposedCellKeys = useMemo(() => new Set(exposedCells.map(cellKey)), [exposedCells]);
   const selectedCell = useMemo(() => findExposedCellForPreferred(session, activeCell), [activeCell, session]);
   const workerAssignments = useMemo(
-    () => assignGoblinWorkers(session, hiredGoblins, goblinPlacements, currentPlatformRow, roster),
-    [currentPlatformRow, goblinPlacements, hiredGoblins, roster, session]
+    () => assignGoblinWorkers(session, miningGoblins, goblinPlacements, currentPlatformRow, roster),
+    [currentPlatformRow, goblinPlacements, miningGoblins, roster, session]
   );
   const workerByColumn = useMemo(
     () => new Map(workerAssignments.map((worker) => [worker.targetCell.col, worker])),
@@ -587,7 +613,7 @@ export function App() {
   );
   const pixiGoblins = useMemo(
     () =>
-      hiredGoblins
+      miningGoblins
         .map((goblin): MinePixiGoblin | null => {
           const col = goblinPlacements[goblin.id];
 
@@ -603,7 +629,7 @@ export function App() {
           };
         })
         .filter((goblin): goblin is MinePixiGoblin => Boolean(goblin)),
-    [goblinPlacements, hiredGoblins, labels, session, workerByColumn]
+    [goblinPlacements, labels, miningGoblins, session, workerByColumn]
   );
   const visibleBossEnergy = useMemo(() => regenerateBossEnergy(bossEnergy, bossEnergyConfig, clockNow), [bossEnergy, clockNow]);
   const displayedBossEnergy = Math.floor(visibleBossEnergy.currentEnergy);
@@ -622,7 +648,8 @@ export function App() {
     builtMinesRef.current = builtMines;
     contentBlockTypesRef.current = contentState.content.blockTypes;
     goblinPlacementsRef.current = goblinPlacements;
-    hiredGoblinsRef.current = hiredGoblins;
+    hiredCollectorGoblinsRef.current = hiredCollectorGoblins;
+    miningGoblinsRef.current = miningGoblins;
     pendingOfflineFinalHitRef.current = pendingOfflineFinalHit;
     platformRowRef.current = platformRow;
     rosterRef.current = roster;
@@ -664,7 +691,7 @@ export function App() {
         const nextPlatformStartRow = findPlatformRow(current, platformRowRef.current);
         const currentWorkers = assignGoblinWorkers(
           current,
-          hiredGoblinsRef.current,
+          miningGoblinsRef.current,
           goblinPlacementsRef.current,
           nextPlatformStartRow,
           rosterRef.current
@@ -860,7 +887,7 @@ export function App() {
     const nextSession = createSession(contentState.content);
     const nextActiveCell = findFirstPlayableCell(nextSession);
     const nextPlatformRow = findPlatformRow(nextSession, 0);
-    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, hiredGoblins, nextPlatformRow);
+    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, miningGoblins, nextPlatformRow);
     const nextBossEnergy = createBossEnergyState(bossEnergyConfig, resetAt);
     setSession(nextSession);
     setActiveCell(nextActiveCell);
@@ -912,7 +939,7 @@ export function App() {
     const nextSession = createSession(contentState.content, nextMine.id, session.resources);
     const nextPlatformRow = findPlatformRow(nextSession, 0);
     const nextActiveCell = findFirstPlayableCell(nextSession);
-    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, hiredGoblins, nextPlatformRow);
+    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, miningGoblins, nextPlatformRow);
     const nextSeenNoticeIds = markMineCompletionNoticeSeen(mineCompletionNoticeSeenIds, session.mine.templateId);
 
     setSession(nextSession);
@@ -1076,6 +1103,8 @@ export function App() {
     }
 
     const result = buildMineFromVein({
+      buildCostMultiplier: constructionSupport.buildCostMultiplier,
+      buildTimeMultiplier: constructionSupport.buildTimeMultiplier,
       builtMineTypes: contentState.content.builtMineTypes,
       now: Date.now(),
       resources: session.resources,
@@ -1188,6 +1217,7 @@ export function App() {
 
     const result = upgradeBuiltMine({
       builtMine,
+      costMultiplier: constructionSupport.upgradeCostMultiplier,
       now: Date.now(),
       resources: sessionRef.current.resources,
       upgrade: contentState.content.builtMineTypes.find((builtMineType) => builtMineType.id === builtMine.typeId)?.upgrade
@@ -1257,7 +1287,9 @@ export function App() {
     }
 
     setRoster(result.roster);
-    setGoblinPlacements((current) => placeGoblinInFirstFreeColumn(session, current, goblin.id, currentPlatformRow));
+    if (isMiningGoblin(goblin)) {
+      setGoblinPlacements((current) => placeGoblinInFirstFreeColumn(session, current, goblin.id, currentPlatformRow));
+    }
     syncVisibleResourceAmounts(result.resources);
     setSession((current) => ({
       ...current,
@@ -1334,12 +1366,14 @@ export function App() {
           </section>
         ) : activeSection === "goblins" ? (
           <GoblinSection
+            activeRoleTab={goblinRoleTab}
             availableGoblins={availableGoblins}
             builtMinesCount={visibleBuiltMines.length}
             completedMineTemplateIds={completedMineTemplateIds}
             content={contentState.content}
             labels={labels}
             onHireGoblin={handleHireGoblin}
+            onRoleTabChange={setGoblinRoleTab}
             onUpgradeGoblin={handleUpgradeGoblin}
             resources={session.resources}
             roster={roster}
@@ -1351,6 +1385,7 @@ export function App() {
             builtMineTypes={contentState.content.builtMineTypes}
             upgradePreviews={builtMineUpgradePreviews}
             canStartNextMine={canStartNextMine}
+            constructionSupport={constructionSupport}
             collectorGoblins={hiredCollectorGoblins}
             content={contentState.content}
             currentMineTemplate={mineTemplate}
@@ -1451,7 +1486,9 @@ export function App() {
                 <div className="vein-modal-stats">
                   <div>
                     <span>Стоимость</span>
-                    <strong>{builtMineCostLabel(foundVeinBuiltMineType, labels, contentState.content)}</strong>
+                    <strong>
+                      {builtMineCostLabel(foundVeinBuiltMineType, labels, contentState.content, constructionSupport.buildCostMultiplier)}
+                    </strong>
                   </div>
                   <div>
                     <span>Добыча</span>
@@ -1666,6 +1703,8 @@ function createRestoredMiningState(
 ): RestoredMiningState {
   const storedSave = loadMiningSessionSave();
   const hiredGoblins = createHiredGoblins(content, roster);
+  const hiredCollectorGoblins = hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0);
+  const miningGoblins = hiredGoblins.filter(isMiningGoblin);
   const now = Date.now();
   const storedMineTemplateId =
     storedSave?.contentVersion === contentVersion ? storedSave.save.mineTemplateId : undefined;
@@ -1680,7 +1719,7 @@ function createRestoredMiningState(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
       mineCompletionNoticeSeenIds: []
@@ -1692,16 +1731,16 @@ function createRestoredMiningState(
     const restoredPlatformRow = findPlatformRow(restoredSession, storedSave.platformRow ?? 0);
     const restoredActiveCell = storedSave.activeCell ?? findFirstPlayableCell(restoredSession);
     const restoredPlacements = storedSave.goblinPlacements
-      ? normalizeGoblinPlacements(restoredSession, hiredGoblins, storedSave.goblinPlacements, {
+      ? normalizeGoblinPlacements(restoredSession, miningGoblins, storedSave.goblinPlacements, {
           placeMissing: true,
           platformRow: restoredPlatformRow
         })
-      : createDefaultGoblinPlacements(restoredSession, hiredGoblins, restoredPlatformRow);
+      : createDefaultGoblinPlacements(restoredSession, miningGoblins, restoredPlatformRow);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
     const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster);
     const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
-      collectors: hiredGoblins,
+      collectors: hiredCollectorGoblins,
       goblinLevels: roster.goblinLevels ?? {},
       now,
       resources: restoredSession.resources
@@ -1733,7 +1772,7 @@ function createRestoredMiningState(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(session, hiredGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
       mineCompletionNoticeSeenIds: []
@@ -1786,12 +1825,12 @@ function applyOfflineMining(
   }
 
   const availableGoblins = createAvailableGoblins(content);
-  const hiredGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id));
-  const restoredPlacements = normalizeGoblinPlacements(session, hiredGoblins, goblinPlacements, {
+  const miningGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id) && isMiningGoblin(goblin));
+  const restoredPlacements = normalizeGoblinPlacements(session, miningGoblins, goblinPlacements, {
     placeMissing: false,
     platformRow: activePlatformRow
   });
-  const workers = assignGoblinWorkers(session, hiredGoblins, restoredPlacements, activePlatformRow, roster);
+  const workers = assignGoblinWorkers(session, miningGoblins, restoredPlacements, activePlatformRow, roster);
 
   if (workers.length === 0) {
     return {
@@ -1866,7 +1905,7 @@ function applyOfflineMining(
       : null,
     pendingOfflineFinalHit: pendingFinalHit,
     platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow,
-    goblinPlacements: normalizeGoblinPlacements(nextSession, hiredGoblins, restoredPlacements, {
+    goblinPlacements: normalizeGoblinPlacements(nextSession, miningGoblins, restoredPlacements, {
       placeMissing: false,
       platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow
     }),
@@ -2078,18 +2117,23 @@ function BossStat(props: { label: string; value: string }) {
 }
 
 function GoblinSection(props: {
+  activeRoleTab: GoblinHutRoleTabId;
   availableGoblins: GoblinConfig[];
   builtMinesCount: number;
   completedMineTemplateIds: string[];
   content: ContentBundle;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
+  onRoleTabChange: (role: GoblinHutRoleTabId) => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
   roster: GoblinRosterState;
   rosterMessage: string | null;
 }) {
   const roleSummary = createGoblinRoleSummary(props.availableGoblins, props.roster);
+  const roleTabs = createGoblinHutRoleTabs(props.availableGoblins, props.roster);
+  const visibleGoblins = filterGoblinsByHutRole(props.availableGoblins, props.activeRoleTab);
+  const minerGoblins = props.availableGoblins.filter(isMiningGoblin);
 
   return (
     <section className="goblin-roster management-screen" aria-label="Гоблины">
@@ -2098,8 +2142,24 @@ function GoblinSection(props: {
           <p>Хижина гоблинов</p>
           <strong>{roleSummary.hiredCount} нанято</strong>
         </div>
-        <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: props.availableGoblins, roster: props.roster })}/сек</span>
+        <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: minerGoblins, roster: props.roster })}/сек</span>
       </header>
+
+      <div className="goblin-role-tabs" aria-label="Виды гоблинов">
+        {roleTabs.map((tab) => (
+          <button
+            className={props.activeRoleTab === tab.id ? "active" : ""}
+            key={tab.id}
+            onClick={() => props.onRoleTabChange(tab.id)}
+            type="button"
+          >
+            <span>{tab.label}</span>
+            <strong>
+              {tab.hiredCount}/{tab.count}
+            </strong>
+          </button>
+        ))}
+      </div>
 
       <div className="goblin-role-summary" aria-label="Роли гоблинов">
         <span>Шахтеры {roleSummary.minerCount}</span>
@@ -2109,7 +2169,7 @@ function GoblinSection(props: {
       </div>
 
       <div className="goblin-list">
-        {props.availableGoblins.map((goblin) => {
+        {visibleGoblins.map((goblin) => {
           const hired = isGoblinHired(props.roster, goblin.id);
           const upgradePreview = createGoblinUpgradePreview(goblin, props.roster, props.resources);
           const canHire = canHireGoblin({
@@ -2179,6 +2239,7 @@ function BuiltMinesSection(props: {
   builtMines: BuiltMineState[];
   builtMineTypes: BuiltMineTypeConfig[];
   canStartNextMine: boolean;
+  constructionSupport: ConstructionSupportState;
   collectorGoblins: GoblinConfig[];
   content: ContentBundle;
   currentMineTemplate: MineTemplateConfig | undefined;
@@ -2264,6 +2325,16 @@ function BuiltMinesSection(props: {
               </span>
             </div>
           </div>
+          <div className="built-mine-income-row" aria-label="Стройка">
+            <span>Стройка</span>
+            <div>
+              <span className={props.constructionSupport.supporterCount > 0 ? "mine-resource-pill" : "mine-resource-pill empty"}>
+                {props.constructionSupport.supporterCount > 0
+                  ? `${formatConstructionSupport(props.constructionSupport)}`
+                  : "Нет бригадиров"}
+              </span>
+            </div>
+          </div>
         </section>
 
         <article className="mine-progress-card mine-route-card">
@@ -2297,12 +2368,21 @@ function BuiltMinesSection(props: {
               {props.foundVeins.map((vein) => {
                 const builtMineType = builtMineTypeForVein(vein, props.builtMineTypes);
                 const canBuild = canBuildFoundVein({
+                  buildCostMultiplier: props.constructionSupport.buildCostMultiplier,
                   builtMineTypes: props.builtMineTypes,
                   builtMines: props.builtMines,
                   resources: props.resources,
                   vein
                 });
-                const buildRequirements = builtMineType ? createBuildCostRequirements(builtMineType.buildCost, props.resources) : [];
+                const buildRequirements = builtMineType
+                  ? createBuildCostRequirements(
+                      createBuildCostWithMultiplier(builtMineType.buildCost, props.constructionSupport.buildCostMultiplier),
+                      props.resources
+                    )
+                  : [];
+                const buildTimeMs = builtMineType
+                  ? builtMineType.buildTimeSec * props.constructionSupport.buildTimeMultiplier * 1000
+                  : 0;
                 const missingRequirements = buildRequirements.filter((requirement) => !requirement.ok);
 
                 return (
@@ -2339,7 +2419,7 @@ function BuiltMinesSection(props: {
                                       )}`
                                   )
                                   .join(" · ")}`
-                              : `Строительство ${formatDurationMs(builtMineType.buildTimeSec * 1000)}`}
+                              : `Строительство ${formatDurationMs(buildTimeMs)}`}
                           </small>
                         </>
                       ) : (
@@ -2663,14 +2743,37 @@ function builtMineTypeForVein(vein: MiningFoundVein, builtMineTypes: BuiltMineTy
   return builtMineTypes.find((builtMineType) => builtMineType.sourceVeinType === vein.veinTypeId);
 }
 
-function builtMineCostLabel(builtMineType: BuiltMineTypeConfig, labels: Record<string, string>, content: ContentBundle): string {
-  if (builtMineType.buildCost.length === 0) {
+function builtMineCostLabel(
+  builtMineType: BuiltMineTypeConfig,
+  labels: Record<string, string>,
+  content: ContentBundle,
+  costMultiplier = 1
+): string {
+  const buildCost = createBuildCostWithMultiplier(builtMineType.buildCost, costMultiplier);
+
+  if (buildCost.length === 0) {
     return "Без стоимости";
   }
 
-  return builtMineType.buildCost
+  return buildCost
     .map((cost) => `${cost.amount} ${resourceLabelById(cost.resourceId, labels, content)}`)
     .join(" · ");
+}
+
+function formatConstructionSupport(support: ConstructionSupportState): string {
+  const costPercent = Math.round((1 - support.buildCostMultiplier) * 100);
+  const timePercent = Math.round((1 - support.buildTimeMultiplier) * 100);
+  const bonuses = [];
+
+  if (costPercent > 0) {
+    bonuses.push(`-${costPercent}% цена`);
+  }
+
+  if (timePercent > 0) {
+    bonuses.push(`-${timePercent}% время`);
+  }
+
+  return bonuses.length > 0 ? bonuses.join(" · ") : `${support.supporterCount} в бригаде`;
 }
 
 function builtMineStateText(builtMine: BuiltMineState, now: number): string {
@@ -2792,7 +2895,7 @@ function goblinHutEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePrevie
   }
 
   if (goblin.class === "builder" || goblin.class === "foreman") {
-    return `бригада · ${preview.damagePerSecondNow}/сек`;
+    return goblinConstructionEffectLabel(goblin) || "бригада стройки";
   }
 
   return `${preview.damagePerSecondNow}/сек по камням`;
@@ -2807,7 +2910,28 @@ function goblinUpgradeEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePr
     return `автосбор ${preview.autoCollectSlotsNow} → ${preview.autoCollectSlotsAfter}`;
   }
 
+  if (goblin.class === "builder" || goblin.class === "foreman") {
+    return "уровень повышает параметры бригады";
+  }
+
   return `урон ${preview.damagePerSecondNow}/сек → ${preview.damagePerSecondAfter}/сек`;
+}
+
+function goblinConstructionEffectLabel(goblin: GoblinConfig): string {
+  const labels = goblin.ability.effects.map((effect) => {
+    switch (effect.type) {
+      case "build_cost_multiplier":
+        return `цена ${formatMultiplierCostReduction(effect.value)}`;
+      case "build_time_multiplier":
+        return formatMultiplierReduction(effect.value);
+      case "auto_select_next_block":
+        return "управляет шахтерами";
+      default:
+        return null;
+    }
+  });
+
+  return labels.filter((label): label is string => Boolean(label)).join(" · ");
 }
 
 function formatMultiplierBonus(value: number): string {
@@ -2818,6 +2942,11 @@ function formatMultiplierBonus(value: number): string {
 function formatMultiplierReduction(value: number): string {
   const percent = Math.round((1 - value) * 100);
   return percent >= 0 ? `-${percent}% времени` : `+${Math.abs(percent)}% времени`;
+}
+
+function formatMultiplierCostReduction(value: number): string {
+  const percent = Math.round((1 - value) * 100);
+  return percent >= 0 ? `-${percent}%` : `+${Math.abs(percent)}%`;
 }
 
 function pluralRu(value: number, one: string, few: string, many: string): string {
@@ -2990,6 +3119,7 @@ function assignGoblinWorkers(
   const activePlatformRow = findPlatformRow(session, platformRow);
 
   return hiredGoblins
+    .filter(isMiningGoblin)
     .map((goblin) => {
       const targetColumn = goblinPlacements[goblin.id];
 

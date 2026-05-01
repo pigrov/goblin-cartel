@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
-import { createGoblinRoleSummary, createGoblinUpgradePreview } from "./goblinHutClientState";
+import {
+  createGoblinHutRoleTabs,
+  createGoblinRoleSummary,
+  createGoblinUpgradePreview,
+  filterGoblinsByHutRole,
+  isMiningGoblin
+} from "./goblinHutClientState";
 
 const collector: GoblinConfig = {
   ability: {
@@ -75,6 +81,20 @@ const miner: GoblinConfig = {
   specialization: "stonebreaker"
 };
 
+const builder: GoblinConfig = {
+  ...collector,
+  ability: {
+    descriptionKey: "ability.build.description",
+    effects: [{ type: "build_cost_multiplier", value: 0.9 }],
+    id: "build",
+    nameKey: "ability.build.name"
+  },
+  class: "builder",
+  id: "builder_1",
+  nameKey: "goblin.builder.name",
+  specialization: "construction_foreman"
+};
+
 describe("goblin hut client state", () => {
   it("previews upgrade cost and level-based collector slots", () => {
     const preview = createGoblinUpgradePreview(
@@ -130,18 +150,36 @@ describe("goblin hut client state", () => {
 
   it("summarizes hired roles for the hut header", () => {
     expect(
-      createGoblinRoleSummary([collector, miner], {
+      createGoblinRoleSummary([builder, collector, miner], {
         goblinLevels: {
           collector_1: 3
         },
-        hiredGoblinIds: ["collector_1", "miner_1"]
+        hiredGoblinIds: ["builder_1", "collector_1", "miner_1"]
       })
     ).toEqual({
-      builderCount: 0,
+      builderCount: 1,
       collectorCount: 1,
-      hiredCount: 2,
+      hiredCount: 3,
       minerCount: 1,
       totalAutoCollectSlots: 2
     });
+  });
+
+  it("splits hut tabs by goblin role", () => {
+    const goblins = [builder, collector, miner];
+    const roster = {
+      hiredGoblinIds: ["collector_1", "miner_1"]
+    };
+
+    expect(createGoblinHutRoleTabs(goblins, roster)).toEqual([
+      { count: 3, hiredCount: 2, id: "all", label: "Все" },
+      { count: 1, hiredCount: 1, id: "miners", label: "Шахтеры" },
+      { count: 1, hiredCount: 1, id: "collectors", label: "Сборщики" },
+      { count: 1, hiredCount: 0, id: "builders", label: "Стройка" }
+    ]);
+    expect(filterGoblinsByHutRole(goblins, "miners")).toEqual([miner]);
+    expect(filterGoblinsByHutRole(goblins, "collectors")).toEqual([collector]);
+    expect(filterGoblinsByHutRole(goblins, "builders")).toEqual([builder]);
+    expect(goblins.filter(isMiningGoblin)).toEqual([miner]);
   });
 });
