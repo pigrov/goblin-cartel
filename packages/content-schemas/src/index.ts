@@ -55,6 +55,8 @@ export const goblinLevelingSchema = z.object({
     loyalty: 0
   }),
   autoCollectSlotsPerLevel: z.number().nonnegative().default(0),
+  buildCostMultiplierPerLevel: z.number().nonnegative().default(0),
+  buildTimeMultiplierPerLevel: z.number().nonnegative().default(0),
   mineCapacityMultiplierPerLevel: z.number().nonnegative().default(0),
   mineProductionMultiplierPerLevel: z.number().nonnegative().default(0)
 });
@@ -258,6 +260,7 @@ export const mineTemplateSchema = z
 export const goblinSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
+  nicknameKey: z.string().min(1).optional(),
   descriptionKey: z.string().min(1),
   class: goblinClassSchema,
   specialization: goblinSpecializationSchema.optional(),
@@ -277,6 +280,8 @@ export const goblinSchema = z.object({
       loyalty: 0
     },
     autoCollectSlotsPerLevel: 0,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   }),
@@ -325,13 +330,10 @@ export interface ContentValidationResult {
   errors: string[];
 }
 
-function createStarterMinerLeveling(goldBaseAmount: number, stoneBaseAmount: number) {
+function createStarterMinerLeveling(goldBaseAmount: number) {
   return {
     maxLevel: 5,
-    cost: [
-      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.25 },
-      { resourceId: "stone", baseAmount: stoneBaseAmount, levelMultiplier: 1, levelPower: 1.1 }
-    ],
+    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.25 }],
     statGrowthPerLevel: {
       strength: 2,
       speed: 1,
@@ -339,18 +341,17 @@ function createStarterMinerLeveling(goldBaseAmount: number, stoneBaseAmount: num
       loyalty: 0
     },
     autoCollectSlotsPerLevel: 0,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   };
 }
 
-function createStarterBuilderLeveling(goldBaseAmount: number, stoneBaseAmount: number) {
+function createStarterBuilderLeveling(goldBaseAmount: number, buildCostMultiplierPerLevel: number, buildTimeMultiplierPerLevel = 0) {
   return {
     maxLevel: 5,
-    cost: [
-      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.28 },
-      { resourceId: "stone", baseAmount: stoneBaseAmount, levelMultiplier: 1, levelPower: 1.16 }
-    ],
+    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.28 }],
     statGrowthPerLevel: {
       strength: 1,
       speed: 1,
@@ -358,18 +359,17 @@ function createStarterBuilderLeveling(goldBaseAmount: number, stoneBaseAmount: n
       loyalty: 1
     },
     autoCollectSlotsPerLevel: 0,
+    buildCostMultiplierPerLevel,
+    buildTimeMultiplierPerLevel,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   };
 }
 
-function createStarterCollectorLeveling(goldBaseAmount: number, oreResourceId: string, oreBaseAmount: number) {
+function createStarterCollectorLeveling(goldBaseAmount: number) {
   return {
     maxLevel: 5,
-    cost: [
-      { resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.3 },
-      { resourceId: oreResourceId, baseAmount: oreBaseAmount, levelMultiplier: 1, levelPower: 1.18 }
-    ],
+    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.3 }],
     statGrowthPerLevel: {
       strength: 0,
       speed: 1,
@@ -377,6 +377,8 @@ function createStarterCollectorLeveling(goldBaseAmount: number, oreResourceId: s
       loyalty: 1
     },
     autoCollectSlotsPerLevel: 0.5,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0.03,
     mineProductionMultiplierPerLevel: 0.03
   };
@@ -763,6 +765,7 @@ export const starterContentBundle: ContentBundle = {
     {
       id: "gryzz_crooked_tooth",
       nameKey: "goblin.gryzz.name",
+      nicknameKey: "goblin.gryzz.nickname",
       descriptionKey: "goblin.gryzz.description",
       class: "miner",
       clan: "rusty_picks",
@@ -781,13 +784,14 @@ export const starterContentBundle: ContentBundle = {
         effects: [{ type: "damage_bonus_by_tag", tag: "rock", value: 0.2 }]
       },
       hireCost: [],
-      leveling: createStarterMinerLeveling(120, 25),
+      leveling: createStarterMinerLeveling(120),
       unlockRequirements: [],
       sortOrder: 10
     },
     {
       id: "myk_dull_pickaxe",
       nameKey: "goblin.myk.name",
+      nicknameKey: "goblin.myk.nickname",
       descriptionKey: "goblin.myk.description",
       class: "miner",
       clan: "rusty_picks",
@@ -806,13 +810,14 @@ export const starterContentBundle: ContentBundle = {
         effects: [{ type: "base_damage_bonus", value: 2 }]
       },
       hireCost: [{ resourceId: "gold", amount: 150 }],
-      leveling: createStarterMinerLeveling(180, 35),
+      leveling: createStarterMinerLeveling(180),
       unlockRequirements: [],
       sortOrder: 20
     },
     {
       id: "skrapp_copper_nose",
       nameKey: "goblin.skrapp.name",
+      nicknameKey: "goblin.skrapp.nickname",
       descriptionKey: "goblin.skrapp.description",
       class: "miner",
       clan: "rusty_picks",
@@ -834,13 +839,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 350 },
         { resourceId: "stone", amount: 40 }
       ],
-      leveling: createStarterMinerLeveling(260, 60),
+      leveling: createStarterMinerLeveling(260),
       unlockRequirements: [{ type: "resource_collected", resourceId: "copper_ore", amount: 25 }],
       sortOrder: 30
     },
     {
       id: "rumm_heavy_paw",
       nameKey: "goblin.rumm.name",
+      nicknameKey: "goblin.rumm.nickname",
       descriptionKey: "goblin.rumm.description",
       class: "miner",
       clan: "rusty_picks",
@@ -862,13 +868,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 900 },
         { resourceId: "stone", amount: 180 }
       ],
-      leveling: createStarterMinerLeveling(520, 130),
+      leveling: createStarterMinerLeveling(520),
       unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 300 }],
       sortOrder: 40
     },
     {
       id: "brikk_hammer",
       nameKey: "goblin.brikk.name",
+      nicknameKey: "goblin.brikk.nickname",
       descriptionKey: "goblin.brikk.description",
       class: "builder",
       clan: "bolt_skulls",
@@ -890,13 +897,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 500 },
         { resourceId: "stone", amount: 120 }
       ],
-      leveling: createStarterBuilderLeveling(360, 90),
+      leveling: createStarterBuilderLeveling(360, 0.01),
       unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 150 }],
       sortOrder: 50
     },
     {
       id: "tikk_straight_board",
       nameKey: "goblin.tikk.name",
+      nicknameKey: "goblin.tikk.nickname",
       descriptionKey: "goblin.tikk.description",
       class: "builder",
       clan: "bolt_skulls",
@@ -918,13 +926,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 700 },
         { resourceId: "stone", amount: 160 }
       ],
-      leveling: createStarterBuilderLeveling(440, 110),
+      leveling: createStarterBuilderLeveling(440, 0.015),
       unlockRequirements: [{ type: "built_mines_count", value: 1 }],
       sortOrder: 60
     },
     {
       id: "pip_dry_book",
       nameKey: "goblin.pip.name",
+      nicknameKey: "goblin.pip.nickname",
       descriptionKey: "goblin.pip.description",
       class: "collector",
       specialization: "warehouse_keeper",
@@ -950,13 +959,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 2500 },
         { resourceId: "copper_ore", amount: 100 }
       ],
-      leveling: createStarterCollectorLeveling(900, "copper_ore", 70),
+      leveling: createStarterCollectorLeveling(900),
       unlockRequirements: [{ type: "built_mines_count", value: 2 }],
       sortOrder: 70
     },
     {
       id: "nokk_copper_quill",
       nameKey: "goblin.nokk.name",
+      nicknameKey: "goblin.nokk.nickname",
       descriptionKey: "goblin.nokk.description",
       class: "collector",
       specialization: "resource_expert",
@@ -982,13 +992,14 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", amount: 4200 },
         { resourceId: "copper_ore", amount: 180 }
       ],
-      leveling: createStarterCollectorLeveling(1300, "copper_ore", 110),
+      leveling: createStarterCollectorLeveling(1300),
       unlockRequirements: [{ type: "built_mines_count", value: 3 }],
       sortOrder: 75
     },
     {
       id: "krakk_iron_turnip",
       nameKey: "goblin.krakk.name",
+      nicknameKey: "goblin.krakk.nickname",
       descriptionKey: "goblin.krakk.description",
       class: "foreman",
       clan: "rusty_picks",
@@ -1016,8 +1027,7 @@ export const starterContentBundle: ContentBundle = {
       leveling: {
         maxLevel: 5,
         cost: [
-          { resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 },
-          { resourceId: "iron", baseAmount: 40, levelMultiplier: 1, levelPower: 1.18 }
+          { resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 }
         ],
         statGrowthPerLevel: {
           strength: 1,
@@ -1026,6 +1036,8 @@ export const starterContentBundle: ContentBundle = {
           loyalty: 1
         },
         autoCollectSlotsPerLevel: 0,
+        buildCostMultiplierPerLevel: 0,
+        buildTimeMultiplierPerLevel: 0.015,
         mineCapacityMultiplierPerLevel: 0,
         mineProductionMultiplierPerLevel: 0
       },
@@ -1059,23 +1071,32 @@ export const starterContentBundle: ContentBundle = {
       "reward_chest.wooden.name": "Деревянный сундук",
       "reward_chest.iron.name": "Железный сундук",
       "reward_chest.steel.name": "Стальной сундук",
-      "goblin.gryzz.name": "Грызз Кривозуб",
+      "goblin.gryzz.name": "Грызз",
+      "goblin.gryzz.nickname": "Кривозуб",
       "goblin.gryzz.description": "Долбит камни так уверенно, будто камни ему должны.",
-      "goblin.myk.name": "Мык Тупая Кирка",
+      "goblin.myk.name": "Мык",
+      "goblin.myk.nickname": "Тупая Кирка",
       "goblin.myk.description": "Дешевый рабочий, который спорит только с инструкцией.",
-      "goblin.skrapp.name": "Скрапп Медный Нос",
+      "goblin.skrapp.name": "Скрапп",
+      "goblin.skrapp.nickname": "Медный Нос",
       "goblin.skrapp.description": "Чует медь раньше, чем начальство чует прибыль.",
-      "goblin.rumm.name": "Румм Тяжелая Лапа",
+      "goblin.rumm.name": "Румм",
+      "goblin.rumm.nickname": "Тяжелая Лапа",
       "goblin.rumm.description": "Медленный удар, зато камень потом долго молчит.",
-      "goblin.brikk.name": "Брикк Молоток",
+      "goblin.brikk.name": "Брикк",
+      "goblin.brikk.nickname": "Молоток",
       "goblin.brikk.description": "Строит быстро, ругается по чертежу.",
-      "goblin.tikk.name": "Тикк Ровная Доска",
+      "goblin.tikk.name": "Тикк",
+      "goblin.tikk.nickname": "Ровная Доска",
       "goblin.tikk.description": "Экономит доски так, будто они родня.",
-      "goblin.pip.name": "Пип Сухая Книга",
+      "goblin.pip.name": "Пип",
+      "goblin.pip.nickname": "Сухая Книга",
       "goblin.pip.description": "Собирает доход без лишних слов и почти без потерь.",
-      "goblin.nokk.name": "Нокк Медное Перо",
+      "goblin.nokk.name": "Нокк",
+      "goblin.nokk.nickname": "Медное Перо",
       "goblin.nokk.description": "Считает медную руду так быстро, что шахта старается не отставать.",
-      "goblin.krakk.name": "Кракк Железная Репа",
+      "goblin.krakk.name": "Кракк",
+      "goblin.krakk.nickname": "Железная Репа",
       "goblin.krakk.description": "Держит смену в движении одним тяжелым взглядом.",
       "ability.stone_biter.name": "Камнегрыз",
       "ability.stone_biter.description": "Наносит больше урона каменным блокам.",
@@ -1211,6 +1232,9 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
 
   for (const goblin of parsed.data.goblins) {
     validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
+    if (goblin.nicknameKey) {
+      validateLocalizationKey(goblin.nicknameKey, "ru", ruLocalization, errors);
+    }
     validateLocalizationKey(goblin.descriptionKey, "ru", ruLocalization, errors);
     validateLocalizationKey(goblin.ability.nameKey, "ru", ruLocalization, errors);
     validateLocalizationKey(goblin.ability.descriptionKey, "ru", ruLocalization, errors);
@@ -1262,6 +1286,11 @@ function validateGoblinLevelingCost(
 
     if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
       errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());
+      continue;
+    }
+
+    if (row.resourceId !== "gold") {
+      errors.push(`${path}.${index} must use gold`);
     }
   }
 }

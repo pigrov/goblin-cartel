@@ -31,6 +31,8 @@ export interface GoblinRosterLevelingConfig {
   cost: GoblinRosterUpgradeCostConfig[];
   statGrowthPerLevel?: GoblinRosterStatGrowth;
   autoCollectSlotsPerLevel?: number;
+  buildCostMultiplierPerLevel?: number;
+  buildTimeMultiplierPerLevel?: number;
   mineCapacityMultiplierPerLevel?: number;
   mineProductionMultiplierPerLevel?: number;
 }
@@ -354,6 +356,8 @@ export function calculateGoblinEffectiveAbilityEffects(
   const effectiveLevel = normalizeGoblinLevel(level, calculateGoblinMaxLevel(goblin));
   const levelDelta = Math.max(0, effectiveLevel - 1);
   const slotGrowth = goblin.leveling?.autoCollectSlotsPerLevel ?? 0;
+  const buildCostGrowth = goblin.leveling?.buildCostMultiplierPerLevel ?? 0;
+  const buildTimeGrowth = goblin.leveling?.buildTimeMultiplierPerLevel ?? 0;
   const capacityGrowth = goblin.leveling?.mineCapacityMultiplierPerLevel ?? 0;
   const productionGrowth = goblin.leveling?.mineProductionMultiplierPerLevel ?? 0;
 
@@ -376,6 +380,20 @@ export function calculateGoblinEffectiveAbilityEffects(
       return {
         ...effect,
         value: Math.max(0, effect.value + levelDelta * productionGrowth)
+      };
+    }
+
+    if (effect.type === "build_cost_multiplier") {
+      return {
+        ...effect,
+        value: Math.max(0.01, effect.value - levelDelta * buildCostGrowth)
+      };
+    }
+
+    if (effect.type === "build_time_multiplier") {
+      return {
+        ...effect,
+        value: Math.max(0.01, effect.value - levelDelta * buildTimeGrowth)
       };
     }
 

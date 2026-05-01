@@ -1335,6 +1335,7 @@ function renderEntityFields(
       <>
         <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
         <ContentTextField label="Имя RU" name="title" onChange={updateField} value={formState.title} />
+        <ContentTextField label="Прозвище RU" name="nickname" onChange={updateField} value={formState.nickname} />
         <ContentTextAreaField label="Описание RU" name="description" onChange={updateField} value={formState.description} />
         <div className="content-form-grid">
           <ContentSelectField label="Класс" name="class" onChange={updateField} options={goblinClassOptions} value={formState.class} />
@@ -1385,6 +1386,8 @@ function renderEntityFields(
             <ContentTextField label="Слоты/ур." name="levelAutoCollectSlots" onChange={updateField} type="number" value={formState.levelAutoCollectSlots} />
             <ContentTextField label="Вместимость/ур. %" name="levelCapacityBonusPercent" onChange={updateField} type="number" value={formState.levelCapacityBonusPercent} />
             <ContentTextField label="Добыча/ур. %" name="levelProductionBonusPercent" onChange={updateField} type="number" value={formState.levelProductionBonusPercent} />
+            <ContentTextField label="Скидка стройки/ур. %" name="levelBuildCostBonusPercent" onChange={updateField} type="number" value={formState.levelBuildCostBonusPercent} />
+            <ContentTextField label="Скорость стройки/ур. %" name="levelBuildTimeBonusPercent" onChange={updateField} type="number" value={formState.levelBuildTimeBonusPercent} />
           </div>
           <ContentGoblinLevelCostRows content={content} formState={formState} prefix="levelCost" updateField={updateField} updateFields={updateFields} />
         </section>
@@ -2247,6 +2250,7 @@ export function addDraftBlockTypeTemplate(content: ContentBundle): DraftContentT
 function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult {
   const id = uniqueContentId("collector_draft", content.goblins);
   const nameKey = `goblin.${id}.name`;
+  const nicknameKey = `goblin.${id}.nickname`;
   const descriptionKey = `goblin.${id}.description`;
   const abilityNameKey = `ability.${id}.name`;
   const abilityDescriptionKey = `ability.${id}.description`;
@@ -2255,6 +2259,7 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
   const entity: ContentRecord = {
     id,
     nameKey,
+    nicknameKey,
     descriptionKey,
     class: "collector",
     specialization: "warehouse_keeper",
@@ -2279,10 +2284,7 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
     hireCost: [{ resourceId: goldResourceId, amount: 1000 }],
     leveling: {
       maxLevel: 5,
-      cost: [
-        { resourceId: goldResourceId, baseAmount: 400, levelMultiplier: 1, levelPower: 1.25 },
-        { resourceId: copperResourceId || goldResourceId, baseAmount: 40, levelMultiplier: 1, levelPower: 1.15 }
-      ],
+      cost: [{ resourceId: goldResourceId, baseAmount: 400, levelMultiplier: 1, levelPower: 1.25 }],
       statGrowthPerLevel: {
         strength: 0,
         speed: 1,
@@ -2290,6 +2292,8 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
         loyalty: 1
       },
       autoCollectSlotsPerLevel: 0.5,
+      buildCostMultiplierPerLevel: 0,
+      buildTimeMultiplierPerLevel: 0,
       mineCapacityMultiplierPerLevel: 0.03,
       mineProductionMultiplierPerLevel: 0.02
     },
@@ -2297,7 +2301,8 @@ function addDraftGoblinTemplate(content: ContentBundle): DraftContentToolResult 
     sortOrder: nextSortOrder(content.goblins)
   };
   const localization = {
-    [nameKey]: "Новый сборщик",
+    [nameKey]: "Новый",
+    [nicknameKey]: "Сборщик",
     [descriptionKey]: "Черновой гоблин для настройки в админке.",
     [abilityNameKey]: "Черновой автосбор",
     [abilityDescriptionKey]: "Открывает один слот автосбора и немного увеличивает вместимость шахты."
@@ -2584,6 +2589,8 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     description: localizationValue(content, stringField(entity, "descriptionKey")),
     id: stringField(entity, "id"),
     levelAutoCollectSlots: numberString(numberField(leveling, "autoCollectSlotsPerLevel", 0)),
+    levelBuildCostBonusPercent: numberString(multiplierDeltaToPercent(numberField(leveling, "buildCostMultiplierPerLevel", 0))),
+    levelBuildTimeBonusPercent: numberString(multiplierDeltaToPercent(numberField(leveling, "buildTimeMultiplierPerLevel", 0))),
     levelCapacityBonusPercent: numberString(multiplierDeltaToPercent(numberField(leveling, "mineCapacityMultiplierPerLevel", 0))),
     levelCostCount: numberString(Math.max(1, arrayField(leveling, "cost").length)),
     levelLoyalty: numberString(numberField(statGrowth, "loyalty", 0)),
@@ -2594,6 +2601,7 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     levelStrength: numberString(numberField(statGrowth, "strength", 0)),
     loyalty: numberString(numberField(stats, "loyalty", 0)),
     luck: numberString(numberField(stats, "luck", 0)),
+    nickname: localizationValue(content, stringField(entity, "nicknameKey")),
     productionBonusPercent: numberString(multiplierToPercent(numberField(productionEffect, "value", 1))),
     productionBonusResourceId: stringField(productionEffect, "resourceId"),
     rarity: stringField(entity, "rarity") || "common",
@@ -2715,18 +2723,20 @@ function createMineUpgradeCostFormState(prefix: string, rows: ContentRecord[]): 
 }
 
 function createGoblinLevelCostFormState(prefix: string, rows: ContentRecord[], content: ContentBundle): EntityFormState {
-  const fallbackRows = rows.length > 0 ? rows : [{ baseAmount: 100, levelMultiplier: 1, levelPower: 1.25, resourceId: findResourceId(content, "gold") }];
-  const count = Math.max(1, fallbackRows.length);
+  const goldResourceId = findResourceId(content, "gold");
+  const fallbackRows = rows.length > 0 ? rows : [{ baseAmount: 100, levelMultiplier: 1, levelPower: 1.25, resourceId: goldResourceId }];
+  const goldRow = fallbackRows.find((row) => stringField(row, "resourceId") === goldResourceId) ?? fallbackRows[0] ?? {};
+  const count = 1;
   const state: EntityFormState = {
     [`${prefix}Count`]: String(count)
   };
 
   for (let index = 0; index < count; index += 1) {
-    const row = recordAt(fallbackRows, index);
+    const row = index === 0 ? goldRow : recordAt(fallbackRows, index);
     state[`${prefix}BaseAmount_${index}`] = numberString(numberField(row, "baseAmount", 1));
     state[`${prefix}LevelMultiplier_${index}`] = numberString(numberField(row, "levelMultiplier", 1));
     state[`${prefix}LevelPower_${index}`] = numberString(numberField(row, "levelPower", 1));
-    state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, "gold");
+    state[`${prefix}ResourceId_${index}`] = goldResourceId;
   }
 
   return state;
@@ -2828,6 +2838,10 @@ function validateBlockTypeForm(state: EntityFormState, content: ContentBundle, e
 }
 
 function validateGoblinForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  if (!formValue(state, "nickname").trim()) {
+    errors.push("Прозвище RU обязательно.");
+  }
+
   if (!formValue(state, "description").trim()) {
     errors.push("Описание RU обязательно.");
   }
@@ -2868,6 +2882,8 @@ function validateGoblinForm(state: EntityFormState, content: ContentBundle, erro
   validateNumberField(state, "levelAutoCollectSlots", "Слоты/ур.", errors, { min: 0 });
   validateNumberField(state, "levelCapacityBonusPercent", "Вместимость/ур.", errors, { min: 0 });
   validateNumberField(state, "levelProductionBonusPercent", "Добыча/ур.", errors, { min: 0 });
+  validateNumberField(state, "levelBuildCostBonusPercent", "Скидка стройки/ур.", errors, { min: 0 });
+  validateNumberField(state, "levelBuildTimeBonusPercent", "Скорость стройки/ур.", errors, { min: 0 });
   validateGoblinLevelCostRows(state, "levelCost", "Стоимость прокачки", content, errors);
   validateResourceAmountRows(state, "hireCost", "Стоимость найма", content, errors);
 
@@ -3002,6 +3018,8 @@ function validateGoblinLevelCostRows(
 
     if (!resourceIds.has(resourceId)) {
       errors.push(`${rowLabel}: ресурс не найден.`);
+    } else if (resourceId !== "gold") {
+      errors.push(`${rowLabel}: прокачка гоблина оплачивается только золотом.`);
     }
 
     validateIntegerField(state, `${prefix}BaseAmount_${index}`, `${rowLabel}: база`, errors, { min: 1 });
@@ -3146,6 +3164,7 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
   const id = formValue(state, "id");
   const specialization = formValue(state, "specialization");
   const nameKey = stringField(current, "nameKey") || `goblin.${id}.name`;
+  const nicknameKey = stringField(current, "nicknameKey") || `goblin.${id}.nickname`;
   const descriptionKey = stringField(current, "descriptionKey") || `goblin.${id}.description`;
   const abilityNameKey = stringField(ability, "nameKey") || `ability.${id}.name`;
   const abilityDescriptionKey = stringField(ability, "descriptionKey") || `ability.${id}.description`;
@@ -3172,6 +3191,8 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
     id,
     leveling: {
       autoCollectSlotsPerLevel: toNumber(state.levelAutoCollectSlots),
+      buildCostMultiplierPerLevel: percentToMultiplierDelta(toNumber(state.levelBuildCostBonusPercent)),
+      buildTimeMultiplierPerLevel: percentToMultiplierDelta(toNumber(state.levelBuildTimeBonusPercent)),
       cost: createGoblinLevelCostFromForm(state, "levelCost"),
       maxLevel: toInteger(state.levelMaxLevel),
       mineCapacityMultiplierPerLevel: percentToMultiplierDelta(toNumber(state.levelCapacityBonusPercent)),
@@ -3184,6 +3205,7 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
       }
     },
     nameKey,
+    nicknameKey,
     rarity: formValue(state, "rarity"),
     sortOrder: toInteger(state.sortOrder),
     specialization: specialization || undefined
@@ -3201,7 +3223,8 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
       [abilityDescriptionKey]: formValue(state, "abilityDescription").trim(),
       [abilityNameKey]: formValue(state, "abilityTitle").trim(),
       [descriptionKey]: formValue(state, "description").trim(),
-      [nameKey]: formValue(state, "title").trim()
+      [nameKey]: formValue(state, "title").trim(),
+      [nicknameKey]: formValue(state, "nickname").trim()
     },
     message: `Гоблин ${id} сохранен как draft.`
   };

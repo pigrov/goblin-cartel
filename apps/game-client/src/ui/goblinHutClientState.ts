@@ -8,11 +8,21 @@ import {
   type GoblinRosterState,
   type UpgradeGoblinFailureReason
 } from "@goblin-cartel/game-core";
-import { createBuildCostRequirements, getGoblinAutoCollectSlots, type BuildCostRequirement } from "./builtMineClientState";
+import {
+  createBuildCostRequirements,
+  getGoblinAutoCollectSlots,
+  getGoblinBuildCostMultiplier,
+  getGoblinBuildTimeMultiplier,
+  type BuildCostRequirement
+} from "./builtMineClientState";
 
 export interface GoblinUpgradePreview {
   autoCollectSlotsAfter: number;
   autoCollectSlotsNow: number;
+  buildCostMultiplierAfter: number;
+  buildCostMultiplierNow: number;
+  buildTimeMultiplierAfter: number;
+  buildTimeMultiplierNow: number;
   canUpgrade: boolean;
   costRequirements: BuildCostRequirement[];
   damagePerSecondAfter: number;
@@ -38,6 +48,13 @@ export interface GoblinHutRoleTab {
   hiredCount: number;
   id: GoblinHutRoleTabId;
   label: string;
+}
+
+export interface GoblinIdentity {
+  description: string;
+  fullName: string;
+  name: string;
+  nickname: string;
 }
 
 const goblinHutRoleTabs: Array<{ id: GoblinHutRoleTabId; label: string }> = [
@@ -66,6 +83,10 @@ export function createGoblinUpgradePreview(
   return {
     autoCollectSlotsAfter: getGoblinAutoCollectSlots(goblin, levelAfter),
     autoCollectSlotsNow: getGoblinAutoCollectSlots(goblin, levelNow),
+    buildCostMultiplierAfter: getGoblinBuildCostMultiplier(goblin, levelAfter),
+    buildCostMultiplierNow: getGoblinBuildCostMultiplier(goblin, levelNow),
+    buildTimeMultiplierAfter: getGoblinBuildTimeMultiplier(goblin, levelAfter),
+    buildTimeMultiplierNow: getGoblinBuildTimeMultiplier(goblin, levelNow),
     canUpgrade: failureReason === null,
     costRequirements,
     damagePerSecondAfter: calculateCrewAutoDamagePerSecond({
@@ -90,6 +111,22 @@ export function createGoblinUpgradePreview(
     levelAfter,
     levelNow,
     maxLevel
+  };
+}
+
+export function createGoblinIdentity(goblin: GoblinConfig, labels: Record<string, string>): GoblinIdentity {
+  const rawName = labels[goblin.nameKey] ?? goblin.id;
+  const nickname = goblin.nicknameKey ? labels[goblin.nicknameKey] ?? "" : "";
+  const fallbackSplit = splitGoblinName(rawName);
+  const name = fallbackSplit.name;
+  const resolvedNickname = nickname || fallbackSplit.nickname;
+  const fullName = resolvedNickname ? `${name} ${resolvedNickname}` : name;
+
+  return {
+    description: labels[goblin.descriptionKey] ?? goblin.id,
+    fullName,
+    name,
+    nickname: resolvedNickname
   };
 }
 
@@ -146,4 +183,13 @@ export function isCollectorGoblin(goblin: GoblinConfig): boolean {
 
 export function isMiningGoblin(goblin: GoblinConfig): boolean {
   return goblin.class === "miner";
+}
+
+function splitGoblinName(value: string): { name: string; nickname: string } {
+  const [name = value, ...nicknameParts] = value.trim().split(/\s+/u);
+
+  return {
+    name,
+    nickname: nicknameParts.join(" ")
+  };
 }

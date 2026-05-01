@@ -97,6 +97,8 @@ const collector = {
   id: "collector_1",
   leveling: {
     autoCollectSlotsPerLevel: 0.5,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     cost: [{ baseAmount: 100, levelMultiplier: 1, levelPower: 1, resourceId: "gold" }],
     maxLevel: 5,
     mineCapacityMultiplierPerLevel: 0.05,
@@ -128,6 +130,11 @@ const builder = {
   },
   class: "builder" as const,
   id: "builder_1",
+  leveling: {
+    ...collector.leveling,
+    buildCostMultiplierPerLevel: 0.02,
+    buildTimeMultiplierPerLevel: 0.03
+  },
   nameKey: "goblin.builder.name",
   specialization: "construction_foreman" as const
 };
@@ -220,16 +227,16 @@ describe("built mine client state", () => {
     });
 
     expect(support).toEqual({
-      buildCostMultiplier: 0.9,
-      buildTimeMultiplier: 0.75,
+      buildCostMultiplier: 0.86,
+      buildTimeMultiplier: 0.69,
       supporterCount: 1,
-      upgradeCostMultiplier: 0.9
+      upgradeCostMultiplier: 0.86
     });
     expect(getGoblinBuildCostMultiplier(builder)).toBe(0.9);
     expect(getGoblinBuildTimeMultiplier(builder)).toBe(0.75);
     expect(createBuildCostWithMultiplier(builtMineType.buildCost, support.buildCostMultiplier)).toEqual([
-      { amount: 450, resourceId: "gold" },
-      { amount: 108, resourceId: "stone" }
+      { amount: 430, resourceId: "gold" },
+      { amount: 104, resourceId: "stone" }
     ]);
     expect(
       canBuildFoundVein({

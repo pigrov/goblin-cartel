@@ -295,7 +295,21 @@ describe("content schemas", () => {
     const result = validateContentBundle(broken);
 
     expect(result.ok).toBe(false);
-    expect(result.errors).toContain("goblins.gryzz_crooked_tooth.leveling.cost.2 references missing resource missing_resource");
+    expect(result.errors).toContain("goblins.gryzz_crooked_tooth.leveling.cost.1 references missing resource missing_resource");
+  });
+
+  it("rejects goblin leveling cost with non-gold resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const goblin = broken.goblins[0];
+
+    if (goblin) {
+      goblin.leveling.cost = [{ resourceId: "stone", baseAmount: 10, levelMultiplier: 1, levelPower: 1 }];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblins.gryzz_crooked_tooth.leveling.cost.0 must use gold");
   });
 
   it("rejects missing goblin localization keys when locale exists", () => {
@@ -303,13 +317,13 @@ describe("content schemas", () => {
     const ru = broken.localization.ru;
 
     if (ru) {
-      delete ru["goblin.gryzz.name"];
+      delete ru["goblin.gryzz.nickname"];
     }
 
     const result = validateContentBundle(broken);
 
     expect(result.ok).toBe(false);
-    expect(result.errors).toContain("localization.ru is missing key goblin.gryzz.name");
+    expect(result.errors).toContain("localization.ru is missing key goblin.gryzz.nickname");
   });
 
   it("rejects goblin production bonus with missing resource", () => {

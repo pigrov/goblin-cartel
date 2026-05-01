@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
+  createGoblinIdentity,
   createGoblinHutRoleTabs,
   createGoblinRoleSummary,
   createGoblinUpgradePreview,
@@ -32,6 +33,8 @@ const collector: GoblinConfig = {
   id: "collector_1",
   leveling: {
     autoCollectSlotsPerLevel: 0.5,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     cost: [
       {
         baseAmount: 80,
@@ -51,6 +54,7 @@ const collector: GoblinConfig = {
     }
   },
   nameKey: "goblin.collector.name",
+  nicknameKey: "goblin.collector.nickname",
   rarity: "common",
   sortOrder: 1,
   specialization: "warehouse_keeper",
@@ -70,6 +74,8 @@ const miner: GoblinConfig = {
   leveling: {
     ...collector.leveling,
     autoCollectSlotsPerLevel: 0,
+    buildCostMultiplierPerLevel: 0,
+    buildTimeMultiplierPerLevel: 0,
     statGrowthPerLevel: {
       loyalty: 0,
       luck: 0,
@@ -78,6 +84,7 @@ const miner: GoblinConfig = {
     }
   },
   nameKey: "goblin.miner.name",
+  nicknameKey: "goblin.miner.nickname",
   specialization: "stonebreaker"
 };
 
@@ -92,6 +99,7 @@ const builder: GoblinConfig = {
   class: "builder",
   id: "builder_1",
   nameKey: "goblin.builder.name",
+  nicknameKey: "goblin.builder.nickname",
   specialization: "construction_foreman"
 };
 
@@ -113,6 +121,10 @@ describe("goblin hut client state", () => {
     expect(preview).toMatchObject({
       autoCollectSlotsAfter: 2,
       autoCollectSlotsNow: 1,
+      buildCostMultiplierAfter: 1,
+      buildCostMultiplierNow: 1,
+      buildTimeMultiplierAfter: 1,
+      buildTimeMultiplierNow: 1,
       canUpgrade: true,
       costRequirements: [
         {
@@ -181,5 +193,26 @@ describe("goblin hut client state", () => {
     expect(filterGoblinsByHutRole(goblins, "collectors")).toEqual([collector]);
     expect(filterGoblinsByHutRole(goblins, "builders")).toEqual([builder]);
     expect(goblins.filter(isMiningGoblin)).toEqual([miner]);
+  });
+
+  it("splits visible goblin names into name and nickname", () => {
+    expect(
+      createGoblinIdentity(collector, {
+        "goblin.collector.description": "Keeps ledgers.",
+        "goblin.collector.name": "Пип",
+        "goblin.collector.nickname": "Сухая Книга"
+      })
+    ).toEqual({
+      description: "Keeps ledgers.",
+      fullName: "Пип Сухая Книга",
+      name: "Пип",
+      nickname: "Сухая Книга"
+    });
+
+    expect(createGoblinIdentity({ ...collector, nicknameKey: undefined }, { "goblin.collector.name": "Пип Сухая Книга" })).toMatchObject({
+      fullName: "Пип Сухая Книга",
+      name: "Пип",
+      nickname: "Сухая Книга"
+    });
   });
 });

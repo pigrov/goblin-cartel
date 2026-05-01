@@ -69,3 +69,4 @@
 - `0064_content_driven_mine_upgrades` - moved mine-upgrade balance into content/admin, made next-mine transition available after clearing, and expanded starter mines to five.
 - `0065_goblin_hut_progression` - added goblin leveling content/admin fields, a Goblin Hut screen, and level-driven miner/collector bonuses.
 - `0066_goblin_roles_construction_tabs` - split goblin roles across mining, collection, and construction support, and rebuilt the Goblin Hut screen with role tabs.
+- `0067_goblin_hut_v2_level_growth` - rebuilt Goblin Hut as compact goblin cards with details modal, split names/nicknames, gold-only upgrades, and level-scaling construction bonuses.

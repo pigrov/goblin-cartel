@@ -73,9 +73,27 @@ const goblins: GoblinRosterGoblin[] = [
     },
     ability: {
       id: "no_idle_picks",
-      effects: [{ type: "auto_select_next_block", enabled: true }]
+      effects: [
+        { type: "auto_select_next_block", enabled: true },
+        { type: "build_time_multiplier", value: 0.9 }
+      ]
     },
     hireCost: [{ resourceId: "gold", amount: 300 }],
+    leveling: {
+      autoCollectSlotsPerLevel: 0,
+      buildCostMultiplierPerLevel: 0,
+      buildTimeMultiplierPerLevel: 0.02,
+      cost: [{ resourceId: "gold", baseAmount: 120, levelMultiplier: 1, levelPower: 1 }],
+      maxLevel: 4,
+      mineCapacityMultiplierPerLevel: 0,
+      mineProductionMultiplierPerLevel: 0,
+      statGrowthPerLevel: {
+        loyalty: 1,
+        luck: 0,
+        speed: 1,
+        strength: 0
+      }
+    },
     unlockRequirements: [{ type: "goblins_by_class", class: "miner", count: 2 }],
     sortOrder: 30
   }
@@ -318,6 +336,13 @@ describe("goblin roster", () => {
     ).toBe(4);
     expect(calculateGoblinEffectiveAbilityEffects(goblins[1] as GoblinRosterGoblin, 3)).toEqual([
       { type: "base_damage_bonus", value: 2 }
+    ]);
+  });
+
+  it("applies level growth to construction multipliers", () => {
+    expect(calculateGoblinEffectiveAbilityEffects(goblins[2] as GoblinRosterGoblin, 3)).toEqual([
+      { type: "auto_select_next_block", enabled: true },
+      { type: "build_time_multiplier", value: 0.86 }
     ]);
   });
 });
