@@ -1,4 +1,11 @@
-import type { BossEnergyState, BuiltMineState, GoblinRosterState, MiningSessionSave } from "@goblin-cartel/game-core";
+import {
+  normalizeBossCardState,
+  type BossCardState,
+  type BossEnergyState,
+  type BuiltMineState,
+  type GoblinRosterState,
+  type MiningSessionSave
+} from "@goblin-cartel/game-core";
 
 export const playerSaveStorageKey = "goblin-cartel.player.save.v1";
 export const legacyMineSaveStorageKey = "goblin-cartel.player.mine-save.v2";
@@ -25,6 +32,7 @@ export interface StoredGoblinRoster {
 }
 
 export interface StoredPlayerSaveV1 {
+  bossCards?: BossCardState;
   schemaVersion: 1;
   contentVersion: string;
   mine?: StoredMineSave;
@@ -70,6 +78,21 @@ export function saveStoredGoblinRoster(payload: StoredGoblinRoster, storage: Pla
 
 export function loadStoredGoblinRoster(storage: PlayerSaveStorage = localStorage): StoredGoblinRoster | null {
   return readPlayerSave(storage)?.roster ?? readLegacyGoblinRoster(storage);
+}
+
+export function saveStoredBossCards(bossCards: BossCardState, storage: PlayerSaveStorage = localStorage): void {
+  writePlayerSave(
+    {
+      ...readPlayerSave(storage),
+      bossCards: normalizeBossCardState(bossCards),
+      savedAt: Date.now()
+    },
+    storage
+  );
+}
+
+export function loadStoredBossCards(storage: PlayerSaveStorage = localStorage): BossCardState {
+  return normalizeBossCardState(readPlayerSave(storage)?.bossCards);
 }
 
 export function readPlayerSave(storage: PlayerSaveStorage = localStorage): StoredPlayerSaveV1 | null {
@@ -126,11 +149,14 @@ function normalizePlayerSave(value: unknown): StoredPlayerSaveV1 | null {
   const mine = normalizeMineSave(value.mine);
   const roster = normalizeGoblinRosterSave(value.roster);
 
-  if (!mine && !roster) {
+  const bossCards = normalizeBossCards(value.bossCards);
+
+  if (!mine && !roster && !bossCards) {
     return null;
   }
 
   return {
+    ...(bossCards ? { bossCards } : {}),
     schemaVersion,
     contentVersion:
       typeof value.contentVersion === "string" ? value.contentVersion : mine?.contentVersion ?? roster?.contentVersion ?? "",
@@ -186,6 +212,14 @@ function normalizeGoblinRosterSave(value: unknown): StoredGoblinRoster | null {
   }
 
   return value as unknown as StoredGoblinRoster;
+}
+
+function normalizeBossCards(value: unknown): BossCardState | null {
+  if (!isRecord(value) || !isRecord(value.levels)) {
+    return null;
+  }
+
+  return normalizeBossCardState(value as unknown as BossCardState);
 }
 
 function readJson(storage: PlayerSaveStorage, key: string): unknown {

@@ -42,8 +42,18 @@ describe("content schemas", () => {
       errors: []
     });
     expect(starterContentBundle.resources.some((resource) => resource.id === "iron")).toBe(true);
+    expect(starterContentBundle.resources.some((resource) => resource.id === "elixir")).toBe(true);
+    expect(starterContentBundle.resources.some((resource) => resource.id === "boss_card_hit_damage")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "iron_ore")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "gold_cache")).toBe(true);
+    expect(starterContentBundle.blockTypes.every((blockType) => blockType.rewardTable.some((reward) => reward.resourceId === "elixir"))).toBe(
+      true
+    );
+    expect(
+      starterContentBundle.rewardChestTypes.every((chestType) =>
+        chestType.rewardTable.some((reward) => reward.resourceId.startsWith("boss_card_"))
+      )
+    ).toBe(true);
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.maxHiredGoblins, level.unlockedClasses])).toEqual([
       [1, 2, ["miner"]],
       [2, 3, ["miner", "builder"]],

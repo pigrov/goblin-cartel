@@ -4,6 +4,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   build: {
+    chunkSizeWarningLimit: 650,
     rolldownOptions: {
       output: {
         codeSplitting: {
@@ -14,7 +15,6 @@ export default defineConfig({
               test: /node_modules[\\/](react|react-dom)[\\/]/
             },
             {
-              maxSize: 420_000,
               name: "pixi-vendor",
               priority: 30,
               test: /node_modules[\\/](pixi\.js|@pixi)[\\/]/

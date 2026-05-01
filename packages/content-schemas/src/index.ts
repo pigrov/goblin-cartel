@@ -439,12 +439,52 @@ export const starterContentBundle: ContentBundle = {
       sortOrder: 35
     },
     {
+      id: "elixir",
+      nameKey: "resource.elixir.name",
+      iconAssetId: "icon_elixir_v1",
+      rarity: "rare",
+      storageType: "global",
+      sortOrder: 45
+    },
+    {
       id: "boss_energy",
       nameKey: "resource.boss_energy.name",
       iconAssetId: "icon_boss_energy_v1",
       rarity: "rare",
       storageType: "temporary",
       sortOrder: 50
+    },
+    {
+      id: "boss_card_hit_damage",
+      nameKey: "resource.boss_card_hit_damage.name",
+      iconAssetId: "icon_boss_card_hit_damage_v1",
+      rarity: "common",
+      storageType: "global",
+      sortOrder: 90
+    },
+    {
+      id: "boss_card_crit_chance",
+      nameKey: "resource.boss_card_crit_chance.name",
+      iconAssetId: "icon_boss_card_crit_chance_v1",
+      rarity: "rare",
+      storageType: "global",
+      sortOrder: 91
+    },
+    {
+      id: "boss_card_crit_multiplier",
+      nameKey: "resource.boss_card_crit_multiplier.name",
+      iconAssetId: "icon_boss_card_crit_multiplier_v1",
+      rarity: "legendary",
+      storageType: "global",
+      sortOrder: 92
+    },
+    {
+      id: "boss_card_max_energy",
+      nameKey: "resource.boss_card_max_energy.name",
+      iconAssetId: "icon_boss_card_max_energy_v1",
+      rarity: "common",
+      storageType: "global",
+      sortOrder: 93
     }
   ],
   blockTypes: [
@@ -460,7 +500,8 @@ export const starterContentBundle: ContentBundle = {
       },
       rewardTable: [
         { resourceId: "stone", min: 1, max: 3, chance: 1 },
-        { resourceId: "gold", min: 1, max: 5, chance: 0.05 }
+        { resourceId: "gold", min: 1, max: 5, chance: 0.05 },
+        { resourceId: "elixir", min: 1, max: 1, chance: 0.04 }
       ],
       specialBehavior: "none"
     },
@@ -474,7 +515,10 @@ export const starterContentBundle: ContentBundle = {
         cracked: "block_stone_cracked_v1",
         breaking: "block_stone_breaking_v1"
       },
-      rewardTable: [{ resourceId: "stone", min: 3, max: 8, chance: 1 }],
+      rewardTable: [
+        { resourceId: "stone", min: 3, max: 8, chance: 1 },
+        { resourceId: "elixir", min: 1, max: 1, chance: 0.06 }
+      ],
       specialBehavior: "none"
     },
     {
@@ -489,7 +533,8 @@ export const starterContentBundle: ContentBundle = {
       },
       rewardTable: [
         { resourceId: "copper_ore", min: 4, max: 12, chance: 1 },
-        { resourceId: "gold", min: 5, max: 15, chance: 0.1 }
+        { resourceId: "gold", min: 5, max: 15, chance: 0.1 },
+        { resourceId: "elixir", min: 1, max: 2, chance: 0.08 }
       ],
       specialBehavior: "none"
     },
@@ -505,7 +550,8 @@ export const starterContentBundle: ContentBundle = {
       },
       rewardTable: [
         { resourceId: "iron", min: 3, max: 9, chance: 1 },
-        { resourceId: "gold", min: 8, max: 18, chance: 0.08 }
+        { resourceId: "gold", min: 8, max: 18, chance: 0.08 },
+        { resourceId: "elixir", min: 1, max: 2, chance: 0.1 }
       ],
       specialBehavior: "none"
     },
@@ -521,7 +567,8 @@ export const starterContentBundle: ContentBundle = {
       },
       rewardTable: [
         { resourceId: "gold", min: 25, max: 80, chance: 1 },
-        { resourceId: "boss_energy", min: 5, max: 15, chance: 0.75 }
+        { resourceId: "boss_energy", min: 5, max: 15, chance: 0.75 },
+        { resourceId: "elixir", min: 2, max: 4, chance: 0.16 }
       ],
       specialBehavior: "none"
     }
@@ -630,7 +677,11 @@ export const starterContentBundle: ContentBundle = {
       rewardTable: [
         { resourceId: "gold", min: 90, max: 150, chance: 1 },
         { resourceId: "stone", min: 45, max: 90, chance: 1 },
-        { resourceId: "copper_ore", min: 15, max: 35, chance: 0.8 }
+        { resourceId: "copper_ore", min: 15, max: 35, chance: 0.8 },
+        { resourceId: "elixir", min: 4, max: 8, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 1, max: 2, chance: 0.8 },
+        { resourceId: "boss_card_crit_chance", min: 1, max: 1, chance: 0.45 },
+        { resourceId: "boss_card_max_energy", min: 1, max: 1, chance: 0.35 }
       ],
       assetId: "reward_chest_wooden_v1"
     },
@@ -642,7 +693,12 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", min: 160, max: 260, chance: 1 },
         { resourceId: "stone", min: 90, max: 160, chance: 1 },
         { resourceId: "copper_ore", min: 35, max: 80, chance: 1 },
-        { resourceId: "iron", min: 12, max: 28, chance: 0.35 }
+        { resourceId: "iron", min: 12, max: 28, chance: 0.35 },
+        { resourceId: "elixir", min: 8, max: 16, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 1, max: 3, chance: 1 },
+        { resourceId: "boss_card_crit_chance", min: 1, max: 2, chance: 0.75 },
+        { resourceId: "boss_card_crit_multiplier", min: 1, max: 1, chance: 0.45 },
+        { resourceId: "boss_card_max_energy", min: 1, max: 2, chance: 0.65 }
       ],
       assetId: "reward_chest_iron_v1"
     },
@@ -654,7 +710,12 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "gold", min: 280, max: 440, chance: 1 },
         { resourceId: "stone", min: 160, max: 260, chance: 1 },
         { resourceId: "copper_ore", min: 90, max: 150, chance: 1 },
-        { resourceId: "iron", min: 35, max: 90, chance: 0.75 }
+        { resourceId: "iron", min: 35, max: 90, chance: 0.75 },
+        { resourceId: "elixir", min: 16, max: 28, chance: 1 },
+        { resourceId: "boss_card_hit_damage", min: 2, max: 4, chance: 1 },
+        { resourceId: "boss_card_crit_chance", min: 1, max: 3, chance: 0.9 },
+        { resourceId: "boss_card_crit_multiplier", min: 1, max: 2, chance: 0.65 },
+        { resourceId: "boss_card_max_energy", min: 2, max: 4, chance: 0.9 }
       ],
       assetId: "reward_chest_steel_v1"
     }
@@ -1132,7 +1193,12 @@ export const starterContentBundle: ContentBundle = {
       "resource.stone.name": "Камень",
       "resource.copper_ore.name": "Медь",
       "resource.iron.name": "Железо",
+      "resource.elixir.name": "Эликсир",
       "resource.boss_energy.name": "Энергия босса",
+      "resource.boss_card_hit_damage.name": "Карта силы удара",
+      "resource.boss_card_crit_chance.name": "Карта критического шанса",
+      "resource.boss_card_crit_multiplier.name": "Золотая карта крита",
+      "resource.boss_card_max_energy.name": "Карта запаса энергии",
       "block.dirt.name": "Земля",
       "block.stone.name": "Камень",
       "block.copper_ore.name": "Медь",
@@ -1184,6 +1250,14 @@ export const starterContentBundle: ContentBundle = {
       "goblin_hut.level.2.name": "Навес бригады",
       "goblin_hut.level.3.name": "Складская хижина",
       "goblin_hut.level.4.name": "Большая артель",
+      "boss_card.hit_damage.name": "Сила удара",
+      "boss_card.hit_damage.description": "Каждый уровень увеличивает урон босса за тап.",
+      "boss_card.crit_chance.name": "Критический шанс",
+      "boss_card.crit_chance.description": "Каждый уровень повышает шанс критического удара.",
+      "boss_card.crit_multiplier.name": "Сила крита",
+      "boss_card.crit_multiplier.description": "Каждый уровень увеличивает множитель критического удара.",
+      "boss_card.max_energy.name": "Запас энергии",
+      "boss_card.max_energy.description": "Каждый уровень увеличивает максимальную энергию босса.",
       "ability.stone_biter.name": "Камнегрыз",
       "ability.stone_biter.description": "Наносит больше урона каменным блокам.",
       "ability.cheap_shift.name": "Дешевая смена",

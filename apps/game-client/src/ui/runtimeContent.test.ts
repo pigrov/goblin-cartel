@@ -51,4 +51,37 @@ describe("runtime content", () => {
     expect(runtimeMine?.cellMap.at(-1)).toMatchObject({ blockTypeId: "stone", row: 39 });
     expect(contentVersionWithRuntimeSuffix("0.0.4")).toBe("0.0.4");
   });
+
+  it("backfills boss card runtime resources and drops for already published content", () => {
+    const content = structuredClone(starterContentBundle);
+    content.resources = content.resources.filter((resource) => resource.id !== "elixir" && !resource.id.startsWith("boss_card_"));
+    content.blockTypes = content.blockTypes.map((blockType) => ({
+      ...blockType,
+      rewardTable: blockType.rewardTable.filter((reward) => reward.resourceId !== "elixir")
+    }));
+    content.rewardChestTypes = content.rewardChestTypes.map((chestType) => ({
+      ...chestType,
+      rewardTable: chestType.rewardTable.filter((reward) => reward.resourceId !== "elixir" && !reward.resourceId.startsWith("boss_card_"))
+    }));
+
+    const runtimeContent = createRuntimeContentBundle(content);
+
+    expect(runtimeContent.resources.map((resource) => resource.id)).toEqual(
+      expect.arrayContaining([
+        "elixir",
+        "boss_card_hit_damage",
+        "boss_card_crit_chance",
+        "boss_card_crit_multiplier",
+        "boss_card_max_energy"
+      ])
+    );
+    expect(runtimeContent.blockTypes.every((blockType) => blockType.rewardTable.some((reward) => reward.resourceId === "elixir"))).toBe(true);
+    expect(
+      runtimeContent.rewardChestTypes.every((chestType) =>
+        chestType.rewardTable.some((reward) => reward.resourceId.startsWith("boss_card_"))
+      )
+    ).toBe(true);
+    expect(runtimeContent.localization.ru?.["resource.elixir.name"]).toBe("Эликсир");
+    expect(runtimeContent.localization.ru?.["boss_card.hit_damage.name"]).toBe("Сила удара");
+  });
 });

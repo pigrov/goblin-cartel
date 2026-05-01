@@ -134,6 +134,16 @@ body,
   color: var(--gc-energy);
 }
 
+.resource-chip.elixir svg,
+.resource-chip.card svg {
+  color: #b17cff;
+}
+
+.resource-chip.elixir strong,
+.resource-chip.card strong {
+  color: #d9c1ff;
+}
+
 .resource-tooltip {
   position: absolute;
   top: 54px;
@@ -185,6 +195,12 @@ body,
   color: var(--gc-energy);
 }
 
+.resource-tooltip.elixir,
+.resource-tooltip.card {
+  border-color: rgb(177 124 255 / 58%);
+  color: #d9c1ff;
+}
+
 .mine-header {
   display: flex;
   align-items: center;
@@ -201,8 +217,10 @@ body,
   left: 10px;
   bottom: 68px;
   z-index: 18;
-  width: min(218px, calc(100% - 20px));
+  width: min(286px, calc(100% - 20px));
   display: grid;
+  grid-template-columns: minmax(0, 1fr) 54px;
+  gap: 6px;
   pointer-events: none;
 }
 
@@ -228,7 +246,8 @@ body,
 
 .icon-button,
 .bottom-nav button,
-.boss-energy-card {
+.boss-energy-card,
+.boss-cards-button {
   border: 1px solid var(--gc-border);
   color: var(--gc-text);
   background: var(--gc-panel-raised);
@@ -2759,6 +2778,245 @@ body,
   justify-items: end;
 }
 
+.boss-cards-button {
+  min-width: 0;
+  min-height: 36px;
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  padding: 5px 4px;
+  border-color: rgb(177 124 255 / 58%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 22%), rgb(99 61 151 / 20%)),
+    rgb(31 24 42 / 88%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 16%),
+    0 10px 24px rgb(0 0 0 / 30%);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.boss-cards-button svg {
+  color: #d9c1ff;
+}
+
+.boss-cards-button span {
+  overflow: hidden;
+  max-width: 100%;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-cards-modal {
+  width: min(392px, calc(100% - 24px));
+  max-height: min(760px, calc(100dvh - 34px));
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgb(177 124 255 / 24%);
+  border-radius: var(--gc-radius-md);
+  background:
+    radial-gradient(circle at 50% 0%, rgb(177 124 255 / 18%), transparent 35%),
+    rgb(24 18 31 / 94%);
+  color: var(--gc-text);
+  box-shadow: 0 26px 70px rgb(0 0 0 / 54%);
+}
+
+.boss-cards-modal > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.boss-cards-modal p,
+.boss-cards-modal strong {
+  margin: 0;
+}
+
+.boss-cards-modal header p {
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.boss-cards-modal header strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 18px;
+}
+
+.boss-cards-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.boss-cards-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.boss-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 74px;
+  align-items: center;
+  gap: 9px;
+  padding: 9px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)),
+    rgb(44 33 33 / 74%);
+}
+
+.boss-card.rare {
+  border-color: rgb(69 141 199 / 42%);
+}
+
+.boss-card.golden {
+  border-color: rgb(242 184 75 / 48%);
+}
+
+.boss-card-art {
+  width: 54px;
+  height: 72px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: var(--gc-radius-sm);
+  color: #d9c1ff;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 28%), transparent 28%),
+    linear-gradient(180deg, #6e4aa5, #2e2543);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
+}
+
+.boss-card.golden .boss-card-art {
+  color: #fff4bb;
+  background:
+    radial-gradient(circle at 50% 22%, rgb(255 255 255 / 32%), transparent 28%),
+    linear-gradient(180deg, #d8a43a, #5e3b17);
+}
+
+.boss-card-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.boss-card-title {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.boss-card-title span,
+.boss-card-copy p,
+.boss-card-effect span,
+.boss-card-progress span {
+  overflow: hidden;
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-card-title strong {
+  overflow: hidden;
+  color: var(--gc-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-card-copy p {
+  white-space: normal;
+  line-height: 1.25;
+}
+
+.boss-card-effect {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boss-card-effect strong,
+.boss-card-progress strong {
+  color: #d9c1ff;
+  font-size: 11px;
+}
+
+.boss-card-progress {
+  display: grid;
+  gap: 4px;
+}
+
+.boss-card-progress > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boss-card-progress i {
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 24%);
+}
+
+.boss-card-progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7a5cff, #d9c1ff);
+}
+
+.boss-card-progress.maxed {
+  min-height: 22px;
+  align-items: center;
+}
+
+.boss-card button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 1px solid rgb(177 124 255 / 56%);
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, #7b55b4, #4a326f);
+  color: var(--gc-text);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.boss-card button:disabled {
+  border-color: var(--gc-border);
+  background: var(--gc-panel-raised);
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.boss-cards-message {
+  min-height: 18px;
+  margin: 0;
+  color: #d9c1ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .goblin-info-icon {
   position: relative;
   width: 28px;
@@ -3147,6 +3405,13 @@ body,
 .chest-reward-flyout.energy,
 .reward-chest-reward.energy {
   color: var(--gc-energy);
+}
+
+.chest-reward-flyout.elixir,
+.chest-reward-flyout.card,
+.reward-chest-reward.elixir,
+.reward-chest-reward.card {
+  color: #d9c1ff;
 }
 
 .reward-chest-summary {

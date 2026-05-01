@@ -1,10 +1,14 @@
 import {
   applyBossAttack,
+  applyBossCardBonuses,
   applyPlatformAutoMining,
   assignBuiltMineCollector,
+  bossCardDefinitions,
   buildMineFromVein,
+  calculateBossCardUpgradeCost,
   calculateCrewAutoDamagePerSecond,
   createBossEnergyState,
+  createInitialBossCardState,
   createMiningSession,
   createInitialGoblinRoster,
   exportMiningSessionSave,
@@ -20,9 +24,13 @@ import {
   regenerateBossEnergy,
   restoreBossEnergyState,
   restoreMiningSession,
+  upgradeBossCard,
   upgradeGoblin,
   upgradeGoblinHut,
   upgradeBuiltMine,
+  type BossCardDefinition,
+  type BossCardId,
+  type BossCardState,
   type BossEnergyConfig,
   type BossEnergyState,
   type BuiltMineState,
@@ -41,7 +49,7 @@ import {
   type RewardChestTypeConfig,
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
-import { Coins, Gem, Hammer, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
+import { Coins, Gem, Hammer, Menu, Mountain, Pickaxe, RotateCcw, Sparkles, Users, Warehouse, X, Zap } from "lucide-react";
 import { type CSSProperties, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
@@ -92,8 +100,10 @@ import {
   type GoblinUpgradePreview
 } from "./goblinHutClientState";
 import {
+  loadStoredBossCards,
   loadStoredGoblinRoster,
   loadStoredMiningSession,
+  saveStoredBossCards,
   saveStoredGoblinRoster,
   saveStoredMiningSession,
   type StoredGoblinRoster,
@@ -131,7 +141,7 @@ type SpawnHitEffect = (
   rewards?: Record<string, number>
 ) => void;
 
-const bossEnergyConfig: BossEnergyConfig = {
+const baseBossEnergyConfig: BossEnergyConfig = {
   maxEnergy: 600,
   energyPerHit: 18,
   regenPerSecond: 6,
@@ -139,7 +149,7 @@ const bossEnergyConfig: BossEnergyConfig = {
   critChance: 0.12,
   critMultiplier: 2
 };
-const bossEnergyTickMs = Math.max(bossEnergyMinTickMs, Math.round(1000 / Math.max(1, bossEnergyConfig.regenPerSecond)));
+const bossEnergyTickMs = Math.max(bossEnergyMinTickMs, Math.round(1000 / Math.max(1, baseBossEnergyConfig.regenPerSecond)));
 const initialContentBundle = starterContentBundle;
 
 interface ContentState {
@@ -249,7 +259,10 @@ export function App() {
   const [rewardChestStage, setRewardChestStage] = useState<RewardChestStage>("closed");
   const [chestRewardFlyouts, setChestRewardFlyouts] = useState<ChestRewardFlyout[]>([]);
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
-  const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(bossEnergyConfig, Date.now()));
+  const [bossCards, setBossCards] = useState<BossCardState>(() => createInitialBossCardState());
+  const [bossCardsOpen, setBossCardsOpen] = useState(false);
+  const [bossCardsMessage, setBossCardsMessage] = useState<string | null>(null);
+  const [bossEnergy, setBossEnergy] = useState<BossEnergyState>(() => createBossEnergyState(baseBossEnergyConfig, Date.now()));
   const [bossDetailsOpen, setBossDetailsOpen] = useState(false);
   const [bossEnergyFeedback, setBossEnergyFeedback] = useState(false);
   const [clockNow, setClockNow] = useState(() => Date.now());
@@ -313,7 +326,12 @@ export function App() {
             message: "Опубликованный контент"
           };
           const nextRoster = createRestoredGoblinRoster(runtimeContent);
-          const restoredMining = createRestoredMiningState(runtimeContent, nextRoster);
+          const nextBossCards = loadStoredBossCards();
+          const restoredMining = createRestoredMiningState(
+            runtimeContent,
+            nextRoster,
+            applyBossCardBonuses(baseBossEnergyConfig, nextBossCards)
+          );
           setContentState({
             ...nextContentState
           });
@@ -325,6 +343,7 @@ export function App() {
           setOfflineSummary(restoredMining.offlineSummary);
           setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
           setGoblinPlacements(restoredMining.goblinPlacements);
+          setBossCards(nextBossCards);
           setBossEnergy(restoredMining.bossEnergy);
           setBuiltMines(restoredMining.builtMines);
           setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
@@ -332,6 +351,8 @@ export function App() {
           setPendingRewardChest(null);
           setRewardChestStage("closed");
           setChestRewardFlyouts([]);
+          setBossCardsOpen(false);
+          setBossCardsMessage(null);
           setBuiltMineMessage(null);
           setFoundVeinNotice(null);
           setClockNow(Date.now());
@@ -403,6 +424,14 @@ export function App() {
 
     saveGoblinRoster(contentState.version, roster);
   }, [contentState.version, roster, sessionReady]);
+
+  useEffect(() => {
+    if (!sessionReady) {
+      return;
+    }
+
+    saveStoredBossCards(bossCards);
+  }, [bossCards, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -496,9 +525,10 @@ export function App() {
     contentState.content.mineTemplates.find((template) => template.id === session.mine.templateId) ?? contentState.content.mineTemplates[0];
   const labels = useMemo(() => createLabels(contentState.content), [contentState.content]);
   const displayedResources = useMemo(
-    () => contentState.content.resources.filter((resource) => resource.id !== "boss_energy").slice(0, 4),
+    () => contentState.content.resources.filter((resource) => resource.id !== "boss_energy" && !isBossCardResourceId(resource.id)).slice(0, 5),
     [contentState.content.resources]
   );
+  const bossEnergyConfig = useMemo(() => applyBossCardBonuses(baseBossEnergyConfig, bossCards), [bossCards]);
   const availableGoblins = useMemo(() => createAvailableGoblins(contentState.content), [contentState.content]);
   const hiredGoblins = useMemo(
     () => availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)),
@@ -1354,6 +1384,29 @@ export function App() {
     setRosterMessage(`Хижина уровень ${result.roster.hutLevel ?? 1}.`);
   }
 
+  function handleUpgradeBossCard(cardId: BossCardId) {
+    const result = upgradeBossCard({
+      cardId,
+      resources: session.resources,
+      state: bossCards
+    });
+
+    if (!result.ok) {
+      setBossCardsMessage(messageForBossCardUpgradeFailure(result.reason));
+      return;
+    }
+
+    const card = bossCardDefinitions.find((definition) => definition.id === cardId);
+    setBossCards(result.state);
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: result.resources
+    }));
+    syncVisibleResourceAmounts(result.resources);
+    setBossCardsMessage(`${bossCardName(card, labels)} уровень ${result.state.levels[cardId] ?? 0}.`);
+  }
+
   return (
     <main className="game-shell">
       <section className="phone-frame" aria-label="Игровой экран">
@@ -1477,25 +1530,29 @@ export function App() {
 
         {activeSection === "mine" && sessionReady ? (
           <section className="boss-panel">
-          <button
-            className={bossEnergyFeedback ? "boss-energy-card warn" : "boss-energy-card"}
-            onClick={() => setBossDetailsOpen(true)}
-            type="button"
-          >
-            <span className="boss-energy-tank" aria-hidden="true">
-              <i style={{ height: `${bossEnergyPercent}%` }} />
-            </span>
-            <span className="boss-energy-main">
-              <span>Энергия босса</span>
-              <strong>
-                {formatInteger(displayedBossEnergy)}/{bossEnergyConfig.maxEnergy}
-              </strong>
-            </span>
-            <span className="boss-energy-stats">
-              <span>{bossEnergyConfig.damagePerTap} урон</span>
-              <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
-            </span>
-          </button>
+            <button
+              className={bossEnergyFeedback ? "boss-energy-card warn" : "boss-energy-card"}
+              onClick={() => setBossDetailsOpen(true)}
+              type="button"
+            >
+              <span className="boss-energy-tank" aria-hidden="true">
+                <i style={{ height: `${bossEnergyPercent}%` }} />
+              </span>
+              <span className="boss-energy-main">
+                <span>Энергия босса</span>
+                <strong>
+                  {formatInteger(displayedBossEnergy)}/{bossEnergyConfig.maxEnergy}
+                </strong>
+              </span>
+              <span className="boss-energy-stats">
+                <span>{bossEnergyConfig.damagePerTap} урон</span>
+                <span>+{bossEnergyConfig.regenPerSecond}/сек</span>
+              </span>
+            </button>
+            <button className="boss-cards-button" onClick={() => setBossCardsOpen(true)} type="button" aria-label="Карты босса">
+              <Sparkles size={18} />
+              <span>Карты</span>
+            </button>
           </section>
         ) : null}
 
@@ -1698,6 +1755,18 @@ export function App() {
           </div>
         ) : null}
 
+        {bossCardsOpen ? (
+          <BossCardsModal
+            cards={bossCardDefinitions}
+            labels={labels}
+            message={bossCardsMessage}
+            onClose={() => setBossCardsOpen(false)}
+            onUpgrade={handleUpgradeBossCard}
+            resources={session.resources}
+            state={bossCards}
+          />
+        ) : null}
+
         <nav className="bottom-nav" aria-label="Основная навигация">
           <button className={activeSection === "mine" ? "active" : ""} onClick={() => setActiveSection("mine")} type="button">
             <Pickaxe size={18} />
@@ -1745,7 +1814,11 @@ function createSession(
   };
 }
 
-function createRestoredMiningState(content: ContentBundle, roster: GoblinRosterState): RestoredMiningState {
+function createRestoredMiningState(
+  content: ContentBundle,
+  roster: GoblinRosterState,
+  bossEnergyConfig: BossEnergyConfig
+): RestoredMiningState {
   const storedSave = loadStoredMiningSession();
   const hiredGoblins = createHiredGoblins(content, roster);
   const hiredCollectorGoblins = hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0);
@@ -2040,6 +2113,14 @@ function ResourceChip(props: {
 }
 
 function ResourceIcon(props: { resourceId: string; size: number }) {
+  if (isBossCardResourceId(props.resourceId)) {
+    return <Sparkles size={props.size} />;
+  }
+
+  if (props.resourceId.includes("elixir")) {
+    return <Zap size={props.size} />;
+  }
+
   if (props.resourceId.includes("gold")) {
     return <Coins size={props.size} />;
   }
@@ -2160,6 +2241,90 @@ function BossStat(props: { label: string; value: string }) {
     <div className="boss-stat">
       <span>{props.label}</span>
       <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function BossCardsModal(props: {
+  cards: BossCardDefinition[];
+  labels: Record<string, string>;
+  message: string | null;
+  onClose: () => void;
+  onUpgrade: (cardId: BossCardId) => void;
+  resources: Record<string, number>;
+  state: BossCardState;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section className="boss-cards-modal" aria-label="Карты босса" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <p>Босс</p>
+            <strong>Карты удара</strong>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="boss-cards-list">
+          {props.cards.map((card) => {
+            const level = props.state.levels[card.id] ?? 0;
+            const cost = calculateBossCardUpgradeCost(card, props.state);
+            const availableCards = props.resources[card.cardResourceId] ?? 0;
+            const availableElixir = props.resources.elixir ?? 0;
+            const cardProgress = cost ? Math.min(100, (availableCards / cost.cardAmount) * 100) : 100;
+            const canUpgrade = Boolean(cost && availableCards >= cost.cardAmount && availableElixir >= cost.elixirAmount);
+
+            return (
+              <article className={`boss-card ${card.rarity}`} key={card.id}>
+                <div className="boss-card-art" aria-hidden="true">
+                  <Sparkles size={22} />
+                </div>
+                <div className="boss-card-copy">
+                  <div className="boss-card-title">
+                    <span>{bossCardRarityLabel(card.rarity)}</span>
+                    <strong>{bossCardName(card, props.labels)}</strong>
+                  </div>
+                  <p>{bossCardDescription(card, props.labels)}</p>
+                  <div className="boss-card-effect">
+                    <span>Ур. {level}</span>
+                    <strong>{bossCardEffectLabel(card)}</strong>
+                  </div>
+                  {cost ? (
+                    <div className="boss-card-progress">
+                      <div>
+                        <span>Карты</span>
+                        <strong>
+                          {formatInteger(Math.min(availableCards, cost.cardAmount))}/{formatInteger(cost.cardAmount)}
+                        </strong>
+                      </div>
+                      <i aria-hidden="true">
+                        <b style={{ width: `${cardProgress}%` }} />
+                      </i>
+                      <div>
+                        <span>Эликсир</span>
+                        <strong>
+                          {formatInteger(Math.min(availableElixir, cost.elixirAmount))}/{formatInteger(cost.elixirAmount)}
+                        </strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="boss-card-progress maxed">
+                      <strong>Максимальный уровень</strong>
+                    </div>
+                  )}
+                </div>
+                <button disabled={!canUpgrade} onClick={() => props.onUpgrade(card.id)} type="button">
+                  {cost ? "Улучшить" : "Макс."}
+                </button>
+              </article>
+            );
+          })}
+        </div>
+
+        {props.message ? <p className="boss-cards-message">{props.message}</p> : null}
+      </section>
     </div>
   );
 }
@@ -3001,6 +3166,14 @@ function clearRewardChestSummaryTimer(timeoutRef: { current: number | null }): v
 }
 
 function resourceClassName(resourceId: string): string {
+  if (isBossCardResourceId(resourceId)) {
+    return "card";
+  }
+
+  if (resourceId.includes("elixir")) {
+    return "elixir";
+  }
+
   if (resourceId.includes("gold")) {
     return "gold";
   }
@@ -3018,6 +3191,72 @@ function resourceClassName(resourceId: string): string {
   }
 
   return "stone";
+}
+
+function isBossCardResourceId(resourceId: string): boolean {
+  return resourceId.startsWith("boss_card_");
+}
+
+function bossCardName(card: BossCardDefinition | undefined, labels: Record<string, string>): string {
+  if (!card) {
+    return "Карта";
+  }
+
+  return labelFromNameKey(card.nameKey, bossCardFallbackName(card.id), labels);
+}
+
+function bossCardDescription(card: BossCardDefinition, labels: Record<string, string>): string {
+  return labelFromNameKey(card.descriptionKey, bossCardFallbackDescription(card.id), labels);
+}
+
+function bossCardFallbackName(cardId: BossCardId): string {
+  switch (cardId) {
+    case "crit_chance":
+      return "Критический шанс";
+    case "crit_multiplier":
+      return "Сила крита";
+    case "hit_damage":
+      return "Сила удара";
+    case "max_energy":
+      return "Запас энергии";
+  }
+}
+
+function bossCardFallbackDescription(cardId: BossCardId): string {
+  switch (cardId) {
+    case "crit_chance":
+      return "Повышает шанс критического удара.";
+    case "crit_multiplier":
+      return "Увеличивает множитель критического удара.";
+    case "hit_damage":
+      return "Увеличивает урон босса за тап.";
+    case "max_energy":
+      return "Увеличивает максимальную энергию босса.";
+  }
+}
+
+function bossCardRarityLabel(rarity: BossCardDefinition["rarity"]): string {
+  switch (rarity) {
+    case "golden":
+      return "золотая";
+    case "rare":
+      return "редкая";
+    case "common":
+      return "обычная";
+  }
+}
+
+function bossCardEffectLabel(card: BossCardDefinition): string {
+  switch (card.effectType) {
+    case "critChance":
+      return `+${formatPercent(card.valuePerLevel)}/ур.`;
+    case "critMultiplier":
+      return `+${formatNumber(card.valuePerLevel)}x/ур.`;
+    case "damagePerTap":
+      return `+${formatNumber(card.valuePerLevel)} урон/ур.`;
+    case "maxEnergy":
+      return `+${formatNumber(card.valuePerLevel)} энергия/ур.`;
+  }
 }
 
 function resourceLabel(
@@ -3413,6 +3652,19 @@ function messageForGoblinHutUpgradeFailure(reason: string): string {
       return "Хижина уже на максимальном уровне.";
     default:
       return "Хижина не улучшена.";
+  }
+}
+
+function messageForBossCardUpgradeFailure(reason: string): string {
+  switch (reason) {
+    case "max_level":
+      return "Карта уже на максимальном уровне.";
+    case "not_enough_cards":
+      return "Не хватает копий карты.";
+    case "not_enough_elixir":
+      return "Не хватает Эликсира.";
+    default:
+      return "Карта не улучшена.";
   }
 }
 

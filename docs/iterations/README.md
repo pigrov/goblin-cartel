@@ -73,3 +73,4 @@
 - `0068_hut_upgrade_progression` - added content-driven Hut upgrades with hired-goblin limits, role unlocks, hire/leveling discounts, progress-gated requirements, game UI, and admin editing.
 - `0069_hut_balance_ci_chunks_visuals` - updated GitHub Actions to v5, split the game-client bundle, rebalanced Hut upgrade costs/requirements, and added level-based Hut visuals.
 - `0070_base_screen_save_migrations` - separated Base upgrades from goblin management and added stable player save migration so content version updates do not reset progress.
+- `0071_boss_cards_elixir_pixi_stable` - added Boss cards with Elixir upgrades and stabilized Pixi production chunking to fix the main screen crash.
