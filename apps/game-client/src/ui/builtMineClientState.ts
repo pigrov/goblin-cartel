@@ -6,6 +6,7 @@ import {
   calculateBuiltMineUpgradeStats,
   canBuildMineFromVein,
   collectBuiltMineIncome,
+  type BuiltMineUpgradeConfig,
   type BuiltMineState,
   type CollectBuiltMineIncomeResult,
   type MiningFoundVein,
@@ -174,17 +175,19 @@ export function isBuiltMineStorageFull(builtMine: BuiltMineState): boolean {
 
 export function createBuiltMineUpgradePreview(
   builtMine: BuiltMineState,
-  resources: Record<string, number>
+  resources: Record<string, number>,
+  upgrade?: BuiltMineUpgradeConfig
 ): BuiltMineUpgradePreview {
-  const isMaxLevel = builtMine.level >= builtMineMaxLevel;
-  const cost = calculateBuiltMineUpgradeCost(builtMine);
+  const maxLevel = upgrade?.maxLevel ?? builtMineMaxLevel;
+  const isMaxLevel = builtMine.level >= maxLevel;
+  const cost = calculateBuiltMineUpgradeCost(builtMine, { upgrade });
   const nextStats = isMaxLevel
     ? {
         capacity: builtMine.capacity,
         level: builtMine.level,
         productionPerHour: builtMine.productionPerHour
       }
-    : calculateBuiltMineUpgradeStats(builtMine);
+    : calculateBuiltMineUpgradeStats(builtMine, upgrade);
   const costRequirements = createBuildCostRequirements(cost, resources);
   const hasEnoughResources = costRequirements.every((requirement) => requirement.ok);
   const failureReason =
@@ -201,8 +204,8 @@ export function createBuiltMineUpgradePreview(
     capacityAfter: nextStats.capacity,
     costRequirements,
     failureReason,
-    levelAfter: Math.min(nextStats.level, builtMineMaxLevel),
-    maxLevel: builtMineMaxLevel,
+    levelAfter: Math.min(nextStats.level, maxLevel),
+    maxLevel,
     productionPerHourAfter: nextStats.productionPerHour
   };
 }

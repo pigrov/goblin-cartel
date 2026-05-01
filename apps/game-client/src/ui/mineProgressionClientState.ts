@@ -41,7 +41,7 @@ export function canMoveToNextMine(input: {
   mineTemplates: readonly MineTemplateConfig[];
   session: MiningSession;
 }): boolean {
-  return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasActiveBuiltMineFromSession(input.session, input.builtMines);
+  return Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId)) && hasFoundVeinFromSession(input.session);
 }
 
 export function getMineProgressionStatus(input: {
@@ -50,17 +50,18 @@ export function getMineProgressionStatus(input: {
   session: MiningSession;
 }): MineProgressionStatus {
   const hasNextMine = Boolean(findNextMineTemplate(input.mineTemplates, input.session.mine.templateId));
+
+  if (!hasFoundVeinFromSession(input.session)) {
+    return "digging";
+  }
+
+  if (hasNextMine) {
+    return "next_available";
+  }
+
   const builtMine = findBuiltMineFromSession(input.session, input.builtMines);
 
-  if (!builtMine) {
-    return hasFoundVeinFromSession(input.session) ? "vein_found" : "digging";
-  }
-
-  if (builtMine.status !== "active") {
-    return "mine_building";
-  }
-
-  return hasNextMine ? "next_available" : "complete_no_next";
+  return builtMine?.status === "building" ? "mine_building" : "complete_no_next";
 }
 
 export function shouldShowMineCompletionNotice(input: {

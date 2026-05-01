@@ -498,11 +498,15 @@ export function App() {
   );
   const builtMineUpgradePreviews = useMemo(() => {
     const progressedBuiltMines = createVisibleBuiltMines(builtMines, clockNow);
+    const builtMineTypesById = new Map(contentState.content.builtMineTypes.map((builtMineType) => [builtMineType.id, builtMineType]));
 
     return new Map(
-      progressedBuiltMines.map((builtMine) => [builtMine.id, createBuiltMineUpgradePreview(builtMine, session.resources)])
+      progressedBuiltMines.map((builtMine) => [
+        builtMine.id,
+        createBuiltMineUpgradePreview(builtMine, session.resources, builtMineTypesById.get(builtMine.typeId)?.upgrade)
+      ])
     );
-  }, [builtMines, clockNow, session.resources]);
+  }, [builtMines, clockNow, contentState.content.builtMineTypes, session.resources]);
   const collectorPickerBuiltMine = useMemo(
     () => visibleBuiltMines.find((builtMine) => builtMine.id === collectorPickerMineId) ?? null,
     [collectorPickerMineId, visibleBuiltMines]
@@ -881,7 +885,7 @@ export function App() {
     }
 
     if (!canStartNextMine) {
-      setBuiltMineMessage("Сначала построй шахту из найденной жилы.");
+      setBuiltMineMessage("Сначала полностью расчисти текущий рудник.");
       return;
     }
 
@@ -1028,7 +1032,7 @@ export function App() {
   function handleDismissMineCompletionNotice() {
     setMineCompletionNoticeOpen(false);
     setMineCompletionNoticeSeenIds((current) => markMineCompletionNoticeSeen(current, session.mine.templateId));
-    setBuiltMineMessage("Можно перейти к следующему руднику из меню шахт.");
+    setBuiltMineMessage("Следующий рудник доступен из меню шахт.");
   }
 
   function showResourceTooltip(resource: ResourceConfig, value: number) {
@@ -1167,7 +1171,8 @@ export function App() {
     const result = upgradeBuiltMine({
       builtMine,
       now: Date.now(),
-      resources: sessionRef.current.resources
+      resources: sessionRef.current.resources,
+      upgrade: contentState.content.builtMineTypes.find((builtMineType) => builtMineType.id === builtMine.typeId)?.upgrade
     });
 
     if (!result.ok) {
@@ -1455,8 +1460,8 @@ export function App() {
               </div>
               <div className="mine-complete-summary">
                 <div>
-                  <span>Жила закреплена</span>
-                  <strong>Постоянная шахта построена</strong>
+                  <span>Жила найдена</span>
+                  <strong>Рудник полностью расчищен</strong>
                 </div>
                 <div>
                   <span>Открыт маршрут</span>
@@ -2310,8 +2315,7 @@ function BuiltMinesSection(props: {
                             Уровень {builtMine.level} → {upgradePreview.levelAfter}
                           </strong>
                           <small>
-                            {formatNumber(builtMine.productionPerHour)} → {formatNumber(upgradePreview.productionPerHourAfter)}/ч ·{" "}
-                            {formatNumber(builtMine.capacity)} → {formatNumber(upgradePreview.capacityAfter)}
+                            После: {formatNumber(upgradePreview.productionPerHourAfter)}/ч · вместимость {formatNumber(upgradePreview.capacityAfter)}
                           </small>
                         </span>
                         <div className="build-cost-list">

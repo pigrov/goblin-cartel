@@ -827,6 +827,10 @@
   grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(86px, 0.7fr)) auto;
 }
 
+.content-upgrade-cost-row {
+  grid-template-columns: minmax(150px, 1.2fr) repeat(3, minmax(86px, 0.7fr)) auto;
+}
+
 .content-nested-card {
   display: grid;
   gap: 9px;

@@ -44,6 +44,14 @@ describe("content schemas", () => {
     expect(starterContentBundle.resources.some((resource) => resource.id === "iron")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "iron_ore")).toBe(true);
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "gold_cache")).toBe(true);
+    expect(starterContentBundle.mineTemplates).toHaveLength(5);
+    expect(starterContentBundle.mineTemplates.map((mineTemplate) => [mineTemplate.difficultyStart, mineTemplate.difficultyEnd])).toEqual([
+      [1, 1.15],
+      [1.05, 1.2],
+      [1.1, 1.25],
+      [1.15, 1.3],
+      [1.2, 1.35]
+    ]);
     expect(starterContentBundle.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
   });
 
@@ -199,6 +207,26 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("builtMineTypes.small_copper_mine references missing production resource missing_resource");
+  });
+
+  it("rejects built mine configs with missing upgrade cost resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const builtMine = broken.builtMineTypes.find((item) => item.id === "small_copper_mine");
+
+    if (builtMine) {
+      builtMine.upgrade.cost.push({
+        resourceId: "missing_resource",
+        useProductionResource: false,
+        baseAmount: 10,
+        levelMultiplier: 1,
+        levelPower: 1
+      });
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("builtMineTypes.small_copper_mine.upgrade.cost.2 references missing resource missing_resource");
   });
 
   it("accepts legacy content without localization", () => {

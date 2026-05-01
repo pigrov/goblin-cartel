@@ -212,8 +212,15 @@
         { "resourceId": "stone", "amount": 120 }
       ],
       "buildTimeSec": 60,
-      "upgradeCurveId": "basic_mine_curve_01",
-      "mergeGroupId": "copper_mines",
+      "upgrade": {
+        "maxLevel": 5,
+        "productionMultiplier": 1.35,
+        "capacityMultiplier": 1.4,
+        "cost": [
+          { "useProductionResource": true, "baseAmount": 60, "levelMultiplier": 1, "levelPower": 1 },
+          { "resourceId": "gold", "useProductionResource": false, "baseAmount": 100, "levelMultiplier": 1, "levelPower": 1.35 }
+        ]
+      },
       "assetId": "built_mine_copper_small_v1"
     }
   ]

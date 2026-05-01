@@ -57,7 +57,16 @@ const builtMineType: BuiltMineTypeConfig = {
   id: "small_copper_mine",
   nameKey: "built_mine.small_copper.name",
   productionResourceId: "copper_ore",
-  sourceVeinType: "copper_vein_small"
+  sourceVeinType: "copper_vein_small",
+  upgrade: {
+    capacityMultiplier: 1.4,
+    cost: [
+      { useProductionResource: true, baseAmount: 60, levelMultiplier: 1, levelPower: 1 },
+      { resourceId: "gold", useProductionResource: false, baseAmount: 100, levelMultiplier: 1, levelPower: 1.35 }
+    ],
+    maxLevel: 5,
+    productionMultiplier: 1.35
+  }
 };
 
 const collector = {

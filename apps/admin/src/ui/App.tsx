@@ -133,6 +133,7 @@ const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind 
   { value: "builtMineTypes", label: "Типы шахт" },
   { value: "rewardChestTypes", label: "Сундуки" }
 ];
+const upgradeCostProductionResourceValue = "__production_resource__";
 
 const goblinClassOptions = [
   { value: "miner", label: "Шахтер" },
@@ -1455,6 +1456,36 @@ function renderEntityFields(
         updateField={updateField}
         updateFields={updateFields}
       />
+      <section className="content-nested-section">
+        <header>
+          <strong>Улучшения шахты</strong>
+        </header>
+        <div className="content-form-grid">
+          <ContentTextField label="Макс. уровень" name="upgradeMaxLevel" onChange={updateField} type="number" value={formState.upgradeMaxLevel} />
+          <ContentTextField
+            label="Множитель добычи"
+            name="upgradeProductionMultiplier"
+            onChange={updateField}
+            type="number"
+            value={formState.upgradeProductionMultiplier}
+          />
+          <ContentTextField
+            label="Множитель вместимости"
+            name="upgradeCapacityMultiplier"
+            onChange={updateField}
+            type="number"
+            value={formState.upgradeCapacityMultiplier}
+          />
+        </div>
+      </section>
+      <ContentMineUpgradeCostRows
+        content={content}
+        formState={formState}
+        prefix="upgradeCost"
+        title="Стоимость улучшения"
+        updateField={updateField}
+        updateFields={updateFields}
+      />
     </>
   );
 }
@@ -1581,6 +1612,78 @@ function ContentResourceAmountRows(props: {
             disabled={count <= 1}
             onClick={() =>
               props.updateFields(removeIndexedFormRow(props.formState, props.prefix, index, ["ResourceId", "Amount"], count))
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentMineUpgradeCostRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  prefix: string;
+  title: string;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, `${props.prefix}Count`, 1);
+  const sourceOptions = mineUpgradeCostSourceOptions(props.content);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить строку"
+      onAdd={() =>
+        props.updateFields({
+          [`${props.prefix}BaseAmount_${count}`]: "",
+          [`${props.prefix}Count`]: String(count + 1),
+          [`${props.prefix}LevelMultiplier_${count}`]: "1",
+          [`${props.prefix}LevelPower_${count}`]: "1",
+          [`${props.prefix}Source_${count}`]: upgradeCostProductionResourceValue
+        })
+      }
+      title={props.title}
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row content-upgrade-cost-row" key={`${props.prefix}-${index}`}>
+          <ContentSelectField
+            label="Ресурс"
+            name={`${props.prefix}Source_${index}`}
+            onChange={props.updateField}
+            options={sourceOptions}
+            value={props.formState[`${props.prefix}Source_${index}`]}
+          />
+          <ContentTextField
+            label="База"
+            name={`${props.prefix}BaseAmount_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}BaseAmount_${index}`]}
+          />
+          <ContentTextField
+            label="Множитель уровня"
+            name={`${props.prefix}LevelMultiplier_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}LevelMultiplier_${index}`]}
+          />
+          <ContentTextField
+            label="Степень"
+            name={`${props.prefix}LevelPower_${index}`}
+            onChange={props.updateField}
+            type="number"
+            value={props.formState[`${props.prefix}LevelPower_${index}`]}
+          />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(
+                removeIndexedFormRow(props.formState, props.prefix, index, ["Source", "BaseAmount", "LevelMultiplier", "LevelPower"], count)
+              )
             }
             type="button"
           >
@@ -2408,6 +2511,8 @@ function createMineTemplateFormState(entity: ContentRecord, content: ContentBund
 
 function createBuiltMineTypeFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
   const buildCost = arrayField(entity, "buildCost");
+  const upgrade = recordField(entity, "upgrade");
+  const upgradeCost = arrayField(upgrade, "cost");
 
   return {
     assetId: stringField(entity, "assetId"),
@@ -2418,7 +2523,11 @@ function createBuiltMineTypeFormState(entity: ContentRecord, content: ContentBun
     productionResourceId: stringField(entity, "productionResourceId") || findResourceId(content, "gold"),
     sourceVeinType: stringField(entity, "sourceVeinType") || stringField((content.veinTypes ?? [])[0] ?? {}, "id"),
     title: localizationValue(content, stringField(entity, "nameKey")),
-    ...createResourceAmountFormState("buildCost", buildCost, content, "stone")
+    upgradeCapacityMultiplier: numberString(numberField(upgrade, "capacityMultiplier", 1.4)),
+    upgradeMaxLevel: numberString(numberField(upgrade, "maxLevel", 5)),
+    upgradeProductionMultiplier: numberString(numberField(upgrade, "productionMultiplier", 1.35)),
+    ...createResourceAmountFormState("buildCost", buildCost, content, "stone"),
+    ...createMineUpgradeCostFormState("upgradeCost", upgradeCost)
   };
 }
 
@@ -2447,6 +2556,41 @@ function createResourceAmountFormState(
     const row = recordAt(rows, index);
     state[`${prefix}Amount_${index}`] = numberString(numberField(row, "amount", 0));
     state[`${prefix}ResourceId_${index}`] = stringField(row, "resourceId") || findResourceId(content, fallbackResourceId);
+  }
+
+  return state;
+}
+
+function createMineUpgradeCostFormState(prefix: string, rows: ContentRecord[]): EntityFormState {
+  const fallbackRows =
+    rows.length > 0
+      ? rows
+      : [
+          {
+            baseAmount: 60,
+            levelMultiplier: 1,
+            levelPower: 1,
+            useProductionResource: true
+          },
+          {
+            baseAmount: 100,
+            levelMultiplier: 1,
+            levelPower: 1.35,
+            resourceId: "gold"
+          }
+        ];
+  const count = Math.max(1, fallbackRows.length);
+  const state: EntityFormState = {
+    [`${prefix}Count`]: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const row = recordAt(fallbackRows, index);
+    state[`${prefix}BaseAmount_${index}`] = numberString(numberField(row, "baseAmount", 1));
+    state[`${prefix}LevelMultiplier_${index}`] = numberString(numberField(row, "levelMultiplier", 1));
+    state[`${prefix}LevelPower_${index}`] = numberString(numberField(row, "levelPower", 1));
+    state[`${prefix}Source_${index}`] =
+      row.useProductionResource === true ? upgradeCostProductionResourceValue : stringField(row, "resourceId") || "gold";
   }
 
   return state;
@@ -2628,7 +2772,11 @@ function validateBuiltMineTypeForm(state: EntityFormState, content: ContentBundl
   validateNumberField(state, "baseProductionPerHour", "Добыча в час", errors, { min: 0.01 });
   validateNumberField(state, "baseCapacity", "Вместимость", errors, { min: 0.01 });
   validateIntegerField(state, "buildTimeSec", "Стройка", errors, { min: 0 });
+  validateIntegerField(state, "upgradeMaxLevel", "Макс. уровень улучшения", errors, { min: 1 });
+  validateNumberField(state, "upgradeProductionMultiplier", "Множитель добычи", errors, { min: 1 });
+  validateNumberField(state, "upgradeCapacityMultiplier", "Множитель вместимости", errors, { min: 1 });
   validateResourceAmountRows(state, "buildCost", "Стоимость строительства", content, errors);
+  validateMineUpgradeCostRows(state, "upgradeCost", "Стоимость улучшения", content, errors);
 }
 
 function validateRewardChestTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -2667,6 +2815,30 @@ function validateResourceAmountRows(
     if (!resourceIdSet(content).has(resourceId)) {
       errors.push(`${label} ${index + 1}: ресурс не найден.`);
     }
+  }
+}
+
+function validateMineUpgradeCostRows(
+  state: EntityFormState,
+  prefix: string,
+  label: string,
+  content: ContentBundle,
+  errors: string[]
+) {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const resourceIds = resourceIdSet(content);
+
+  for (let index = 0; index < count; index += 1) {
+    const rowLabel = `${label} ${index + 1}`;
+    const source = formValue(state, `${prefix}Source_${index}`);
+
+    if (source !== upgradeCostProductionResourceValue && !resourceIds.has(source)) {
+      errors.push(`${rowLabel}: ресурс не найден.`);
+    }
+
+    validateIntegerField(state, `${prefix}BaseAmount_${index}`, `${rowLabel}: база`, errors, { min: 1 });
+    validateNumberField(state, `${prefix}LevelMultiplier_${index}`, `${rowLabel}: множитель уровня`, errors, { min: 0.01 });
+    validateNumberField(state, `${prefix}LevelPower_${index}`, `${rowLabel}: степень`, errors, { min: 0 });
   }
 }
 
@@ -2909,7 +3081,13 @@ function applyBuiltMineTypeForm(content: ContentBundle, selectedId: string, stat
     id,
     nameKey,
     productionResourceId: formValue(state, "productionResourceId"),
-    sourceVeinType: formValue(state, "sourceVeinType")
+    sourceVeinType: formValue(state, "sourceVeinType"),
+    upgrade: {
+      capacityMultiplier: toNumber(state.upgradeCapacityMultiplier),
+      cost: createMineUpgradeCostFromForm(state, "upgradeCost"),
+      maxLevel: toInteger(state.upgradeMaxLevel),
+      productionMultiplier: toNumber(state.upgradeProductionMultiplier)
+    }
   };
 
   return {
@@ -2994,6 +3172,41 @@ function createResourceAmountsFromForm(state: EntityFormState, prefix: string): 
     if (amount > 0 && resourceId) {
       rows.push({ amount, resourceId });
     }
+  }
+
+  return rows;
+}
+
+function createMineUpgradeCostFromForm(
+  state: EntityFormState,
+  prefix: string
+): Array<{ baseAmount: number; levelMultiplier: number; levelPower: number; resourceId?: string; useProductionResource?: boolean }> {
+  const count = formCount(state, `${prefix}Count`, 1);
+  const rows: Array<{ baseAmount: number; levelMultiplier: number; levelPower: number; resourceId?: string; useProductionResource?: boolean }> = [];
+
+  for (let index = 0; index < count; index += 1) {
+    const source = formValue(state, `${prefix}Source_${index}`);
+    const row = {
+      baseAmount: toInteger(state[`${prefix}BaseAmount_${index}`]),
+      levelMultiplier: toNumber(state[`${prefix}LevelMultiplier_${index}`]),
+      levelPower: toNumber(state[`${prefix}LevelPower_${index}`])
+    };
+
+    if (row.baseAmount <= 0 || !source) {
+      continue;
+    }
+
+    rows.push(
+      source === upgradeCostProductionResourceValue
+        ? {
+            ...row,
+            useProductionResource: true
+          }
+        : {
+            ...row,
+            resourceId: source
+          }
+    );
   }
 
   return rows;
@@ -3102,6 +3315,16 @@ function resourceSelectOptions(content: ContentBundle): Array<{ label: string; v
     label: contentEntityTitle(resource, content.localization?.ru ?? {}),
     value: stringField(resource, "id")
   }));
+}
+
+function mineUpgradeCostSourceOptions(content: ContentBundle): Array<{ label: string; value: string }> {
+  return [
+    {
+      label: "Ресурс добычи шахты",
+      value: upgradeCostProductionResourceValue
+    },
+    ...resourceSelectOptions(content)
+  ];
 }
 
 function veinSelectOptions(content: ContentBundle): Array<{ label: string; value: string }> {

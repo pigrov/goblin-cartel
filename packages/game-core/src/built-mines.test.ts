@@ -367,4 +367,82 @@ describe("built mines", () => {
       reason: "max_level"
     });
   });
+
+  it("uses content-driven upgrade balance when provided", () => {
+    const result = buildMineFromVein({
+      builtMineTypes,
+      now: 0,
+      resources: {
+        gold: 800,
+        stone: 200
+      },
+      vein
+    });
+
+    if (!result.ok) {
+      throw new Error("Expected build to succeed");
+    }
+
+    const activeMine = advanceBuiltMineProduction(result.builtMine, result.builtMine.completesAt);
+    const upgrade = {
+      capacityMultiplier: 1.25,
+      cost: [
+        {
+          baseAmount: 30,
+          levelMultiplier: 2,
+          levelPower: 1,
+          useProductionResource: true
+        },
+        {
+          baseAmount: 50,
+          levelMultiplier: 1,
+          levelPower: 2,
+          resourceId: "stone"
+        }
+      ],
+      maxLevel: 3,
+      productionMultiplier: 1.2
+    };
+
+    expect(calculateBuiltMineUpgradeCost({ ...activeMine, level: 2 }, { upgrade })).toEqual([
+      {
+        amount: 120,
+        resourceId: "copper_ore"
+      },
+      {
+        amount: 200,
+        resourceId: "stone"
+      }
+    ]);
+
+    const upgraded = upgradeBuiltMine({
+      builtMine: activeMine,
+      now: activeMine.lastProducedAt,
+      resources: {
+        copper_ore: 80,
+        gold: 300,
+        stone: 300
+      },
+      upgrade
+    });
+
+    expect(upgraded).toMatchObject({
+      ok: true,
+      resources: {
+        copper_ore: 20,
+        gold: 300,
+        stone: 250
+      }
+    });
+
+    if (!upgraded.ok) {
+      throw new Error("Expected upgrade to succeed");
+    }
+
+    expect(upgraded.builtMine).toMatchObject({
+      capacity: 375,
+      level: 2,
+      productionPerHour: 144
+    });
+  });
 });

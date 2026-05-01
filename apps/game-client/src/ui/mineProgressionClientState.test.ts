@@ -55,42 +55,63 @@ describe("mine progression client state", () => {
     expect(findNextMineTemplate([firstMine, secondMine], "second_mine")).toBeUndefined();
   });
 
-  it("requires a built mine from the current session before moving next", () => {
+  it("allows moving next after the current mine is cleared", () => {
+    const clearedSession = {
+      ...session,
+      foundVeins: [
+        {
+          id: "first_mine:player-1:9:3:copper_vein_small",
+          veinTypeId: "copper_vein_small"
+        }
+      ]
+    } as unknown as MiningSession;
+
     expect(hasBuiltMineFromSession(session, [builtMine])).toBe(true);
     expect(hasActiveBuiltMineFromSession(session, [builtMine])).toBe(true);
-    expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session })).toBe(true);
+    expect(canMoveToNextMine({ builtMines: [], mineTemplates: [firstMine, secondMine], session: clearedSession })).toBe(true);
     expect(canMoveToNextMine({ builtMines: [], mineTemplates: [firstMine, secondMine], session })).toBe(false);
-    expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine], session })).toBe(false);
+    expect(canMoveToNextMine({ builtMines: [builtMine], mineTemplates: [firstMine], session: clearedSession })).toBe(false);
   });
 
-  it("requires an active built mine before moving next", () => {
+  it("does not require an active built mine before moving next", () => {
     const buildingMine = {
       ...builtMine,
       status: "building" as const
     };
+    const clearedSession = {
+      ...session,
+      foundVeins: [
+        {
+          id: "first_mine:player-1:9:3:copper_vein_small",
+          veinTypeId: "copper_vein_small"
+        }
+      ]
+    } as unknown as MiningSession;
 
     expect(hasBuiltMineFromSession(session, [buildingMine])).toBe(true);
     expect(hasActiveBuiltMineFromSession(session, [buildingMine])).toBe(false);
-    expect(canMoveToNextMine({ builtMines: [buildingMine], mineTemplates: [firstMine, secondMine], session })).toBe(false);
+    expect(canMoveToNextMine({ builtMines: [buildingMine], mineTemplates: [firstMine, secondMine], session: clearedSession })).toBe(true);
   });
 
   it("describes the current mine progression status", () => {
+    const clearedSession = {
+      ...session,
+      foundVeins: [
+        {
+          id: "first_mine:player-1:9:3:copper_vein_small",
+          veinTypeId: "copper_vein_small"
+        }
+      ]
+    } as unknown as MiningSession;
+
     expect(getMineProgressionStatus({ builtMines: [], mineTemplates: [firstMine, secondMine], session })).toBe("digging");
     expect(
       getMineProgressionStatus({
         builtMines: [],
         mineTemplates: [firstMine, secondMine],
-        session: {
-          ...session,
-          foundVeins: [
-            {
-              id: "first_mine:player-1:9:3:copper_vein_small",
-              veinTypeId: "copper_vein_small"
-            }
-          ]
-        } as unknown as MiningSession
+        session: clearedSession
       })
-    ).toBe("vein_found");
+    ).toBe("next_available");
     expect(
       getMineProgressionStatus({
         builtMines: [
@@ -100,11 +121,11 @@ describe("mine progression client state", () => {
           }
         ],
         mineTemplates: [firstMine, secondMine],
-        session
+        session: clearedSession
       })
-    ).toBe("mine_building");
-    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session })).toBe("next_available");
-    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine], session })).toBe("complete_no_next");
+    ).toBe("next_available");
+    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine, secondMine], session: clearedSession })).toBe("next_available");
+    expect(getMineProgressionStatus({ builtMines: [builtMine], mineTemplates: [firstMine], session: clearedSession })).toBe("complete_no_next");
   });
 
   it("shows mine completion notice once per mine", () => {

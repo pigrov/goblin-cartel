@@ -14,7 +14,13 @@ describe("runtime content", () => {
 
     const runtimeContent = createRuntimeContentBundle(content);
 
-    expect(runtimeContent.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
+    expect(runtimeContent.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual([
+      "old_well_01",
+      "abandoned_crosscut_02",
+      "lower_gallery_03",
+      "sunken_works_04",
+      "red_iron_drop_05"
+    ]);
   });
 
   it("keeps authored mine dimensions unchanged", () => {

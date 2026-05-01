@@ -65,4 +65,5 @@
 - `0060_mine_editor_cell_chests_iron` - cleaned old production content versions, added mine row depth/difficulty labels, cell edit modal with exact HP, reward-chest cells, and iron content.
 - `0061_cell_map_legacy_cleanup` - removed legacy mine strata/seed/guaranteed-object support, made cell maps the only mine model, renamed the old wooden chest block to gold cache, and hid raw JSON behind an advanced toggle.
 - `0062_content_publish_guardrails` - removed game-client content fallback/runtime test depth, made admin JSON read-only, and added broken-text validation for content release checks.
-- `0063_mine_progression_upgrades` - required an active built mine before moving to the next mine and added the first permanent-mine upgrade loop.
+- `0063_mine_progression_upgrades` - added the first permanent-mine upgrade loop and initial stricter mine progression.
+- `0064_content_driven_mine_upgrades` - moved mine-upgrade balance into content/admin, made next-mine transition available after clearing, and expanded starter mines to five.

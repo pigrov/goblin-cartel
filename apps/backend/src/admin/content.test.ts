@@ -217,7 +217,13 @@ describe("content service", () => {
     await service.replaceContent("admin-1", detail.version.id, reversedContent);
     const current = await service.getVersion("admin-1", detail.version.id);
 
-    expect(current?.content.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual(["old_well_01", "abandoned_crosscut_02"]);
+    expect(current?.content.mineTemplates.map((mineTemplate) => mineTemplate.id)).toEqual([
+      "old_well_01",
+      "abandoned_crosscut_02",
+      "lower_gallery_03",
+      "sunken_works_04",
+      "red_iron_drop_05"
+    ]);
   });
 
   it("rejects invalid content replacement", async () => {

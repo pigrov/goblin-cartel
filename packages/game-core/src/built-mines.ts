@@ -11,6 +11,7 @@ export interface BuiltMineType {
   baseCapacity: number;
   buildCost: BuiltMineResourceAmount[];
   buildTimeSec: number;
+  upgrade?: BuiltMineUpgradeConfig;
 }
 
 export interface BuiltMineFoundVein {
@@ -54,8 +55,24 @@ export type BuildMineResult =
 
 export const builtMineMaxLevel = 5;
 
+export interface BuiltMineUpgradeCostConfig {
+  baseAmount: number;
+  levelMultiplier: number;
+  levelPower: number;
+  resourceId?: string;
+  useProductionResource?: boolean;
+}
+
+export interface BuiltMineUpgradeConfig {
+  capacityMultiplier: number;
+  cost: BuiltMineUpgradeCostConfig[];
+  maxLevel: number;
+  productionMultiplier: number;
+}
+
 export interface BuiltMineUpgradeCostOptions {
   goldResourceId?: string;
+  upgrade?: BuiltMineUpgradeConfig;
 }
 
 export interface BuiltMineUpgradeStats {
@@ -117,9 +134,29 @@ export interface UpgradeBuiltMineInput {
   goldResourceId?: string;
   now: number;
   resources: Record<string, number>;
+  upgrade?: BuiltMineUpgradeConfig;
 }
 
 const msPerHour = 60 * 60 * 1000;
+const defaultBuiltMineUpgradeConfig: BuiltMineUpgradeConfig = {
+  capacityMultiplier: 1.4,
+  cost: [
+    {
+      baseAmount: 60,
+      levelMultiplier: 1,
+      levelPower: 1,
+      useProductionResource: true
+    },
+    {
+      baseAmount: 100,
+      levelMultiplier: 1,
+      levelPower: 1.35,
+      resourceId: "gold"
+    }
+  ],
+  maxLevel: builtMineMaxLevel,
+  productionMultiplier: 1.35
+};
 
 export function findBuiltMineTypeForVein(
   builtMineTypes: BuiltMineType[],
@@ -290,39 +327,39 @@ export function calculateBuiltMineUpgradeCost(
   builtMine: BuiltMineState,
   options: BuiltMineUpgradeCostOptions = {}
 ): BuiltMineResourceAmount[] {
-  if (builtMine.level >= builtMineMaxLevel) {
+  const upgrade = normalizeBuiltMineUpgradeConfig(options.upgrade, options.goldResourceId);
+
+  if (builtMine.level >= upgrade.maxLevel) {
     return [];
   }
 
-  const levelFactor = Math.max(1, builtMine.level);
-  const productionResourceCost = Math.ceil(Math.max(25, builtMine.productionPerHour * 0.5) * levelFactor);
-  const goldCost = Math.ceil(100 * levelFactor ** 1.35);
-  const goldResourceId = options.goldResourceId ?? "gold";
-
-  return normalizeResourceCost([
-    {
-      amount: productionResourceCost,
-      resourceId: builtMine.productionResourceId
-    },
-    {
-      amount: goldCost,
-      resourceId: goldResourceId
-    }
-  ]);
+  return normalizeResourceCost(
+    upgrade.cost.map((cost) => ({
+      amount: Math.ceil(cost.baseAmount * (Math.max(1, builtMine.level) * cost.levelMultiplier) ** cost.levelPower),
+      resourceId: cost.useProductionResource ? builtMine.productionResourceId : cost.resourceId ?? options.goldResourceId ?? "gold"
+    }))
+  );
 }
 
-export function calculateBuiltMineUpgradeStats(builtMine: BuiltMineState): BuiltMineUpgradeStats {
+export function calculateBuiltMineUpgradeStats(
+  builtMine: BuiltMineState,
+  upgradeConfig?: BuiltMineUpgradeConfig
+): BuiltMineUpgradeStats {
+  const upgrade = normalizeBuiltMineUpgradeConfig(upgradeConfig);
+
   return {
-    capacity: Math.ceil(builtMine.capacity * 1.4),
+    capacity: Math.ceil(builtMine.capacity * upgrade.capacityMultiplier),
     level: builtMine.level + 1,
-    productionPerHour: Math.ceil(builtMine.productionPerHour * 1.35)
+    productionPerHour: Math.ceil(builtMine.productionPerHour * upgrade.productionMultiplier)
   };
 }
 
 export function upgradeBuiltMine(input: UpgradeBuiltMineInput): UpgradeBuiltMineResult {
   const producedBuiltMine = advanceBuiltMineProduction(input.builtMine, input.now);
+  const upgrade = normalizeBuiltMineUpgradeConfig(input.upgrade, input.goldResourceId);
   const cost = calculateBuiltMineUpgradeCost(producedBuiltMine, {
-    goldResourceId: input.goldResourceId
+    goldResourceId: input.goldResourceId,
+    upgrade
   });
 
   if (producedBuiltMine.status !== "active") {
@@ -333,7 +370,7 @@ export function upgradeBuiltMine(input: UpgradeBuiltMineInput): UpgradeBuiltMine
     };
   }
 
-  if (producedBuiltMine.level >= builtMineMaxLevel) {
+  if (producedBuiltMine.level >= upgrade.maxLevel) {
     return {
       ok: false,
       cost,
@@ -349,7 +386,7 @@ export function upgradeBuiltMine(input: UpgradeBuiltMineInput): UpgradeBuiltMine
     };
   }
 
-  const nextStats = calculateBuiltMineUpgradeStats(producedBuiltMine);
+  const nextStats = calculateBuiltMineUpgradeStats(producedBuiltMine, upgrade);
 
   return {
     ok: true,
@@ -395,4 +432,38 @@ function normalizeResourceCost(cost: BuiltMineResourceAmount[]): BuiltMineResour
     amount,
     resourceId
   }));
+}
+
+function normalizeBuiltMineUpgradeConfig(
+  upgrade: BuiltMineUpgradeConfig | undefined,
+  goldResourceId = "gold"
+): BuiltMineUpgradeConfig {
+  if (!upgrade) {
+    return {
+      ...defaultBuiltMineUpgradeConfig,
+      cost: defaultBuiltMineUpgradeConfig.cost.map((cost) =>
+        cost.resourceId === "gold"
+          ? {
+              ...cost,
+              resourceId: goldResourceId
+            }
+          : { ...cost }
+      )
+    };
+  }
+
+  const cost = upgrade.cost.length > 0 ? upgrade.cost : defaultBuiltMineUpgradeConfig.cost;
+
+  return {
+    capacityMultiplier: Math.max(1, upgrade.capacityMultiplier),
+    cost: cost.map((item) => ({
+      baseAmount: Math.max(1, item.baseAmount),
+      levelMultiplier: Math.max(0.01, item.levelMultiplier),
+      levelPower: Math.max(0, item.levelPower),
+      resourceId: item.useProductionResource ? undefined : item.resourceId ?? goldResourceId,
+      useProductionResource: Boolean(item.useProductionResource)
+    })),
+    maxLevel: Math.max(1, Math.floor(upgrade.maxLevel)),
+    productionMultiplier: Math.max(1, upgrade.productionMultiplier)
+  };
 }

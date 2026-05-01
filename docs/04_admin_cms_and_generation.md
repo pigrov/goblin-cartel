@@ -138,12 +138,14 @@ Idle-игра живёт на контенте, числах и регулярн
 | `id` | `small_copper_mine` |
 | `sourceVeinType` | `copper_vein` |
 | `productionResourceId` | `copper_ore` |
-| `baseProductionPerMinute` | производство |
+| `baseProductionPerHour` | производство |
 | `baseCapacity` | вместимость |
 | `buildCost` | цена постройки |
 | `buildTimeSec` | время постройки |
-| `upgradeCurveId` | кривая улучшений |
-| `mergeGroupId` | группа объединения |
+| `upgrade.maxLevel` | максимальный уровень улучшения |
+| `upgrade.productionMultiplier` | множитель добычи за уровень |
+| `upgrade.capacityMultiplier` | множитель вместимости за уровень |
+| `upgrade.cost` | строки стоимости улучшения, включая конкретный ресурс или ресурс добычи шахты |
 
 ### 3.6. AutomationNode
 

@@ -113,6 +113,39 @@ export const veinTypeSchema = z.object({
   assetId: z.string().min(1)
 });
 
+export const builtMineUpgradeCostSchema = z
+  .object({
+    resourceId: z.string().min(1).optional(),
+    useProductionResource: z.boolean().default(false),
+    baseAmount: z.number().int().positive(),
+    levelMultiplier: z.number().positive().default(1),
+    levelPower: z.number().nonnegative().default(1)
+  })
+  .refine((cost) => cost.useProductionResource || Boolean(cost.resourceId), {
+    message: "resourceId is required when useProductionResource is false"
+  });
+
+export const builtMineUpgradeSchema = z.object({
+  maxLevel: z.number().int().positive().default(5),
+  productionMultiplier: z.number().min(1).default(1.35),
+  capacityMultiplier: z.number().min(1).default(1.4),
+  cost: z.array(builtMineUpgradeCostSchema).default([
+    {
+      useProductionResource: true,
+      baseAmount: 60,
+      levelMultiplier: 1,
+      levelPower: 1
+    },
+    {
+      resourceId: "gold",
+      useProductionResource: false,
+      baseAmount: 100,
+      levelMultiplier: 1,
+      levelPower: 1.35
+    }
+  ])
+});
+
 export const builtMineTypeSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -122,6 +155,26 @@ export const builtMineTypeSchema = z.object({
   baseCapacity: z.number().positive(),
   buildCost: z.array(resourceAmountSchema).default([]),
   buildTimeSec: z.number().int().nonnegative().default(0),
+  upgrade: builtMineUpgradeSchema.default({
+    maxLevel: 5,
+    productionMultiplier: 1.35,
+    capacityMultiplier: 1.4,
+    cost: [
+      {
+        useProductionResource: true,
+        baseAmount: 60,
+        levelMultiplier: 1,
+        levelPower: 1
+      },
+      {
+        resourceId: "gold",
+        useProductionResource: false,
+        baseAmount: 100,
+        levelMultiplier: 1,
+        levelPower: 1.35
+      }
+    ]
+  }),
   assetId: z.string().min(1)
 });
 
@@ -389,6 +442,15 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "copper_ore", amount: 10 }
       ],
       buildTimeSec: 45,
+      upgrade: {
+        maxLevel: 5,
+        productionMultiplier: 1.3,
+        capacityMultiplier: 1.35,
+        cost: [
+          { useProductionResource: true, baseAmount: 50, levelMultiplier: 1, levelPower: 1 },
+          { resourceId: "stone", useProductionResource: false, baseAmount: 40, levelMultiplier: 1, levelPower: 1.2 }
+        ]
+      },
       assetId: "built_mine_gold_small_v1"
     },
     {
@@ -403,6 +465,15 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "stone", amount: 120 }
       ],
       buildTimeSec: 60,
+      upgrade: {
+        maxLevel: 5,
+        productionMultiplier: 1.35,
+        capacityMultiplier: 1.4,
+        cost: [
+          { useProductionResource: true, baseAmount: 60, levelMultiplier: 1, levelPower: 1 },
+          { resourceId: "gold", useProductionResource: false, baseAmount: 100, levelMultiplier: 1, levelPower: 1.35 }
+        ]
+      },
       assetId: "built_mine_copper_small_v1"
     },
     {
@@ -418,6 +489,16 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "copper_ore", amount: 80 }
       ],
       buildTimeSec: 90,
+      upgrade: {
+        maxLevel: 5,
+        productionMultiplier: 1.32,
+        capacityMultiplier: 1.38,
+        cost: [
+          { useProductionResource: true, baseAmount: 45, levelMultiplier: 1, levelPower: 1 },
+          { resourceId: "gold", useProductionResource: false, baseAmount: 140, levelMultiplier: 1, levelPower: 1.35 },
+          { resourceId: "copper_ore", useProductionResource: false, baseAmount: 35, levelMultiplier: 1, levelPower: 1.15 }
+        ]
+      },
       assetId: "built_mine_iron_small_v1"
     }
   ],
@@ -467,7 +548,7 @@ export const starterContentBundle: ContentBundle = {
       height: 10,
       depthMeters: 10,
       difficultyStart: 1,
-      difficultyEnd: 1.8,
+      difficultyEnd: 1.15,
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "wooden_completion_chest",
       cellMap: createStarterMineCellMap([
@@ -490,8 +571,8 @@ export const starterContentBundle: ContentBundle = {
       width: 8,
       height: 10,
       depthMeters: 10,
-      difficultyStart: 1.15,
-      difficultyEnd: 2.15,
+      difficultyStart: 1.05,
+      difficultyEnd: 1.2,
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
       cellMap: createStarterMineCellMap([
@@ -505,6 +586,78 @@ export const starterContentBundle: ContentBundle = {
         ["stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone", "stone", "copper_ore"],
         ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
         ["stone", "copper_ore", "stone", "gold_cache", "copper_ore", "stone", "iron_ore", "stone"]
+      ])
+    },
+    {
+      id: "lower_gallery_03",
+      displayNameKey: "mine.lower_gallery.name",
+      sortOrder: 30,
+      width: 8,
+      height: 10,
+      depthMeters: 10,
+      difficultyStart: 1.1,
+      difficultyEnd: 1.25,
+      completionVeinTypeId: "iron_vein_small",
+      completionRewardChestTypeId: "steel_completion_chest",
+      cellMap: createStarterMineCellMap([
+        ["dirt", "stone", "dirt", "stone", "stone", "dirt", "stone", "dirt"],
+        ["stone", "stone", "dirt", "copper_ore", "stone", "stone", "dirt", "stone"],
+        ["stone", "gold_cache", "stone", "stone", "dirt", "copper_ore", "stone", "stone"],
+        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone", "dirt"],
+        ["copper_ore", "stone", "stone", "iron_ore", "stone", "stone", "copper_ore", "stone"],
+        ["stone", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "stone"],
+        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
+        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "copper_ore", "iron_ore"],
+        ["stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore"],
+        ["iron_ore", "stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "gold_cache"]
+      ])
+    },
+    {
+      id: "sunken_works_04",
+      displayNameKey: "mine.sunken_works.name",
+      sortOrder: 40,
+      width: 8,
+      height: 10,
+      depthMeters: 10,
+      difficultyStart: 1.15,
+      difficultyEnd: 1.3,
+      completionVeinTypeId: "gold_vein_small",
+      completionRewardChestTypeId: "iron_completion_chest",
+      cellMap: createStarterMineCellMap([
+        ["stone", "dirt", "stone", "dirt", "stone", "copper_ore", "stone", "dirt"],
+        ["stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone", "gold_cache"],
+        ["copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone"],
+        ["stone", "iron_ore", "stone", "stone", "gold_cache", "stone", "iron_ore", "stone"],
+        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "stone", "iron_ore"],
+        ["iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone"],
+        ["stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore"],
+        ["gold_cache", "stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone"],
+        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "gold_cache", "iron_ore"],
+        ["iron_ore", "stone", "copper_ore", "iron_ore", "stone", "iron_ore", "copper_ore", "stone"]
+      ])
+    },
+    {
+      id: "red_iron_drop_05",
+      displayNameKey: "mine.red_iron_drop.name",
+      sortOrder: 50,
+      width: 8,
+      height: 10,
+      depthMeters: 10,
+      difficultyStart: 1.2,
+      difficultyEnd: 1.35,
+      completionVeinTypeId: "copper_vein_small",
+      completionRewardChestTypeId: "steel_completion_chest",
+      cellMap: createStarterMineCellMap([
+        ["stone", "copper_ore", "stone", "dirt", "stone", "iron_ore", "stone", "dirt"],
+        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone"],
+        ["copper_ore", "iron_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone"],
+        ["stone", "gold_cache", "iron_ore", "copper_ore", "stone", "iron_ore", "stone", "stone"],
+        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "iron_ore", "copper_ore"],
+        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "iron_ore", "stone"],
+        ["copper_ore", "stone", "iron_ore", "gold_cache", "stone", "copper_ore", "stone", "iron_ore"],
+        ["iron_ore", "copper_ore", "stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone"],
+        ["stone", "iron_ore", "copper_ore", "stone", "iron_ore", "gold_cache", "stone", "iron_ore"],
+        ["iron_ore", "stone", "iron_ore", "copper_ore", "iron_ore", "stone", "copper_ore", "iron_ore"]
       ])
     }
   ],
@@ -769,6 +922,9 @@ export const starterContentBundle: ContentBundle = {
       "block.gold_cache.name": "Золото",
       "mine.old_well.name": "Старый колодец",
       "mine.abandoned_crosscut.name": "Заброшенный штрек",
+      "mine.lower_gallery.name": "Нижняя галерея",
+      "mine.sunken_works.name": "Затопленные выработки",
+      "mine.red_iron_drop.name": "Красный железный спуск",
       "vein.gold_small.name": "Золотая жила",
       "vein.copper_small.name": "Медная жила",
       "vein.iron_small.name": "Железная жила",
@@ -917,6 +1073,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   for (const builtMineType of parsed.data.builtMineTypes) {
     validateLocalizationKey(builtMineType.nameKey, "ru", ruLocalization, errors);
     validateResourceAmounts(`builtMineTypes.${builtMineType.id}.buildCost`, builtMineType.buildCost, resourceIds, errors);
+    validateBuiltMineUpgradeCost(`builtMineTypes.${builtMineType.id}.upgrade.cost`, builtMineType.upgrade.cost, resourceIds, errors);
 
     if (!veinTypeIds.has(builtMineType.sourceVeinType)) {
       errors.push(`builtMineTypes.${builtMineType.id} references missing vein type ${builtMineType.sourceVeinType}`);
@@ -947,6 +1104,25 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
     ok: errors.length === 0,
     errors
   };
+}
+
+function validateBuiltMineUpgradeCost(
+  path: string,
+  cost: Array<{ resourceId?: string; useProductionResource?: boolean }>,
+  resourceIds: Set<string>,
+  errors: string[]
+) {
+  for (let index = 0; index < cost.length; index += 1) {
+    const row = cost[index];
+
+    if (row?.useProductionResource) {
+      continue;
+    }
+
+    if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
+      errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());
+    }
+  }
 }
 
 const suspiciousTextMarkers = [
