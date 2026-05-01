@@ -1082,27 +1082,27 @@ export const starterContentBundle: ContentBundle = {
       {
         level: 2,
         nameKey: "goblin_hut.level.2.name",
-        maxHiredGoblins: 4,
+        maxHiredGoblins: 3,
         unlockedClasses: ["miner", "builder"],
-        hireCostMultiplier: 0.98,
+        hireCostMultiplier: 0.97,
         upgradeCostMultiplier: 0.97,
         upgradeCost: [
-          { resourceId: "gold", amount: 350 },
-          { resourceId: "stone", amount: 120 }
+          { resourceId: "gold", amount: 240 },
+          { resourceId: "stone", amount: 70 }
         ],
         unlockRequirements: [{ type: "mine_completed", mineTemplateId: "old_well_01" }]
       },
       {
         level: 3,
         nameKey: "goblin_hut.level.3.name",
-        maxHiredGoblins: 6,
+        maxHiredGoblins: 5,
         unlockedClasses: ["miner", "builder", "collector"],
         hireCostMultiplier: 0.95,
-        upgradeCostMultiplier: 0.94,
+        upgradeCostMultiplier: 0.93,
         upgradeCost: [
-          { resourceId: "gold", amount: 1200 },
-          { resourceId: "stone", amount: 260 },
-          { resourceId: "copper_ore", amount: 80 }
+          { resourceId: "gold", amount: 850 },
+          { resourceId: "stone", amount: 180 },
+          { resourceId: "copper_ore", amount: 45 }
         ],
         unlockRequirements: [{ type: "built_mines_count", value: 1 }]
       },
@@ -1111,13 +1111,13 @@ export const starterContentBundle: ContentBundle = {
         nameKey: "goblin_hut.level.4.name",
         maxHiredGoblins: 8,
         unlockedClasses: ["miner", "builder", "collector", "foreman"],
-        hireCostMultiplier: 0.92,
-        upgradeCostMultiplier: 0.9,
+        hireCostMultiplier: 0.9,
+        upgradeCostMultiplier: 0.88,
         upgradeCost: [
-          { resourceId: "gold", amount: 3000 },
-          { resourceId: "stone", amount: 480 },
-          { resourceId: "copper_ore", amount: 160 },
-          { resourceId: "iron", amount: 80 }
+          { resourceId: "gold", amount: 2200 },
+          { resourceId: "stone", amount: 360 },
+          { resourceId: "copper_ore", amount: 110 },
+          { resourceId: "iron", amount: 35 }
         ],
         unlockRequirements: [
           { type: "built_mines_count", value: 2 },

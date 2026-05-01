@@ -57,6 +57,7 @@ export interface GoblinHutProgressionState {
   maxHiredGoblins: number;
   maxLevel: number;
   nextLevel: GoblinHutLevelConfig | null;
+  visualStage: 1 | 2 | 3 | 4;
 }
 
 export interface GoblinRoleSummary {
@@ -221,8 +222,29 @@ export function createGoblinHutProgressionState(input: {
     levelNow,
     maxHiredGoblins: currentLevel.maxHiredGoblins,
     maxLevel,
-    nextLevel
+    nextLevel,
+    visualStage: createGoblinHutVisualStage(levelNow, maxLevel)
   };
+}
+
+export function createGoblinHutVisualStage(levelNow: number, maxLevel: number): 1 | 2 | 3 | 4 {
+  const normalizedMaxLevel = Math.max(1, Math.floor(maxLevel));
+  const normalizedLevel = Math.min(normalizedMaxLevel, Math.max(1, Math.floor(levelNow)));
+  const stage = Math.ceil((normalizedLevel / normalizedMaxLevel) * 4);
+
+  if (stage <= 1) {
+    return 1;
+  }
+
+  if (stage === 2) {
+    return 2;
+  }
+
+  if (stage === 3) {
+    return 3;
+  }
+
+  return 4;
 }
 
 function getContentGoblinHutLevel(goblinHut: GoblinHutConfig, level: number): GoblinHutLevelConfig {

@@ -4,6 +4,36 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "react-vendor",
+              priority: 40,
+              test: /node_modules[\\/](react|react-dom)[\\/]/
+            },
+            {
+              maxSize: 420_000,
+              name: "pixi-vendor",
+              priority: 30,
+              test: /node_modules[\\/](pixi\.js|@pixi)[\\/]/
+            },
+            {
+              name: "icons-vendor",
+              priority: 20,
+              test: /node_modules[\\/]lucide-react[\\/]/
+            },
+            {
+              maxSize: 420_000,
+              name: "vendor",
+              priority: 10,
+              test: /node_modules[\\/]/
+            }
+          ]
+        }
+      }
+    },
     sourcemap: true
   }
 });

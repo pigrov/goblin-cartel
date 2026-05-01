@@ -43,8 +43,8 @@ import {
   type ResourceConfig
 } from "@goblin-cartel/content-schemas";
 import { Bot, Coins, Gem, Hammer, Menu, Mountain, Pickaxe, RotateCcw, Users, Warehouse, X, Zap } from "lucide-react";
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MinePixiScene, type MinePixiGoblin } from "./MinePixiScene";
+import { type CSSProperties, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { MinePixiGoblin } from "./MinePixiScene";
 import { destroyedHitEffectDurationMs } from "./minePixiEffects";
 import {
   canBuildFoundVein,
@@ -108,6 +108,10 @@ const resourceTooltipLifetimeMs = 3000;
 const rewardChestOpeningMs = 2300;
 const maxOfflineMiningSeconds = 6 * 60 * 60;
 const depthMarkerStepMeters = 5;
+const MinePixiScene = lazy(async () => {
+  const module = await import("./MinePixiScene");
+  return { default: module.MinePixiScene };
+});
 let hitEffectSequence = 0;
 let chestRewardSequence = 0;
 
@@ -1454,21 +1458,29 @@ export function App() {
             <span>Загрузка рудника...</span>
           </section>
         ) : (
-          <MinePixiScene
-            activeCell={selectedCell}
-            blockTypeById={blockTypeById}
-            currentPlatformRow={currentPlatformRow}
-            depthMarkerLabel={pixiDepthMarkerLabel}
-            exposedCellKeys={exposedCellKeys}
-            goblins={pixiGoblins}
-            hitEffects={hitEffects}
-            onBlockHit={handleBlockHit}
-            onPlaceGoblin={handlePlaceGoblin}
-            devOverlayEnabled={pixiDevOverlayEnabled}
-            platformCellKeys={platformCellKeys}
-            platformDropAnimating={platformDropAnimating}
-            session={session}
-          />
+          <Suspense
+            fallback={
+              <section className="mine-content-loading">
+                <span>Загрузка рудника...</span>
+              </section>
+            }
+          >
+            <MinePixiScene
+              activeCell={selectedCell}
+              blockTypeById={blockTypeById}
+              currentPlatformRow={currentPlatformRow}
+              depthMarkerLabel={pixiDepthMarkerLabel}
+              exposedCellKeys={exposedCellKeys}
+              goblins={pixiGoblins}
+              hitEffects={hitEffects}
+              onBlockHit={handleBlockHit}
+              onPlaceGoblin={handlePlaceGoblin}
+              devOverlayEnabled={pixiDevOverlayEnabled}
+              platformCellKeys={platformCellKeys}
+              platformDropAnimating={platformDropAnimating}
+              session={session}
+            />
+          </Suspense>
         )}
 
         {activeSection === "mine" && sessionReady ? (
@@ -2197,11 +2209,14 @@ function GoblinSection(props: {
       </header>
 
       <section className="goblin-hut-progress-card">
-        <div>
-          <span>{labelFromNameKey(props.goblinHutProgression.currentLevel.nameKey, "hut", props.labels)}</span>
-          <strong>
-            Лимит {props.goblinHutProgression.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
-          </strong>
+        <div className="goblin-hut-progress-overview">
+          <GoblinHutVisual stage={props.goblinHutProgression.visualStage} />
+          <div className="goblin-hut-progress-copy">
+            <span>{labelFromNameKey(props.goblinHutProgression.currentLevel.nameKey, "hut", props.labels)}</span>
+            <strong>
+              Лимит {props.goblinHutProgression.hiredCount}/{props.goblinHutProgression.maxHiredGoblins}
+            </strong>
+          </div>
         </div>
         <div className="goblin-hut-progress-meta">
           <span>{goblinHutUnlockedRolesLabel(props.goblinHutProgression.currentLevel)}</span>
@@ -2339,6 +2354,20 @@ function GoblinSection(props: {
         />
       ) : null}
     </section>
+  );
+}
+
+function GoblinHutVisual(props: { stage: 1 | 2 | 3 | 4 }) {
+  return (
+    <div className={`goblin-hut-visual stage-${props.stage}`} aria-hidden="true">
+      <i className="hut-backdrop" />
+      <i className="hut-body" />
+      <i className="hut-roof" />
+      <i className="hut-door" />
+      <i className="hut-window" />
+      <i className="hut-crate" />
+      <i className="hut-crane" />
+    </div>
   );
 }
 

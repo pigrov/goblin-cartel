@@ -3,6 +3,7 @@ import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas
 import {
   createGoblinHirePreview,
   createGoblinHutProgressionState,
+  createGoblinHutVisualStage,
   createGoblinIdentity,
   createGoblinHutRoleTabs,
   createGoblinRoleSummary,
@@ -281,7 +282,8 @@ describe("goblin hut client state", () => {
       canUpgrade: true,
       levelNow: 1,
       maxHiredGoblins: 2,
-      maxLevel: 2
+      maxLevel: 2,
+      visualStage: 2
     });
     expect(hutState.costRequirements).toEqual([
       {
@@ -296,6 +298,11 @@ describe("goblin hut client state", () => {
       id: "collectors",
       locked: true
     });
+  });
+
+  it("maps hut levels to four visual stages", () => {
+    expect([1, 2, 3, 4].map((level) => createGoblinHutVisualStage(level, 4))).toEqual([1, 2, 3, 4]);
+    expect([1, 2, 3, 4, 5].map((level) => createGoblinHutVisualStage(level, 5))).toEqual([1, 2, 3, 4, 4]);
   });
 
   it("splits visible goblin names into name and nickname", () => {

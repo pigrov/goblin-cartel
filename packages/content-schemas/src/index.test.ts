@@ -46,9 +46,36 @@ describe("content schemas", () => {
     expect(starterContentBundle.blockTypes.some((blockType) => blockType.id === "gold_cache")).toBe(true);
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.maxHiredGoblins, level.unlockedClasses])).toEqual([
       [1, 2, ["miner"]],
-      [2, 4, ["miner", "builder"]],
-      [3, 6, ["miner", "builder", "collector"]],
+      [2, 3, ["miner", "builder"]],
+      [3, 5, ["miner", "builder", "collector"]],
       [4, 8, ["miner", "builder", "collector", "foreman"]]
+    ]);
+    expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.upgradeCost])).toEqual([
+      [1, []],
+      [
+        2,
+        [
+          { resourceId: "gold", amount: 240 },
+          { resourceId: "stone", amount: 70 }
+        ]
+      ],
+      [
+        3,
+        [
+          { resourceId: "gold", amount: 850 },
+          { resourceId: "stone", amount: 180 },
+          { resourceId: "copper_ore", amount: 45 }
+        ]
+      ],
+      [
+        4,
+        [
+          { resourceId: "gold", amount: 2200 },
+          { resourceId: "stone", amount: 360 },
+          { resourceId: "copper_ore", amount: 110 },
+          { resourceId: "iron", amount: 35 }
+        ]
+      ]
     ]);
     expect(starterContentBundle.mineTemplates).toHaveLength(5);
     expect(starterContentBundle.mineTemplates.map((mineTemplate) => [mineTemplate.difficultyStart, mineTemplate.difficultyEnd])).toEqual([
