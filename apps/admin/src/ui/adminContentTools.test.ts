@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addDraftBlockTypeTemplate,
+  addDraftBossCardTemplate,
   addDraftMineTemplate,
   addDraftRewardChestTypeTemplate,
   adminContentVersionPath,
@@ -21,6 +22,7 @@ const baseContent = {
     { id: "draft_block_03", nameKey: "block.existing.name" }
   ],
   veinTypes: [{ id: "gold_vein", nameKey: "vein.gold.name" }],
+  bossCards: [],
   mineTemplates: [],
   goblins: [],
   goblinHut: {
@@ -91,6 +93,28 @@ describe("admin draft templates", () => {
       tier: "wooden"
     });
     expect(result.content.localization?.ru?.["reward_chest.draft_reward_chest_01.name"]).toBe("Новый сундук");
+  });
+
+  it("creates a new boss card and selects it for editing", () => {
+    const result = addDraftBossCardTemplate({
+      ...baseContent,
+      resources: [
+        ...baseContent.resources,
+        { id: "elixir", nameKey: "resource.elixir.name" },
+        { id: "boss_card_hit_damage", nameKey: "resource.boss_card_hit_damage.name" }
+      ]
+    });
+    const createdCard = result.content.bossCards?.at(-1);
+
+    expect(result.entityKind).toBe("bossCards");
+    expect(result.entityId).toBe("draft_boss_card_01");
+    expect(createdCard).toMatchObject({
+      cardResourceId: "boss_card_hit_damage",
+      effectType: "damagePerTap",
+      elixirResourceId: "elixir",
+      id: "draft_boss_card_01"
+    });
+    expect(result.content.localization?.ru?.["boss_card.draft_boss_card_01.name"]).toBe("Новая карта босса");
   });
 
   it("creates a clean 8x10 mine cell map template", () => {

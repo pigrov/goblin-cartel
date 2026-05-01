@@ -33,6 +33,7 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
   const starterBlockById = new Map(starterContentBundle.blockTypes.map((blockType) => [blockType.id, blockType]));
   const starterChestById = new Map(starterContentBundle.rewardChestTypes.map((chestType) => [chestType.id, chestType]));
   const starterRu = starterContentBundle.localization.ru ?? {};
+  const contentBossCards = "bossCards" in content && Array.isArray(content.bossCards) ? content.bossCards : [];
   let changed = false;
   const resourceIds = new Set(content.resources.map((resource) => resource.id));
   const resources = [...content.resources];
@@ -79,6 +80,11 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
       rewardTable: [...chestType.rewardTable, ...missingBossCardRewards]
     };
   });
+  const bossCards = contentBossCards.length > 0 ? contentBossCards : starterContentBundle.bossCards;
+
+  if (bossCards !== contentBossCards) {
+    changed = true;
+  }
   const ruLocalization = { ...(content.localization?.ru ?? {}) };
 
   for (const key of [
@@ -113,6 +119,7 @@ function ensureBossCardRuntimeContent(content: ContentBundle): ContentBundle {
       ...content.localization,
       ru: ruLocalization
     },
+    bossCards,
     resources: resources.sort((left, right) => left.sortOrder - right.sortOrder),
     rewardChestTypes
   };

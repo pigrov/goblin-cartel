@@ -38,6 +38,29 @@ describe("boss cards", () => {
     });
   });
 
+  it("supports content-authored card costs", () => {
+    const hitDamage = bossCardDefinitions.find((card) => card.id === "hit_damage");
+
+    if (!hitDamage) {
+      throw new Error("Missing hit damage card");
+    }
+
+    const customCard = {
+      ...hitDamage,
+      elixirCostMultiplier: 3,
+      elixirResourceId: "red_elixir",
+      id: "custom_hit",
+      upgradeCardAmounts: [1, 4]
+    };
+
+    expect(calculateBossCardUpgradeCost(customCard, { levels: { custom_hit: 1 } })).toEqual({
+      cardAmount: 4,
+      cardResourceId: "boss_card_hit_damage",
+      elixirAmount: 12,
+      elixirResourceId: "red_elixir"
+    });
+  });
+
   it("upgrades a card and deducts card copies with elixir", () => {
     const result = upgradeBossCard({
       cardId: "hit_damage",

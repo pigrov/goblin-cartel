@@ -233,6 +233,26 @@ export const rewardChestTypeSchema = z.object({
   assetId: z.string().min(1)
 });
 
+export const bossCardRaritySchema = z.enum(["common", "rare", "golden"]);
+export const bossCardEffectTypeSchema = z.enum(["damagePerTap", "critChance", "critMultiplier", "maxEnergy"]);
+
+export const bossCardSchema = z
+  .object({
+    id: z.string().min(1),
+    nameKey: z.string().min(1),
+    descriptionKey: z.string().min(1),
+    rarity: bossCardRaritySchema.default("common"),
+    cardResourceId: z.string().min(1),
+    effectType: bossCardEffectTypeSchema,
+    valuePerLevel: z.number().positive(),
+    maxLevel: z.number().int().positive().default(8),
+    upgradeCardAmounts: z.array(z.number().int().positive()).min(1).default([2, 5, 10, 20, 50, 100, 180, 300]),
+    elixirResourceId: z.string().min(1).default("elixir"),
+    elixirCostMultiplier: z.number().positive().default(4),
+    sortOrder: z.number().int().default(0)
+  })
+  .strict();
+
 export const blockTypeSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -315,6 +335,7 @@ export const contentBundleSchema = z
     veinTypes: z.array(veinTypeSchema).default([]),
     builtMineTypes: z.array(builtMineTypeSchema).default([]),
     rewardChestTypes: z.array(rewardChestTypeSchema).default([]),
+    bossCards: z.array(bossCardSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
     goblinHut: goblinHutSchema,
@@ -326,6 +347,7 @@ export type ResourceConfig = z.infer<typeof resourceSchema>;
 export type VeinTypeConfig = z.infer<typeof veinTypeSchema>;
 export type BuiltMineTypeConfig = z.infer<typeof builtMineTypeSchema>;
 export type RewardChestTypeConfig = z.infer<typeof rewardChestTypeSchema>;
+export type BossCardConfig = z.infer<typeof bossCardSchema>;
 export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
@@ -718,6 +740,64 @@ export const starterContentBundle: ContentBundle = {
         { resourceId: "boss_card_max_energy", min: 2, max: 4, chance: 0.9 }
       ],
       assetId: "reward_chest_steel_v1"
+    }
+  ],
+  bossCards: [
+    {
+      id: "hit_damage",
+      nameKey: "boss_card.hit_damage.name",
+      descriptionKey: "boss_card.hit_damage.description",
+      rarity: "common",
+      cardResourceId: "boss_card_hit_damage",
+      effectType: "damagePerTap",
+      valuePerLevel: 4,
+      maxLevel: 8,
+      upgradeCardAmounts: [2, 5, 10, 20, 50, 100, 180, 300],
+      elixirResourceId: "elixir",
+      elixirCostMultiplier: 4,
+      sortOrder: 10
+    },
+    {
+      id: "crit_chance",
+      nameKey: "boss_card.crit_chance.name",
+      descriptionKey: "boss_card.crit_chance.description",
+      rarity: "rare",
+      cardResourceId: "boss_card_crit_chance",
+      effectType: "critChance",
+      valuePerLevel: 0.015,
+      maxLevel: 8,
+      upgradeCardAmounts: [2, 5, 10, 20, 50, 100, 180, 300],
+      elixirResourceId: "elixir",
+      elixirCostMultiplier: 6,
+      sortOrder: 20
+    },
+    {
+      id: "crit_multiplier",
+      nameKey: "boss_card.crit_multiplier.name",
+      descriptionKey: "boss_card.crit_multiplier.description",
+      rarity: "golden",
+      cardResourceId: "boss_card_crit_multiplier",
+      effectType: "critMultiplier",
+      valuePerLevel: 0.12,
+      maxLevel: 8,
+      upgradeCardAmounts: [2, 5, 10, 20, 50, 100, 180, 300],
+      elixirResourceId: "elixir",
+      elixirCostMultiplier: 9,
+      sortOrder: 30
+    },
+    {
+      id: "max_energy",
+      nameKey: "boss_card.max_energy.name",
+      descriptionKey: "boss_card.max_energy.description",
+      rarity: "common",
+      cardResourceId: "boss_card_max_energy",
+      effectType: "maxEnergy",
+      valuePerLevel: 45,
+      maxLevel: 8,
+      upgradeCardAmounts: [2, 5, 10, 20, 50, 100, 180, 300],
+      elixirResourceId: "elixir",
+      elixirCostMultiplier: 4,
+      sortOrder: 40
     }
   ],
   mineTemplates: [
@@ -1296,6 +1376,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   collectDuplicateIds("veinTypes", parsed.data.veinTypes, errors);
   collectDuplicateIds("builtMineTypes", parsed.data.builtMineTypes, errors);
   collectDuplicateIds("rewardChestTypes", parsed.data.rewardChestTypes, errors);
+  collectDuplicateIds("bossCards", parsed.data.bossCards, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
   collectDuplicateIds("goblins", parsed.data.goblins, errors);
 
@@ -1316,6 +1397,19 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   for (const rewardChestType of parsed.data.rewardChestTypes) {
     validateLocalizationKey(rewardChestType.nameKey, "ru", ruLocalization, errors);
     validateRewardTable(`rewardChestTypes.${rewardChestType.id}.rewardTable`, rewardChestType.rewardTable, resourceIds, errors);
+  }
+
+  for (const bossCard of parsed.data.bossCards) {
+    validateLocalizationKey(bossCard.nameKey, "ru", ruLocalization, errors);
+    validateLocalizationKey(bossCard.descriptionKey, "ru", ruLocalization, errors);
+
+    if (!resourceIds.has(bossCard.cardResourceId)) {
+      errors.push(`bossCards.${bossCard.id} references missing card resource ${bossCard.cardResourceId}`);
+    }
+
+    if (!resourceIds.has(bossCard.elixirResourceId)) {
+      errors.push(`bossCards.${bossCard.id} references missing elixir resource ${bossCard.elixirResourceId}`);
+    }
   }
 
   for (const mineTemplate of parsed.data.mineTemplates) {

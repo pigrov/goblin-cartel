@@ -44,8 +44,22 @@ interface CredentialItem {
 type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "push" | "json" | "secret";
 type CredentialEnvironment = "production" | "staging" | "development";
 type AdminSection = "dashboard" | "content" | "credentials";
-type ContentEntityKind = "blockTypes" | "builtMineTypes" | "goblins" | "goblinHut" | "mineTemplates" | "rewardChestTypes";
-type ContentEntityApiKind = "blockType" | "builtMineType" | "goblin" | "goblinHut" | "mineTemplate" | "rewardChestType";
+type ContentEntityKind =
+  | "blockTypes"
+  | "bossCards"
+  | "builtMineTypes"
+  | "goblins"
+  | "goblinHut"
+  | "mineTemplates"
+  | "rewardChestTypes";
+type ContentEntityApiKind =
+  | "blockType"
+  | "bossCard"
+  | "builtMineType"
+  | "goblin"
+  | "goblinHut"
+  | "mineTemplate"
+  | "rewardChestType";
 type EntityFormState = Record<string, string>;
 
 interface ContentVersion {
@@ -67,6 +81,7 @@ interface ContentBundle {
   veinTypes?: ContentRecord[];
   builtMineTypes?: ContentRecord[];
   rewardChestTypes?: ContentRecord[];
+  bossCards?: ContentRecord[];
   mineTemplates: ContentRecord[];
   goblins: ContentRecord[];
   goblinHut: ContentRecord;
@@ -133,7 +148,8 @@ const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind 
   { value: "goblinHut", label: "Хижина" },
   { value: "mineTemplates", label: "Рудники" },
   { value: "builtMineTypes", label: "Типы шахт" },
-  { value: "rewardChestTypes", label: "Сундуки" }
+  { value: "rewardChestTypes", label: "Сундуки" },
+  { value: "bossCards", label: "Карты босса" }
 ];
 const upgradeCostProductionResourceValue = "__production_resource__";
 
@@ -172,6 +188,19 @@ const rewardChestTierOptions = [
   { value: "iron", label: "Iron" },
   { value: "steel", label: "Steel" },
   { value: "golden", label: "Golden" }
+];
+
+const bossCardRarityOptions = [
+  { value: "common", label: "Обычная" },
+  { value: "rare", label: "Редкая" },
+  { value: "golden", label: "Золотая" }
+];
+
+const bossCardEffectOptions = [
+  { value: "damagePerTap", label: "Урон за тап" },
+  { value: "critChance", label: "Шанс крита" },
+  { value: "critMultiplier", label: "Сила крита" },
+  { value: "maxEnergy", label: "Запас энергии" }
 ];
 
 const cards = [
@@ -1129,6 +1158,14 @@ function ContentSection(props: {
                 Сундук
               </button>
               <button
+                disabled={!canEdit || !props.selectedContentVersion}
+                onClick={() => void applyDraftTool(addDraftBossCardTemplate)}
+                type="button"
+              >
+                <PlusCircle size={16} />
+                Карта
+              </button>
+              <button
                 className={showRawJson ? "active" : ""}
                 disabled={!props.selectedContentVersion}
                 onClick={() => setShowRawJson((current) => !current)}
@@ -1146,6 +1183,7 @@ function ContentSection(props: {
             <ContentEntityKpi label="Типы шахт" value={contentEntityCount(contentPreview, "builtMineTypes")} />
             <ContentEntityKpi label="Рудники" value={contentEntityCount(contentPreview, "mineTemplates")} />
             <ContentEntityKpi label="Гоблины" value={contentEntityCount(contentPreview, "goblins")} />
+            <ContentEntityKpi label="Карты" value={contentEntityCount(contentPreview, "bossCards")} />
             <ContentEntityKpi label="Хижина" value={contentPreview?.goblinHut ? 1 : 0} />
           </div>
 
@@ -1460,6 +1498,45 @@ function renderEntityFields(
           <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
         </div>
         <ContentRewardRows content={content} formState={formState} prefix="reward" updateField={updateField} updateFields={updateFields} />
+      </>
+    );
+  }
+
+  if (kind === "bossCards") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <ContentTextAreaField label="Описание RU" name="description" onChange={updateField} value={formState.description} />
+        <div className="content-form-grid">
+          <ContentSelectField label="Редкость" name="rarity" onChange={updateField} options={bossCardRarityOptions} value={formState.rarity} />
+          <ContentSelectField label="Эффект" name="effectType" onChange={updateField} options={bossCardEffectOptions} value={formState.effectType} />
+          <ContentSelectField
+            label="Ресурс-карта"
+            name="cardResourceId"
+            onChange={updateField}
+            options={resourceSelectOptions(content)}
+            value={formState.cardResourceId}
+          />
+          <ContentSelectField
+            label="Эликсир"
+            name="elixirResourceId"
+            onChange={updateField}
+            options={resourceSelectOptions(content)}
+            value={formState.elixirResourceId}
+          />
+          <ContentTextField label="Бонус за уровень" name="valuePerLevel" onChange={updateField} type="number" value={formState.valuePerLevel} />
+          <ContentTextField label="Max level" name="maxLevel" onChange={updateField} type="number" value={formState.maxLevel} />
+          <ContentTextField label="Множитель эликсира" name="elixirCostMultiplier" onChange={updateField} type="number" value={formState.elixirCostMultiplier} />
+          <ContentTextField label="Sort order" name="sortOrder" onChange={updateField} type="number" value={formState.sortOrder} />
+        </div>
+        <ContentTextField
+          label="Копии карт по уровням"
+          name="upgradeCardAmounts"
+          onChange={updateField}
+          placeholder="2, 5, 10, 20"
+          value={formState.upgradeCardAmounts}
+        />
       </>
     );
   }
@@ -2547,6 +2624,45 @@ export function addDraftRewardChestTypeTemplate(content: ContentBundle): DraftCo
   };
 }
 
+export function addDraftBossCardTemplate(content: ContentBundle): DraftContentToolResult {
+  const bossCards = content.bossCards ?? [];
+  const id = uniqueContentId("draft_boss_card", bossCards);
+  const nameKey = `boss_card.${id}.name`;
+  const descriptionKey = `boss_card.${id}.description`;
+  const entity: ContentRecord = {
+    id,
+    nameKey,
+    descriptionKey,
+    rarity: "common",
+    cardResourceId: findResourceId(content, "boss_card_hit_damage"),
+    effectType: "damagePerTap",
+    valuePerLevel: 1,
+    maxLevel: 8,
+    upgradeCardAmounts: [2, 5, 10, 20, 50, 100, 180, 300],
+    elixirResourceId: findResourceId(content, "elixir"),
+    elixirCostMultiplier: 4,
+    sortOrder: nextSortOrder(bossCards)
+  };
+  const localization = {
+    [nameKey]: "Новая карта босса",
+    [descriptionKey]: "Черновая карта для настройки бонуса босса."
+  };
+
+  return {
+    content: {
+      ...content,
+      bossCards: [...bossCards, entity],
+      localization: addRuLocalization(content.localization, localization)
+    },
+    entity,
+    entityId: id,
+    entityKind: "bossCards",
+    entityType: "bossCard",
+    localization,
+    message: `Добавлена карта босса ${id}. Проверь ресурс, эффект, стоимость и сохрани draft.`
+  };
+}
+
 function isContentBundleLike(value: unknown): value is ContentBundle {
   return (
     isRecord(value) &&
@@ -2622,6 +2738,8 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
   switch (kind) {
     case "blockTypes":
       return content.blockTypes;
+    case "bossCards":
+      return content.bossCards ?? [];
     case "builtMineTypes":
       return content.builtMineTypes ?? [];
     case "goblinHut":
@@ -2638,6 +2756,10 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
 function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, content: ContentBundle): EntityFormState {
   if (kind === "blockTypes") {
     return createBlockTypeFormState(entity, content);
+  }
+
+  if (kind === "bossCards") {
+    return createBossCardFormState(entity, content);
   }
 
   if (kind === "goblins") {
@@ -2805,6 +2927,27 @@ function createRewardChestTypeFormState(entity: ContentRecord, content: ContentB
   };
 }
 
+function createBossCardFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const upgradeCardAmounts = entity.upgradeCardAmounts;
+
+  return {
+    cardResourceId: stringField(entity, "cardResourceId") || findResourceId(content, "boss_card_hit_damage"),
+    description: localizationValue(content, stringField(entity, "descriptionKey")),
+    effectType: stringField(entity, "effectType") || "damagePerTap",
+    elixirCostMultiplier: numberString(numberField(entity, "elixirCostMultiplier", 4)),
+    elixirResourceId: stringField(entity, "elixirResourceId") || findResourceId(content, "elixir"),
+    id: stringField(entity, "id"),
+    maxLevel: numberString(numberField(entity, "maxLevel", 8)),
+    rarity: stringField(entity, "rarity") || "common",
+    sortOrder: numberString(numberField(entity, "sortOrder", 0)),
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    upgradeCardAmounts: Array.isArray(upgradeCardAmounts)
+      ? upgradeCardAmounts.filter((item): item is number => typeof item === "number").join(", ")
+      : "2, 5, 10, 20, 50, 100, 180, 300",
+    valuePerLevel: numberString(numberField(entity, "valuePerLevel", 1))
+  };
+}
+
 function createResourceAmountFormState(
   prefix: string,
   rows: ContentRecord[],
@@ -2943,6 +3086,8 @@ function validateEntityForm(
 
   if (kind === "blockTypes") {
     validateBlockTypeForm(state, content, errors);
+  } else if (kind === "bossCards") {
+    validateBossCardForm(state, content, errors);
   } else if (kind === "goblins") {
     validateGoblinForm(state, content, errors);
   } else if (kind === "goblinHut") {
@@ -3135,6 +3280,41 @@ function validateRewardChestTypeForm(state: EntityFormState, content: ContentBun
   validateRewardRows(state, "reward", content, errors);
 }
 
+function validateBossCardForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  if (!formValue(state, "description").trim()) {
+    errors.push("Описание RU обязательно.");
+  }
+
+  if (!bossCardRarityOptions.some((option) => option.value === formValue(state, "rarity"))) {
+    errors.push("Выбери корректную редкость карты.");
+  }
+
+  if (!bossCardEffectOptions.some((option) => option.value === formValue(state, "effectType"))) {
+    errors.push("Выбери корректный эффект карты.");
+  }
+
+  const resourceIds = resourceIdSet(content);
+
+  if (!resourceIds.has(formValue(state, "cardResourceId"))) {
+    errors.push("Ресурс-карта не найден.");
+  }
+
+  if (!resourceIds.has(formValue(state, "elixirResourceId"))) {
+    errors.push("Ресурс эликсира не найден.");
+  }
+
+  validateNumberField(state, "valuePerLevel", "Бонус за уровень", errors, { min: 0.000001 });
+  validateIntegerField(state, "maxLevel", "Max level", errors, { min: 1 });
+  validateNumberField(state, "elixirCostMultiplier", "Множитель эликсира", errors, { min: 0.000001 });
+  validateIntegerField(state, "sortOrder", "Sort order", errors);
+
+  const upgradeCardAmounts = parsePositiveIntegerList(formValue(state, "upgradeCardAmounts"));
+
+  if (upgradeCardAmounts.length === 0) {
+    errors.push("Копии карт по уровням должны содержать хотя бы одно число.");
+  }
+}
+
 function validateResourceAmountRows(
   state: EntityFormState,
   prefix: string,
@@ -3282,6 +3462,10 @@ function applyEntityForm(
 ): EntityDraftUpdate {
   if (kind === "blockTypes") {
     return applyBlockTypeForm(content, selectedId, state);
+  }
+
+  if (kind === "bossCards") {
+    return applyBossCardForm(content, selectedId, state);
   }
 
   if (kind === "goblins") {
@@ -3548,6 +3732,45 @@ function applyRewardChestTypeForm(content: ContentBundle, selectedId: string, st
       [nameKey]: formValue(state, "title").trim()
     },
     message: `Сундук ${id} сохранен как draft.`
+  };
+}
+
+function applyBossCardForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const bossCards = content.bossCards ?? [];
+  const current = bossCards.find((item) => stringField(item, "id") === selectedId);
+
+  if (!current) {
+    throw new Error("Карта босса не найдена.");
+  }
+
+  const id = formValue(state, "id");
+  const nameKey = stringField(current, "nameKey") || `boss_card.${id}.name`;
+  const descriptionKey = stringField(current, "descriptionKey") || `boss_card.${id}.description`;
+  const nextBossCard: ContentRecord = {
+    ...current,
+    cardResourceId: formValue(state, "cardResourceId"),
+    descriptionKey,
+    effectType: formValue(state, "effectType"),
+    elixirCostMultiplier: toNumber(state.elixirCostMultiplier),
+    elixirResourceId: formValue(state, "elixirResourceId"),
+    id,
+    maxLevel: toInteger(state.maxLevel),
+    nameKey,
+    rarity: formValue(state, "rarity"),
+    sortOrder: toInteger(state.sortOrder),
+    upgradeCardAmounts: parsePositiveIntegerList(formValue(state, "upgradeCardAmounts")),
+    valuePerLevel: toNumber(state.valuePerLevel)
+  };
+
+  return {
+    entity: nextBossCard,
+    entityId: selectedId,
+    entityType: "bossCard",
+    localization: {
+      [descriptionKey]: formValue(state, "description").trim(),
+      [nameKey]: formValue(state, "title").trim()
+    },
+    message: `Карта босса ${id} сохранена как draft.`
   };
 }
 
@@ -3957,6 +4180,13 @@ function percentToMultiplierDelta(percent: number): number {
 
 function percentToReductionMultiplier(percent: number): number {
   return Math.round(Math.max(0.01, 1 - Math.max(0, percent) / 100) * 1000) / 1000;
+}
+
+function parsePositiveIntegerList(value: string): number[] {
+  return value
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isInteger(item) && item > 0);
 }
 
 function toNumber(value: string | undefined): number {

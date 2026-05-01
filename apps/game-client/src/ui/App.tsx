@@ -3,7 +3,7 @@ import {
   applyBossCardBonuses,
   applyPlatformAutoMining,
   assignBuiltMineCollector,
-  bossCardDefinitions,
+  createBossCardDefinitions,
   buildMineFromVein,
   calculateBossCardUpgradeCost,
   calculateCrewAutoDamagePerSecond,
@@ -295,6 +295,10 @@ export function App() {
   const sessionRef = useRef(session);
   const spawnHitEffectRef = useRef<SpawnHitEffect>(() => undefined);
   const tooltipSequenceRef = useRef(0);
+  const bossCardDefinitions = useMemo(
+    () => createBossCardDefinitions(contentState.content.bossCards),
+    [contentState.content.bossCards]
+  );
 
   useEffect(() => {
     let active = true;
@@ -326,11 +330,12 @@ export function App() {
             message: "Опубликованный контент"
           };
           const nextRoster = createRestoredGoblinRoster(runtimeContent);
-          const nextBossCards = loadStoredBossCards();
+          const nextBossCardDefinitions = createBossCardDefinitions(runtimeContent.bossCards);
+          const nextBossCards = loadStoredBossCards(localStorage, nextBossCardDefinitions);
           const restoredMining = createRestoredMiningState(
             runtimeContent,
             nextRoster,
-            applyBossCardBonuses(baseBossEnergyConfig, nextBossCards)
+            applyBossCardBonuses(baseBossEnergyConfig, nextBossCards, nextBossCardDefinitions)
           );
           setContentState({
             ...nextContentState
@@ -403,11 +408,13 @@ export function App() {
       goblinPlacements,
       bossEnergy,
       builtMines,
-      mineCompletionNoticeSeenIds
+      mineCompletionNoticeSeenIds,
+      bossCardDefinitions
     );
   }, [
     activeCell,
     bossEnergy,
+    bossCardDefinitions,
     builtMines,
     contentState.version,
     goblinPlacements,
@@ -422,16 +429,16 @@ export function App() {
       return;
     }
 
-    saveGoblinRoster(contentState.version, roster);
-  }, [contentState.version, roster, sessionReady]);
+    saveGoblinRoster(contentState.version, roster, bossCardDefinitions);
+  }, [bossCardDefinitions, contentState.version, roster, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
       return;
     }
 
-    saveStoredBossCards(bossCards);
-  }, [bossCards, sessionReady]);
+    saveStoredBossCards(bossCards, localStorage, bossCardDefinitions);
+  }, [bossCardDefinitions, bossCards, sessionReady]);
 
   useEffect(() => {
     if (!sessionReady) {
@@ -528,7 +535,10 @@ export function App() {
     () => contentState.content.resources.filter((resource) => resource.id !== "boss_energy" && !isBossCardResourceId(resource.id)).slice(0, 5),
     [contentState.content.resources]
   );
-  const bossEnergyConfig = useMemo(() => applyBossCardBonuses(baseBossEnergyConfig, bossCards), [bossCards]);
+  const bossEnergyConfig = useMemo(
+    () => applyBossCardBonuses(baseBossEnergyConfig, bossCards, bossCardDefinitions),
+    [bossCardDefinitions, bossCards]
+  );
   const availableGoblins = useMemo(() => createAvailableGoblins(contentState.content), [contentState.content]);
   const hiredGoblins = useMemo(
     () => availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)),
@@ -942,7 +952,17 @@ export function App() {
     setClockNow(resetAt);
     setOfflineSummary(null);
     setPendingOfflineFinalHit(null);
-    saveMiningSession(contentState.version, nextSession, nextActiveCell, nextPlatformRow, nextGoblinPlacements, nextBossEnergy, [], []);
+    saveMiningSession(
+      contentState.version,
+      nextSession,
+      nextActiveCell,
+      nextPlatformRow,
+      nextGoblinPlacements,
+      nextBossEnergy,
+      [],
+      [],
+      bossCardDefinitions
+    );
   }
 
   function handleConfirmResetMine() {
@@ -996,7 +1016,8 @@ export function App() {
       nextGoblinPlacements,
       bossEnergy,
       builtMines,
-      nextSeenNoticeIds
+      nextSeenNoticeIds,
+      bossCardDefinitions
     );
   }
 
@@ -1387,6 +1408,7 @@ export function App() {
   function handleUpgradeBossCard(cardId: BossCardId) {
     const result = upgradeBossCard({
       cardId,
+      definitions: bossCardDefinitions,
       resources: session.resources,
       state: bossCards
     });
@@ -3219,6 +3241,8 @@ function bossCardFallbackName(cardId: BossCardId): string {
       return "Сила удара";
     case "max_energy":
       return "Запас энергии";
+    default:
+      return "Карта босса";
   }
 }
 
@@ -3232,6 +3256,8 @@ function bossCardFallbackDescription(cardId: BossCardId): string {
       return "Увеличивает урон босса за тап.";
     case "max_energy":
       return "Увеличивает максимальную энергию босса.";
+    default:
+      return "Улучшает один из параметров босса.";
   }
 }
 
@@ -3968,7 +3994,8 @@ function saveMiningSession(
   goblinPlacements: GoblinPlacementMap,
   bossEnergy: BossEnergyState,
   builtMines: BuiltMineState[],
-  mineCompletionNoticeSeenIds: string[]
+  mineCompletionNoticeSeenIds: string[],
+  bossCardDefinitions: BossCardDefinition[]
 ): void {
   const payload: StoredMineSave = {
     contentVersion,
@@ -3981,17 +4008,17 @@ function saveMiningSession(
     mineCompletionNoticeSeenIds,
     savedAt: Date.now()
   };
-  saveStoredMiningSession(payload);
+  saveStoredMiningSession(payload, localStorage, bossCardDefinitions);
 }
 
 function normalizeIdList(values: readonly string[]): string[] {
   return values.filter((value, index, list) => typeof value === "string" && value.length > 0 && list.indexOf(value) === index);
 }
 
-function saveGoblinRoster(contentVersion: string, roster: GoblinRosterState): void {
+function saveGoblinRoster(contentVersion: string, roster: GoblinRosterState, bossCardDefinitions: BossCardDefinition[]): void {
   const payload: StoredGoblinRoster = {
     contentVersion,
     roster
   };
-  saveStoredGoblinRoster(payload);
+  saveStoredGoblinRoster(payload, localStorage, bossCardDefinitions);
 }

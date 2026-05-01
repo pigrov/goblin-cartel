@@ -1,5 +1,6 @@
 import {
   normalizeBossCardState,
+  type BossCardDefinition,
   type BossCardState,
   type BossEnergyState,
   type BuiltMineState,
@@ -46,16 +47,21 @@ export interface PlayerSaveStorage {
   setItem(key: string, value: string): void;
 }
 
-export function saveStoredMiningSession(payload: StoredMineSave, storage: PlayerSaveStorage = localStorage): void {
+export function saveStoredMiningSession(
+  payload: StoredMineSave,
+  storage: PlayerSaveStorage = localStorage,
+  bossCardDefinitions?: BossCardDefinition[]
+): void {
   storage.setItem(legacyMineSaveStorageKey, JSON.stringify(payload));
   writePlayerSave(
     {
-      ...readPlayerSave(storage),
+      ...readPlayerSave(storage, bossCardDefinitions),
       contentVersion: payload.contentVersion,
       mine: payload,
       savedAt: payload.savedAt ?? Date.now()
     },
-    storage
+    storage,
+    bossCardDefinitions
   );
 }
 
@@ -63,16 +69,21 @@ export function loadStoredMiningSession(storage: PlayerSaveStorage = localStorag
   return readPlayerSave(storage)?.mine ?? readLegacyMiningSession(storage);
 }
 
-export function saveStoredGoblinRoster(payload: StoredGoblinRoster, storage: PlayerSaveStorage = localStorage): void {
+export function saveStoredGoblinRoster(
+  payload: StoredGoblinRoster,
+  storage: PlayerSaveStorage = localStorage,
+  bossCardDefinitions?: BossCardDefinition[]
+): void {
   storage.setItem(legacyGoblinRosterStorageKey, JSON.stringify(payload));
   writePlayerSave(
     {
-      ...readPlayerSave(storage),
+      ...readPlayerSave(storage, bossCardDefinitions),
       contentVersion: payload.contentVersion,
       roster: payload,
       savedAt: Date.now()
     },
-    storage
+    storage,
+    bossCardDefinitions
   );
 }
 
@@ -80,24 +91,29 @@ export function loadStoredGoblinRoster(storage: PlayerSaveStorage = localStorage
   return readPlayerSave(storage)?.roster ?? readLegacyGoblinRoster(storage);
 }
 
-export function saveStoredBossCards(bossCards: BossCardState, storage: PlayerSaveStorage = localStorage): void {
+export function saveStoredBossCards(
+  bossCards: BossCardState,
+  storage: PlayerSaveStorage = localStorage,
+  definitions?: BossCardDefinition[]
+): void {
   writePlayerSave(
     {
-      ...readPlayerSave(storage),
-      bossCards: normalizeBossCardState(bossCards),
+      ...readPlayerSave(storage, definitions),
+      bossCards: normalizeBossCardState(bossCards, definitions),
       savedAt: Date.now()
     },
-    storage
+    storage,
+    definitions
   );
 }
 
-export function loadStoredBossCards(storage: PlayerSaveStorage = localStorage): BossCardState {
-  return normalizeBossCardState(readPlayerSave(storage)?.bossCards);
+export function loadStoredBossCards(storage: PlayerSaveStorage = localStorage, definitions?: BossCardDefinition[]): BossCardState {
+  return normalizeBossCardState(readPlayerSave(storage, definitions)?.bossCards, definitions);
 }
 
-export function readPlayerSave(storage: PlayerSaveStorage = localStorage): StoredPlayerSaveV1 | null {
+export function readPlayerSave(storage: PlayerSaveStorage = localStorage, definitions?: BossCardDefinition[]): StoredPlayerSaveV1 | null {
   const saved = readJson(storage, playerSaveStorageKey);
-  const normalized = normalizePlayerSave(saved);
+  const normalized = normalizePlayerSave(saved, definitions);
 
   if (normalized) {
     return normalized;
@@ -125,8 +141,8 @@ export function readPlayerSave(storage: PlayerSaveStorage = localStorage): Store
   return migrated;
 }
 
-function writePlayerSave(payload: Partial<StoredPlayerSaveV1>, storage: PlayerSaveStorage): void {
-  const normalized = normalizePlayerSave({ schemaVersion: 1, ...payload });
+function writePlayerSave(payload: Partial<StoredPlayerSaveV1>, storage: PlayerSaveStorage, definitions?: BossCardDefinition[]): void {
+  const normalized = normalizePlayerSave({ schemaVersion: 1, ...payload }, definitions);
 
   if (!normalized) {
     return;
@@ -135,7 +151,7 @@ function writePlayerSave(payload: Partial<StoredPlayerSaveV1>, storage: PlayerSa
   storage.setItem(playerSaveStorageKey, JSON.stringify(normalized));
 }
 
-function normalizePlayerSave(value: unknown): StoredPlayerSaveV1 | null {
+function normalizePlayerSave(value: unknown, definitions?: BossCardDefinition[]): StoredPlayerSaveV1 | null {
   if (!isRecord(value)) {
     return null;
   }
@@ -149,7 +165,7 @@ function normalizePlayerSave(value: unknown): StoredPlayerSaveV1 | null {
   const mine = normalizeMineSave(value.mine);
   const roster = normalizeGoblinRosterSave(value.roster);
 
-  const bossCards = normalizeBossCards(value.bossCards);
+  const bossCards = normalizeBossCards(value.bossCards, definitions);
 
   if (!mine && !roster && !bossCards) {
     return null;
@@ -214,12 +230,12 @@ function normalizeGoblinRosterSave(value: unknown): StoredGoblinRoster | null {
   return value as unknown as StoredGoblinRoster;
 }
 
-function normalizeBossCards(value: unknown): BossCardState | null {
+function normalizeBossCards(value: unknown, definitions?: BossCardDefinition[]): BossCardState | null {
   if (!isRecord(value) || !isRecord(value.levels)) {
     return null;
   }
 
-  return normalizeBossCardState(value as unknown as BossCardState);
+  return normalizeBossCardState(value as unknown as BossCardState, definitions);
 }
 
 function readJson(storage: PlayerSaveStorage, key: string): unknown {

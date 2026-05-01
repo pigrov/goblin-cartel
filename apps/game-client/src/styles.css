@@ -2812,7 +2812,7 @@ body,
 }
 
 .boss-cards-modal {
-  width: min(392px, calc(100% - 24px));
+  width: min(410px, calc(100% - 18px));
   max-height: min(760px, calc(100dvh - 34px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
@@ -2855,6 +2855,8 @@ body,
 .boss-cards-list {
   min-height: 0;
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-content: start;
   gap: 8px;
   overflow-y: auto;
   scrollbar-width: none;
@@ -2868,11 +2870,12 @@ body,
 
 .boss-card {
   min-width: 0;
+  min-height: 166px;
   display: grid;
-  grid-template-columns: 54px minmax(0, 1fr) 74px;
-  align-items: center;
-  gap: 9px;
-  padding: 9px;
+  grid-template-rows: 52px minmax(0, 1fr) 30px;
+  align-items: stretch;
+  gap: 6px;
+  padding: 7px;
   border: 1px solid rgb(255 255 255 / 12%);
   border-radius: var(--gc-radius-sm);
   background:
@@ -2889,8 +2892,9 @@ body,
 }
 
 .boss-card-art {
-  width: 54px;
-  height: 72px;
+  width: 52px;
+  height: 52px;
+  justify-self: center;
   display: grid;
   place-items: center;
   border: 1px solid rgb(255 255 255 / 16%);
@@ -2912,13 +2916,16 @@ body,
 .boss-card-copy {
   min-width: 0;
   display: grid;
-  gap: 5px;
+  grid-template-rows: auto auto auto 1fr;
+  gap: 4px;
 }
 
 .boss-card-title {
   min-width: 0;
   display: grid;
+  justify-items: center;
   gap: 1px;
+  text-align: center;
 }
 
 .boss-card-title span,
@@ -2936,21 +2943,25 @@ body,
 .boss-card-title strong {
   overflow: hidden;
   color: var(--gc-text);
-  font-size: 13px;
+  font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .boss-card-copy p {
-  white-space: normal;
+  display: -webkit-box;
+  overflow: hidden;
   line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .boss-card-effect {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  justify-items: center;
+  gap: 1px;
+  text-align: center;
 }
 
 .boss-card-effect strong,
@@ -2961,13 +2972,13 @@ body,
 
 .boss-card-progress {
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .boss-card-progress > div {
   display: flex;
   justify-content: space-between;
-  gap: 8px;
+  gap: 5px;
 }
 
 .boss-card-progress i {
@@ -2992,7 +3003,7 @@ body,
 .boss-card button {
   min-width: 0;
   min-height: 32px;
-  padding: 0 8px;
+  padding: 0 6px;
   border: 1px solid rgb(177 124 255 / 56%);
   border-radius: var(--gc-radius-sm);
   background: linear-gradient(180deg, #7b55b4, #4a326f);

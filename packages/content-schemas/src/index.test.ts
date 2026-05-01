@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blockTypeSchema, goblinSchema, rewardChestTypeSchema, starterContentBundle, validateContentBundle } from "./index";
+import { blockTypeSchema, bossCardSchema, goblinSchema, rewardChestTypeSchema, starterContentBundle, validateContentBundle } from "./index";
 
 describe("content schemas", () => {
   it("accepts a valid block type", () => {
@@ -54,6 +54,12 @@ describe("content schemas", () => {
         chestType.rewardTable.some((reward) => reward.resourceId.startsWith("boss_card_"))
       )
     ).toBe(true);
+    expect(starterContentBundle.bossCards.map((card) => [card.id, card.cardResourceId, card.effectType])).toEqual([
+      ["hit_damage", "boss_card_hit_damage", "damagePerTap"],
+      ["crit_chance", "boss_card_crit_chance", "critChance"],
+      ["crit_multiplier", "boss_card_crit_multiplier", "critMultiplier"],
+      ["max_energy", "boss_card_max_energy", "maxEnergy"]
+    ]);
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.maxHiredGoblins, level.unlockedClasses])).toEqual([
       [1, 2, ["miner"]],
       [2, 3, ["miner", "builder"]],
@@ -138,6 +144,12 @@ describe("content schemas", () => {
     expect(result.success).toBe(true);
   });
 
+  it("accepts a valid boss card config", () => {
+    const result = bossCardSchema.safeParse(starterContentBundle.bossCards[0]);
+
+    expect(result.success).toBe(true);
+  });
+
   it("rejects missing resource references", () => {
     const broken = structuredClone(starterContentBundle);
     broken.blockTypes[0]?.rewardTable.push({ resourceId: "missing_resource", min: 1, max: 1, chance: 1 });
@@ -170,6 +182,22 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("rewardChestTypes.wooden_completion_chest.rewardTable references missing resource missing_resource");
+  });
+
+  it("rejects missing boss card resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const card = broken.bossCards[0];
+
+    if (card) {
+      card.cardResourceId = "missing_card_resource";
+      card.elixirResourceId = "missing_elixir_resource";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("bossCards.hit_damage references missing card resource missing_card_resource");
+    expect(result.errors).toContain("bossCards.hit_damage references missing elixir resource missing_elixir_resource");
   });
 
   it("rejects missing mine completion reward chests", () => {

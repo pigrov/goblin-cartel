@@ -59,6 +59,7 @@ class MemoryContentStore implements ContentStore {
       ...content.rewardChestTypes.map((rewardChestType) =>
         this.createEntity(contentVersionId, "rewardChestType", rewardChestType.id, rewardChestType)
       ),
+      ...content.bossCards.map((bossCard) => this.createEntity(contentVersionId, "bossCard", bossCard.id, bossCard)),
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
@@ -147,6 +148,7 @@ describe("content service", () => {
       notes: "first balance"
     });
     expect(detail.content.resources.map((resource) => resource.id)).toContain("gold");
+    expect(detail.content.bossCards.map((card) => card.id)).toContain("hit_damage");
     expect(detail.content.goblins.map((goblin) => goblin.id)).toContain("gryzz_crooked_tooth");
     expect(detail.content.goblinHut.levels[0]?.maxHiredGoblins).toBe(2);
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
@@ -399,5 +401,41 @@ describe("content service", () => {
     expect(result && "content" in result ? result.content.rewardChestTypes[0]?.rewardTable : null).toEqual([
       { resourceId: "gold", min: 10, max: 25, chance: 0.5 }
     ]);
+  });
+
+  it("updates boss cards through the same server validation path", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const bossCard = structuredClone(starterContentBundle.bossCards[0]);
+
+    if (!bossCard) {
+      throw new Error("Missing starter boss card");
+    }
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "bossCard",
+      entityId: bossCard.id,
+      entity: {
+        ...bossCard,
+        valuePerLevel: 5
+      },
+      localization: {
+        [bossCard.nameKey]: "Проверочная карта"
+      }
+    });
+
+    expect(result && "content" in result ? result.content.bossCards[0]?.valuePerLevel : null).toBe(5);
+    expect(result).toMatchObject({
+      content: {
+        localization: {
+          ru: {
+            [bossCard.nameKey]: "Проверочная карта"
+          }
+        }
+      }
+    });
   });
 });

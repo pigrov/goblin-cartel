@@ -13,11 +13,19 @@ export type ContentEntityType =
   | "veinType"
   | "builtMineType"
   | "rewardChestType"
+  | "bossCard"
   | "mineTemplate"
   | "goblin"
   | "goblinHut"
   | "localization";
-export type EditableContentEntityType = "blockType" | "builtMineType" | "goblin" | "goblinHut" | "mineTemplate" | "rewardChestType";
+export type EditableContentEntityType =
+  | "blockType"
+  | "bossCard"
+  | "builtMineType"
+  | "goblin"
+  | "goblinHut"
+  | "mineTemplate"
+  | "rewardChestType";
 
 export interface ContentVersionRecord {
   id: string;
@@ -427,6 +435,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     veinTypes: sortContentItems(entities, "veinType", starterContentBundle.veinTypes),
     builtMineTypes: sortContentItems(entities, "builtMineType", starterContentBundle.builtMineTypes),
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
+    bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     goblinHut:
@@ -485,6 +494,8 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
       return content.blockTypes;
     case "builtMineType":
       return content.builtMineTypes;
+    case "bossCard":
+      return content.bossCards;
     case "mineTemplate":
       return content.mineTemplates;
     case "rewardChestType":
@@ -496,10 +507,12 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
 
 function collectionNameForEntityType(
   entityType: EditableContentEntityType
-): "blockTypes" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes" {
+): "blockTypes" | "bossCards" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes" {
   switch (entityType) {
     case "blockType":
       return "blockTypes";
+    case "bossCard":
+      return "bossCards";
     case "builtMineType":
       return "builtMineTypes";
     case "mineTemplate":

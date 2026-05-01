@@ -1,17 +1,21 @@
 import type { BossEnergyConfig } from "./boss-energy";
 
-export type BossCardId = "crit_chance" | "crit_multiplier" | "hit_damage" | "max_energy";
+export type BossCardId = string;
 export type BossCardRarity = "common" | "golden" | "rare";
 export type BossCardEffectType = "critChance" | "critMultiplier" | "damagePerTap" | "maxEnergy";
 
 export interface BossCardDefinition {
   cardResourceId: string;
   descriptionKey: string;
+  elixirCostMultiplier?: number;
+  elixirResourceId?: string;
   effectType: BossCardEffectType;
   id: BossCardId;
   maxLevel: number;
   nameKey: string;
   rarity: BossCardRarity;
+  sortOrder?: number;
+  upgradeCardAmounts?: number[];
   valuePerLevel: number;
 }
 
@@ -92,12 +96,27 @@ export const bossCardDefinitions: BossCardDefinition[] = [
   }
 ];
 
-const bossCardUpgradeCardAmounts = [2, 5, 10, 20, 50, 100, 180, 300];
+export const bossCardUpgradeCardAmounts = [2, 5, 10, 20, 50, 100, 180, 300];
 const bossCardElixirMultiplierByRarity: Record<BossCardRarity, number> = {
   common: 4,
   rare: 6,
   golden: 9
 };
+
+export function createBossCardDefinitions(definitions: BossCardDefinition[] | undefined): BossCardDefinition[] {
+  const cards = definitions && definitions.length > 0 ? definitions : bossCardDefinitions;
+
+  return [...cards].sort((left, right) => {
+    const leftSortOrder = left.sortOrder ?? Number.POSITIVE_INFINITY;
+    const rightSortOrder = right.sortOrder ?? Number.POSITIVE_INFINITY;
+
+    if (leftSortOrder !== rightSortOrder) {
+      return leftSortOrder - rightSortOrder;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+}
 
 export function createInitialBossCardState(): BossCardState {
   return {
@@ -148,13 +167,15 @@ export function calculateBossCardUpgradeCost(
     return null;
   }
 
-  const cardAmount = bossCardUpgradeCardAmounts[Math.min(level, bossCardUpgradeCardAmounts.length - 1)] ?? 2;
+  const upgradeCardAmounts = definition.upgradeCardAmounts?.length ? definition.upgradeCardAmounts : bossCardUpgradeCardAmounts;
+  const cardAmount = upgradeCardAmounts[Math.min(level, upgradeCardAmounts.length - 1)] ?? 2;
+  const elixirMultiplier = definition.elixirCostMultiplier ?? bossCardElixirMultiplierByRarity[definition.rarity];
 
   return {
     cardAmount,
     cardResourceId: definition.cardResourceId,
-    elixirAmount: Math.ceil(cardAmount * bossCardElixirMultiplierByRarity[definition.rarity]),
-    elixirResourceId
+    elixirAmount: Math.ceil(cardAmount * elixirMultiplier),
+    elixirResourceId: definition.elixirResourceId ?? elixirResourceId
   };
 }
 

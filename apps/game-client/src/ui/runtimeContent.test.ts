@@ -63,6 +63,7 @@ describe("runtime content", () => {
       ...chestType,
       rewardTable: chestType.rewardTable.filter((reward) => reward.resourceId !== "elixir" && !reward.resourceId.startsWith("boss_card_"))
     }));
+    content.bossCards = [];
 
     const runtimeContent = createRuntimeContentBundle(content);
 
@@ -83,5 +84,6 @@ describe("runtime content", () => {
     ).toBe(true);
     expect(runtimeContent.localization.ru?.["resource.elixir.name"]).toBe("Эликсир");
     expect(runtimeContent.localization.ru?.["boss_card.hit_damage.name"]).toBe("Сила удара");
+    expect(runtimeContent.bossCards.map((card) => card.id)).toEqual(["hit_damage", "crit_chance", "crit_multiplier", "max_energy"]);
   });
 });

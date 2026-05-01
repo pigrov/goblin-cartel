@@ -108,6 +108,7 @@ const builder: GoblinConfig = {
 
 const content: ContentBundle = {
   blockTypes: [],
+  bossCards: [],
   builtMineTypes: [],
   goblinHut: {
     id: "default" as const,
