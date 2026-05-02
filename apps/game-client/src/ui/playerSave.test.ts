@@ -34,6 +34,8 @@ function createMineSave(contentVersion = "0.0.15"): StoredMineSave {
     bossEnergy: { currentEnergy: 300, updatedAt: 1000 },
     builtMines: [],
     contentVersion,
+    elevatorLevel: 2,
+    foremanAssignments: ["foreman_1", null, null],
     goblinPlacements: { miner_1: 2 },
     mineCompletionNoticeSeenIds: ["old_well_01"],
     platformRow: 1,

@@ -16,6 +16,7 @@ import {
   type StoredGoblinRoster,
   type StoredMineSave
 } from "./playerSave";
+import type { ForemanAssignments } from "./foremanTowerState";
 import type { GoblinPlacementMap } from "./useGoblinPlacement";
 
 export function useGamePersistence(input: {
@@ -25,6 +26,8 @@ export function useGamePersistence(input: {
   bossEnergy: BossEnergyState;
   builtMines: BuiltMineState[];
   contentVersion: string;
+  elevatorLevel: number;
+  foremanAssignments: ForemanAssignments;
   goblinPlacements: GoblinPlacementMap;
   mineCompletionNoticeSeenIds: string[];
   platformRow: number;
@@ -43,6 +46,8 @@ export function useGamePersistence(input: {
       input.activeCell,
       input.platformRow,
       input.goblinPlacements,
+      input.elevatorLevel,
+      input.foremanAssignments,
       input.bossEnergy,
       input.builtMines,
       input.mineCompletionNoticeSeenIds,
@@ -54,6 +59,8 @@ export function useGamePersistence(input: {
     input.bossEnergy,
     input.builtMines,
     input.contentVersion,
+    input.elevatorLevel,
+    input.foremanAssignments,
     input.goblinPlacements,
     input.mineCompletionNoticeSeenIds,
     input.platformRow,
@@ -84,6 +91,8 @@ export function saveMiningSession(
   activeCell: { row: number; col: number },
   platformRow: number,
   goblinPlacements: GoblinPlacementMap,
+  elevatorLevel: number,
+  foremanAssignments: ForemanAssignments,
   bossEnergy: BossEnergyState,
   builtMines: BuiltMineState[],
   mineCompletionNoticeSeenIds: string[],
@@ -94,6 +103,8 @@ export function saveMiningSession(
     bossEnergy,
     builtMines,
     contentVersion,
+    elevatorLevel,
+    foremanAssignments,
     goblinPlacements,
     mineCompletionNoticeSeenIds,
     platformRow: findPlatformRow(session, platformRow),

@@ -1,5 +1,6 @@
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
+  calculateGoblinEffectiveAbilityEffects,
   calculateCrewAutoDamagePerSecond,
   findPlatformRow,
   getGoblinLevel,
@@ -11,6 +12,7 @@ import type { MinePixiGoblin } from "./MinePixiScene";
 import { createGoblinIdentity, isMiningGoblin } from "./goblinHutClientState";
 
 export type GoblinPlacementMap = Record<string, number>;
+export type GoblinPlacementStatus = "idle" | "waiting" | "working";
 
 export interface GoblinWorkerAssignment {
   goblin: GoblinConfig;
@@ -26,6 +28,7 @@ export function useGoblinPlacement(input: {
   labels: Record<string, string>;
   miningGoblins: GoblinConfig[];
   onActiveCellChange: (cell: { row: number; col: number }) => void;
+  platformSlots: number;
   roster: GoblinRosterState;
   session: MiningSession;
 }) {
@@ -64,11 +67,12 @@ export function useGoblinPlacement(input: {
             id: goblin.id,
             name: goblinName(goblin, input.labels),
             col,
+            status: getGoblinPlacementStatus(input.session, col, input.currentPlatformRow, Boolean(workerByColumn.get(col))),
             working: Boolean(workerByColumn.get(col))
           };
         })
         .filter((goblin): goblin is MinePixiGoblin => Boolean(goblin)),
-    [goblinPlacements, input.labels, input.miningGoblins, input.session, workerByColumn]
+    [goblinPlacements, input.currentPlatformRow, input.labels, input.miningGoblins, input.session, workerByColumn]
   );
 
   const placeGoblinOnCellKey = useCallback(
@@ -79,18 +83,17 @@ export function useGoblinPlacement(input: {
         return;
       }
 
-      const targetBlock = input.session.blocks[targetCell.row]?.[targetCell.col];
-
-      if (!targetBlock || targetBlock.destroyed) {
-        return;
-      }
-
       setGoblinPlacements((current) => {
         const next = { ...current };
         const previousColumn = next[goblinId];
         const occupyingGoblinId = Object.entries(next).find(
           ([otherGoblinId, column]) => otherGoblinId !== goblinId && column === targetCell.col
         )?.[0];
+        const alreadyPlaced = typeof previousColumn === "number" && isValidMineColumn(input.session, previousColumn);
+
+        if (!alreadyPlaced && !occupyingGoblinId && countPlacedGoblins(input.session, next) >= normalizePlatformSlots(input.platformSlots)) {
+          return current;
+        }
 
         if (occupyingGoblinId) {
           if (typeof previousColumn === "number" && isValidMineColumn(input.session, previousColumn)) {
@@ -170,25 +173,150 @@ export function assignGoblinWorkers(
     .filter((worker): worker is GoblinWorkerAssignment => Boolean(worker));
 }
 
+export function getGoblinPlacementStatus(
+  session: MiningSession,
+  column: number,
+  platformRow: number,
+  working: boolean
+): GoblinPlacementStatus {
+  if (working) {
+    return "working";
+  }
+
+  if (!isValidMineColumn(session, column)) {
+    return "waiting";
+  }
+
+  const activePlatformRow = findPlatformRow(session, platformRow);
+  const targetBlock = session.blocks[activePlatformRow]?.[column];
+
+  if (!targetBlock || targetBlock.destroyed) {
+    return "waiting";
+  }
+
+  return "idle";
+}
+
+export function getGoblinOfflineRelocationSlots(goblin: GoblinConfig, level = 1): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((slots, effect) => {
+    if (effect.type !== "offline_relocation_slots") {
+      return slots;
+    }
+
+    return slots + Math.max(0, Math.floor(effect.value));
+  }, 0);
+}
+
+export function getGoblinOfflineAutoDamageMultiplier(goblin: GoblinConfig, level = 1): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
+    if (effect.type !== "offline_auto_damage_multiplier") {
+      return multiplier;
+    }
+
+    return multiplier + Math.max(0, effect.value - 1);
+  }, 1);
+}
+
+export function getGoblinOfflineRewardMultiplier(goblin: GoblinConfig, level = 1): number {
+  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
+    if (effect.type !== "offline_reward_multiplier") {
+      return multiplier;
+    }
+
+    return multiplier + Math.max(0, effect.value - 1);
+  }, 1);
+}
+
+export function relocateOfflineGoblinPlacements(
+  session: MiningSession,
+  hiredGoblins: GoblinConfig[],
+  goblinPlacements: GoblinPlacementMap,
+  platformRow: number,
+  roster: GoblinRosterState,
+  maxMoves: number
+): { moves: number; placements: GoblinPlacementMap } {
+  if (maxMoves <= 0) {
+    return { moves: 0, placements: goblinPlacements };
+  }
+
+  const activePlatformRow = findPlatformRow(session, platformRow);
+  const liveCells = findLivePlatformCells(session, activePlatformRow)
+    .map((cell) => ({
+      ...cell,
+      hp: session.blocks[cell.row]?.[cell.col]?.hp ?? Number.MAX_SAFE_INTEGER
+    }))
+    .sort((left, right) => left.hp - right.hp || left.col - right.col);
+
+  if (liveCells.length === 0) {
+    return { moves: 0, placements: goblinPlacements };
+  }
+
+  const nextPlacements = { ...goblinPlacements };
+  const occupiedColumns = new Set<number>();
+
+  for (const column of Object.values(nextPlacements)) {
+    if (typeof column === "number" && isValidMineColumn(session, column)) {
+      occupiedColumns.add(column);
+    }
+  }
+
+  let moves = 0;
+  const miningGoblins = hiredGoblins.filter(isMiningGoblin);
+  const sortedIdleGoblins = [...miningGoblins].sort(
+    (left, right) => getGoblinLevel(roster, right.id) - getGoblinLevel(roster, left.id) || left.sortOrder - right.sortOrder
+  );
+
+  for (const goblin of sortedIdleGoblins) {
+    if (moves >= maxMoves) {
+      break;
+    }
+
+    const currentColumn = nextPlacements[goblin.id];
+    const currentBlock =
+      typeof currentColumn === "number" && isValidMineColumn(session, currentColumn)
+        ? session.blocks[activePlatformRow]?.[currentColumn]
+        : null;
+
+    if (currentBlock && !currentBlock.destroyed) {
+      continue;
+    }
+
+    const targetCell = liveCells.find((cell) => !occupiedColumns.has(cell.col));
+
+    if (!targetCell) {
+      break;
+    }
+
+    if (typeof currentColumn === "number") {
+      occupiedColumns.delete(currentColumn);
+    }
+
+    nextPlacements[goblin.id] = targetCell.col;
+    occupiedColumns.add(targetCell.col);
+    moves += 1;
+  }
+
+  return { moves, placements: nextPlacements };
+}
+
 export function findPlatformCells(session: MiningSession, platformRow: number): Array<{ row: number; col: number }> {
   const activePlatformRow = findPlatformRow(session, platformRow);
   const rowBlocks = session.blocks[activePlatformRow] ?? [];
 
-  return rowBlocks
-    .filter((block) => !block.destroyed)
-    .map((block) => ({
-      row: block.row,
-      col: block.col
-    }));
+  return rowBlocks.map((block) => ({
+    row: block.row,
+    col: block.col
+  }));
 }
 
 export function createDefaultGoblinPlacements(
   session: MiningSession,
   hiredGoblins: GoblinConfig[],
-  platformRow: number
+  platformRow: number,
+  maxPlacements = Number.POSITIVE_INFINITY
 ): GoblinPlacementMap {
   return hiredGoblins.reduce<GoblinPlacementMap>(
-    (placements, goblin) => placeGoblinInFirstFreeColumn(session, placements, goblin.id, platformRow),
+    (placements, goblin) => placeGoblinInFirstFreeColumn(session, placements, goblin.id, platformRow, { maxPlacements }),
     {}
   );
 }
@@ -197,12 +325,17 @@ export function normalizeGoblinPlacements(
   session: MiningSession,
   hiredGoblins: GoblinConfig[],
   placements: GoblinPlacementMap,
-  options: { placeMissing: boolean; platformRow: number }
+  options: { maxPlacements?: number; placeMissing: boolean; platformRow: number }
 ): GoblinPlacementMap {
   const normalized: GoblinPlacementMap = {};
   const usedColumns = new Set<number>();
+  const maxPlacements = normalizePlatformSlots(options.maxPlacements);
 
   for (const goblin of hiredGoblins) {
+    if (Object.keys(normalized).length >= maxPlacements) {
+      break;
+    }
+
     const column = placements[goblin.id];
 
     if (typeof column === "number" && isValidMineColumn(session, column) && !usedColumns.has(column)) {
@@ -220,7 +353,7 @@ export function normalizeGoblinPlacements(
       return currentPlacements;
     }
 
-    return placeGoblinInFirstFreeColumn(session, currentPlacements, goblin.id, options.platformRow);
+    return placeGoblinInFirstFreeColumn(session, currentPlacements, goblin.id, options.platformRow, { maxPlacements });
   }, normalized);
 }
 
@@ -228,16 +361,26 @@ export function placeGoblinInFirstFreeColumn(
   session: MiningSession,
   placements: GoblinPlacementMap,
   goblinId: string,
-  platformRow: number
+  platformRow: number,
+  options: { maxPlacements?: number } = {}
 ): GoblinPlacementMap {
+  const alreadyPlaced = typeof placements[goblinId] === "number" && isValidMineColumn(session, placements[goblinId]);
+
+  if (!alreadyPlaced && countPlacedGoblins(session, placements) >= normalizePlatformSlots(options.maxPlacements)) {
+    return placements;
+  }
+
   const occupiedColumns = new Set(
     Object.entries(placements)
       .filter(([placedGoblinId]) => placedGoblinId !== goblinId)
       .map(([, column]) => column)
   );
+  const platformCells = findPlatformCells(session, platformRow);
+  const liveCells = findLivePlatformCells(session, platformRow);
   const targetCell =
-    findPlatformCells(session, platformRow).find((cell) => !occupiedColumns.has(cell.col)) ??
-    findPlatformCells(session, platformRow).find((cell) => cell.col === placements[goblinId]);
+    liveCells.find((cell) => !occupiedColumns.has(cell.col)) ??
+    platformCells.find((cell) => !occupiedColumns.has(cell.col)) ??
+    platformCells.find((cell) => cell.col === placements[goblinId]);
 
   if (!targetCell) {
     return placements;
@@ -247,6 +390,18 @@ export function placeGoblinInFirstFreeColumn(
     ...placements,
     [goblinId]: targetCell.col
   };
+}
+
+function findLivePlatformCells(session: MiningSession, platformRow: number): Array<{ row: number; col: number }> {
+  const activePlatformRow = findPlatformRow(session, platformRow);
+  const rowBlocks = session.blocks[activePlatformRow] ?? [];
+
+  return rowBlocks
+    .filter((block) => !block.destroyed)
+    .map((block) => ({
+      row: block.row,
+      col: block.col
+    }));
 }
 
 function cellKey(cell: { row: number; col: number }): string {
@@ -267,6 +422,18 @@ function parseCellKey(value: string): { row: number; col: number } | null {
 
 function isValidMineColumn(session: MiningSession, column: number): boolean {
   return Number.isInteger(column) && column >= 0 && column < session.mine.width;
+}
+
+function countPlacedGoblins(session: MiningSession, placements: GoblinPlacementMap): number {
+  return Object.values(placements).filter((column) => typeof column === "number" && isValidMineColumn(session, column)).length;
+}
+
+function normalizePlatformSlots(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  return Math.max(0, Math.floor(value));
 }
 
 function goblinName(goblin: GoblinConfig, labels: Record<string, string>): string {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Coins, Gem, Hammer, Mountain, Pickaxe, Sparkles, Users, Warehouse, X, Zap } from "lucide-react";
 import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { ElevatorProgressionState } from "../elevatorState";
 import {
   calculateCrewAutoDamagePerSecond,
   isGoblinHired,
@@ -19,11 +20,18 @@ import {
   type GoblinHutRoleTabId,
   type GoblinUpgradePreview
 } from "../goblinHutClientState";
+import {
+  getGoblinOfflineAutoDamageMultiplier,
+  getGoblinOfflineRelocationSlots,
+  getGoblinOfflineRewardMultiplier
+} from "../useGoblinPlacement";
 
 export function BaseSection(props: {
+  elevatorProgression: ElevatorProgressionState;
   goblinHutProgression: GoblinHutProgressionState;
   labels: Record<string, string>;
   message: string | null;
+  onUpgradeElevator: () => void;
   onUpgradeGoblinHut: () => void;
 }) {
   return (
@@ -43,6 +51,12 @@ export function BaseSection(props: {
           state={props.goblinHutProgression}
         />
 
+        <ElevatorProgressCard
+          labels={props.labels}
+          onUpgradeElevator={props.onUpgradeElevator}
+          state={props.elevatorProgression}
+        />
+
         <div className="base-upgrade-grid" aria-label="Будущие улучшения базы">
           <article className="base-upgrade-card disabled">
             <span className="base-upgrade-icon">
@@ -55,19 +69,19 @@ export function BaseSection(props: {
           </article>
           <article className="base-upgrade-card disabled">
             <span className="base-upgrade-icon">
-              <Hammer size={18} />
+              <Gem size={18} />
             </span>
             <div>
-              <strong>Подъемник</strong>
+              <strong>Знания</strong>
               <span>скоро</span>
             </div>
           </article>
           <article className="base-upgrade-card disabled">
             <span className="base-upgrade-icon">
-              <Gem size={18} />
+              <Hammer size={18} />
             </span>
             <div>
-              <strong>Знания</strong>
+              <strong>Мастерская</strong>
               <span>скоро</span>
             </div>
           </article>
@@ -117,6 +131,48 @@ function GoblinHutProgressCard(props: {
       ) : (
         <footer>
           <span>Хижина полностью улучшена</span>
+        </footer>
+      )}
+    </section>
+  );
+}
+
+function ElevatorProgressCard(props: {
+  labels: Record<string, string>;
+  onUpgradeElevator: () => void;
+  state: ElevatorProgressionState;
+}) {
+  return (
+    <section className="goblin-hut-progress-card elevator-progress-card">
+      <div className="goblin-hut-progress-overview">
+        <ElevatorVisual stage={props.state.visualStage} />
+        <div className="goblin-hut-progress-copy">
+          <span>Подъемник {props.state.levelNow} ур.</span>
+          <strong>{props.state.platformSlots} мест на платформе</strong>
+        </div>
+      </div>
+      <div className="goblin-hut-progress-meta">
+        <span>Задает размер рабочей бригады в руднике</span>
+        {props.state.nextLevel ? <span>Далее: {props.state.nextLevel.platformSlots} мест</span> : <span>максимум</span>}
+      </div>
+      {props.state.nextLevel ? (
+        <footer>
+          <span>Ур. {props.state.nextLevel.level}</span>
+          <div className="build-cost-list">
+            {props.state.costRequirements.map((requirement) => (
+              <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+              </span>
+            ))}
+          </div>
+          <button disabled={!props.state.canUpgrade} onClick={props.onUpgradeElevator} type="button">
+            {elevatorUpgradeActionLabel(props.state)}
+          </button>
+        </footer>
+      ) : (
+        <footer>
+          <span>Подъемник полностью улучшен</span>
         </footer>
       )}
     </section>
@@ -281,6 +337,18 @@ function GoblinHutVisual(props: { stage: 1 | 2 | 3 | 4 }) {
       <i className="hut-window" />
       <i className="hut-crate" />
       <i className="hut-crane" />
+    </div>
+  );
+}
+
+function ElevatorVisual(props: { stage: 1 | 2 | 3 | 4 | 5 }) {
+  return (
+    <div className={`elevator-visual stage-${props.stage}`} aria-hidden="true">
+      <i className="elevator-rail" />
+      <i className="elevator-wheel" />
+      <i className="elevator-cable" />
+      <i className="elevator-platform" />
+      <i className="elevator-brace" />
     </div>
   );
 }
@@ -522,6 +590,17 @@ function goblinHutUpgradeActionLabel(state: GoblinHutProgressionState): string {
   }
 }
 
+function elevatorUpgradeActionLabel(state: ElevatorProgressionState): string {
+  switch (state.failureReason) {
+    case null:
+      return "Улучшить";
+    case "not_enough_resources":
+      return "Нет ресурсов";
+    default:
+      return "Макс.";
+  }
+}
+
 function collectorSpecializationLabel(goblin: GoblinConfig): string {
   switch (goblin.specialization) {
     case "construction_foreman":
@@ -573,6 +652,21 @@ function goblinUpgradeEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePr
 
 function goblinConstructionEffectLabel(goblin: GoblinConfig, preview: GoblinUpgradePreview): string {
   const labels = [];
+  const relocationSlots = getGoblinOfflineRelocationSlots(goblin, preview.levelNow);
+  const offlineDamageMultiplier = getGoblinOfflineAutoDamageMultiplier(goblin, preview.levelNow);
+  const offlineRewardMultiplier = getGoblinOfflineRewardMultiplier(goblin, preview.levelNow);
+
+  if (relocationSlots > 0) {
+    labels.push(`${relocationSlots} офлайн-перест.`);
+  }
+
+  if (offlineDamageMultiplier > 1) {
+    labels.push(`офлайн урон x${formatMultiplier(offlineDamageMultiplier)}`);
+  }
+
+  if (offlineRewardMultiplier > 1) {
+    labels.push(`офлайн добыча x${formatMultiplier(offlineRewardMultiplier)}`);
+  }
 
   if (preview.buildCostMultiplierNow < 1) {
     labels.push(`цена ${formatMultiplierCostReduction(preview.buildCostMultiplierNow)}`);
@@ -605,6 +699,10 @@ function goblinConstructionUpgradeLabel(preview: GoblinUpgradePreview): string {
   }
 
   return labels.join(" · ") || "уровень повышает параметры бригады";
+}
+
+function formatMultiplier(value: number): string {
+  return value.toFixed(2).replace(/\.?0+$/u, "");
 }
 
 function formatMultiplierReduction(value: number): string {

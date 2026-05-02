@@ -2659,7 +2659,7 @@ export function addDraftMineTemplate(content: ContentBundle): DraftContentToolRe
 
   const id = uniqueContentId("draft_mine", content.mineTemplates);
   const displayNameKey = `mine.${id}.name`;
-  const width = 8;
+  const width = 7;
   const height = 10;
   const entity: ContentRecord = {
     completionRewardChestTypeId: stringField(source, "completionRewardChestTypeId") || undefined,

@@ -8,6 +8,13 @@ import {
   type MiningSession
 } from "@goblin-cartel/game-core";
 import { useEffect, useMemo, useState } from "react";
+import {
+  assignForemanToTowerSlot,
+  createEmptyForemanAssignments,
+  normalizeForemanAssignments,
+  type ForemanAssignments
+} from "./foremanTowerState";
+import { createElevatorProgressionState, upgradeElevator } from "./elevatorState";
 import { createGameViewModels } from "./gameViewModels";
 import { type GoblinHutRoleTabId } from "./goblinHutClientState";
 import { type GameSection } from "./screens/BottomNav";
@@ -45,6 +52,8 @@ export function useGameController() {
   const [platformRow, setPlatformRow] = useState(0);
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
   const [goblinRoleTab, setGoblinRoleTab] = useState<GoblinHutRoleTabId>("all");
+  const [foremanAssignments, setForemanAssignments] = useState<ForemanAssignments>(() => createEmptyForemanAssignments());
+  const [elevatorLevel, setElevatorLevel] = useState(1);
   const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(initialContentBundle.goblins));
   const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
@@ -108,6 +117,10 @@ export function useGameController() {
     sessionReady
   });
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
+  const elevatorProgression = useMemo(
+    () => createElevatorProgressionState(elevatorLevel, session.resources),
+    [elevatorLevel, session.resources]
+  );
   const completedMineTemplateIds = useMemo(
     () => Array.from(new Set(session.foundVeins.map((vein) => vein.mineTemplateId))),
     [session.foundVeins]
@@ -133,6 +146,7 @@ export function useGameController() {
     currentPlatformRow,
     labels,
     onActiveCellChange: setActiveCell,
+    platformSlots: elevatorProgression.platformSlots,
     roster,
     resources: session.resources,
     session,
@@ -194,9 +208,12 @@ export function useGameController() {
     content: contentState.content,
     contentVersion: contentState.version,
     createBossEnergyStateForNow,
+    elevatorLevel,
+    foremanAssignments,
     labels,
     mineCompletionNoticeSeenIds,
     miningGoblins,
+    platformSlots: elevatorProgression.platformSlots,
     scheduleResourceRewardDisplay,
     session,
     setActiveCell,
@@ -229,7 +246,9 @@ export function useGameController() {
     setBuiltMines,
     setClockNow,
     setContentState,
+    setElevatorLevel,
     setFoundVeinNotice,
+    setForemanAssignments,
     setGoblinPlacements,
     setLoadingContent,
     setMineCompletionNoticeOpen,
@@ -249,6 +268,8 @@ export function useGameController() {
     bossEnergy,
     builtMines,
     contentVersion: contentState.version,
+    elevatorLevel,
+    foremanAssignments,
     goblinPlacements,
     mineCompletionNoticeSeenIds,
     platformRow,
@@ -256,6 +277,35 @@ export function useGameController() {
     session,
     sessionReady
   });
+  useEffect(() => {
+    setForemanAssignments((current) => normalizeForemanAssignments(current, availableGoblins, roster));
+  }, [availableGoblins, roster]);
+
+  function handleAssignForemanSlot(slotIndex: number, goblinId: string | null) {
+    setForemanAssignments((current) =>
+      normalizeForemanAssignments(assignForemanToTowerSlot(current, slotIndex, goblinId), availableGoblins, roster)
+    );
+  }
+
+  function handleUpgradeElevator() {
+    const result = upgradeElevator({
+      level: elevatorLevel,
+      resources: session.resources
+    });
+
+    if (!result.ok) {
+      return;
+    }
+
+    setElevatorLevel(result.level);
+    syncVisibleResourceAmounts(result.resources);
+    setSession((current) => ({
+      ...current,
+      lastRewards: {},
+      resources: result.resources
+    }));
+  }
+
   useEffect(() => {
     if (!sessionReady) {
       return;
@@ -344,9 +394,12 @@ export function useGameController() {
     currentMineTitle,
     currentPlatformRow,
     displayedBossEnergy,
+    elevatorLevel,
+    elevatorProgression,
     exposedCellKeys,
     foundVeinNotice,
     foundVeinView,
+    foremanAssignments,
     goblinHutProgression,
     goblinLevels,
     goblinRoleTab,
@@ -358,12 +411,14 @@ export function useGameController() {
     handleConfirmResetMine,
     handleContinueRewardChest,
     handleDismissMineCompletionNotice,
+    handleAssignForemanSlot,
     handleHireGoblin,
     handleOpenRewardChest,
     handlePlaceGoblin,
     handleStartNextMine,
     handleUpgradeBossCard,
     handleUpgradeBuiltMine,
+    handleUpgradeElevator,
     handleUpgradeGoblin,
     handleUpgradeGoblinHut,
     hiredCollectorGoblins,

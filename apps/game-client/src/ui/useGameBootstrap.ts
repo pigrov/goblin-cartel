@@ -1,7 +1,6 @@
 import {
   applyBossCardBonuses,
   applyPlatformAutoMining,
-  calculateCrewAutoDamagePerSecond,
   createBossCardDefinitions,
   createBossEnergyState,
   createInitialGoblinRoster,
@@ -24,13 +23,24 @@ import {
 import { starterContentBundle, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
 import { type Dispatch, type SetStateAction, useEffect } from "react";
 import { collectAutomatedBuiltMineIncomeWithCollectors, getGoblinAutoCollectSlots } from "./builtMineClientState";
+import {
+  createEmptyForemanAssignments,
+  getAssignedForemen,
+  normalizeForemanAssignments,
+  type ForemanAssignments
+} from "./foremanTowerState";
+import { getElevatorLevelConfig, normalizeElevatorLevel } from "./elevatorState";
 import { isMiningGoblin } from "./goblinHutClientState";
 import { loadStoredBossCards, loadStoredGoblinRoster, loadStoredMiningSession } from "./playerSave";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import {
   assignGoblinWorkers,
   createDefaultGoblinPlacements,
+  getGoblinOfflineAutoDamageMultiplier,
+  getGoblinOfflineRelocationSlots,
+  getGoblinOfflineRewardMultiplier,
   normalizeGoblinPlacements,
+  relocateOfflineGoblinPlacements,
   type GoblinPlacementMap
 } from "./useGoblinPlacement";
 import { findExposedCellForPreferred } from "./useMiningLoop";
@@ -67,8 +77,10 @@ interface RestoredMiningState {
   } | null;
   platformRow: number;
   goblinPlacements: GoblinPlacementMap;
+  elevatorLevel: number;
   bossEnergy: BossEnergyState;
   builtMines: BuiltMineState[];
+  foremanAssignments: ForemanAssignments;
   mineCompletionNoticeSeenIds: string[];
 }
 
@@ -84,7 +96,9 @@ export function useGameBootstrap(input: {
   setBuiltMines: Dispatch<SetStateAction<BuiltMineState[]>>;
   setClockNow: Dispatch<SetStateAction<number>>;
   setContentState: Dispatch<SetStateAction<ContentState>>;
+  setElevatorLevel: Dispatch<SetStateAction<number>>;
   setFoundVeinNotice: Dispatch<SetStateAction<MiningFoundVein | null>>;
+  setForemanAssignments: Dispatch<SetStateAction<ForemanAssignments>>;
   setGoblinPlacements: Dispatch<SetStateAction<GoblinPlacementMap>>;
   setLoadingContent: Dispatch<SetStateAction<boolean>>;
   setMineCompletionNoticeOpen: Dispatch<SetStateAction<boolean>>;
@@ -143,6 +157,8 @@ export function useGameBootstrap(input: {
           input.setPlatformRow(restoredMining.platformRow);
           input.setOfflineSummary(restoredMining.offlineSummary);
           input.setPendingOfflineFinalHit(restoredMining.pendingOfflineFinalHit);
+          input.setForemanAssignments(restoredMining.foremanAssignments);
+          input.setElevatorLevel(restoredMining.elevatorLevel);
           input.setGoblinPlacements(restoredMining.goblinPlacements);
           input.setBossCards(nextBossCards);
           input.setBossEnergy(restoredMining.bossEnergy);
@@ -167,6 +183,7 @@ export function useGameBootstrap(input: {
           });
           input.setSessionReady(false);
           input.setMineCompletionNoticeOpen(false);
+          input.setElevatorLevel(1);
           input.resetRewardChest();
           input.setBuiltMineMessage(null);
           input.setFoundVeinNotice(null);
@@ -228,6 +245,8 @@ function createRestoredMiningState(
 
   if (!storedSave) {
     const initialPlatformRow = findPlatformRow(session, 0);
+    const initialElevatorLevel = 1;
+    const initialPlatformSlots = getElevatorLevelConfig(initialElevatorLevel).platformSlots;
 
     return {
       session,
@@ -235,9 +254,11 @@ function createRestoredMiningState(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow, initialPlatformSlots),
+      elevatorLevel: initialElevatorLevel,
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
+      foremanAssignments: createEmptyForemanAssignments(),
       mineCompletionNoticeSeenIds: []
     };
   }
@@ -245,15 +266,19 @@ function createRestoredMiningState(
   try {
     const restoredSession = restoreMiningSession(session, storedSave.save);
     const restoredPlatformRow = findPlatformRow(restoredSession, storedSave.platformRow ?? 0);
+    const restoredElevatorLevel = normalizeElevatorLevel(storedSave.elevatorLevel);
+    const restoredPlatformSlots = getElevatorLevelConfig(restoredElevatorLevel).platformSlots;
     const restoredActiveCell = storedSave.activeCell ?? findFirstPlayableCell(restoredSession);
     const restoredPlacements = storedSave.goblinPlacements
       ? normalizeGoblinPlacements(restoredSession, miningGoblins, storedSave.goblinPlacements, {
+          maxPlacements: restoredPlatformSlots,
           placeMissing: true,
           platformRow: restoredPlatformRow
         })
-      : createDefaultGoblinPlacements(restoredSession, miningGoblins, restoredPlatformRow);
+      : createDefaultGoblinPlacements(restoredSession, miningGoblins, restoredPlatformRow, restoredPlatformSlots);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
     const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster);
+    const restoredForemanAssignments = normalizeForemanAssignments(storedSave.foremanAssignments, content.goblins, roster);
     const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
       collectors: hiredCollectorGoblins,
@@ -276,11 +301,15 @@ function createRestoredMiningState(
       restoredPlacements,
       restoredBossEnergy,
       automatedMineIncome.builtMines,
+      restoredForemanAssignments,
+      restoredElevatorLevel,
       restoredMineCompletionNoticeSeenIds,
       storedSave.savedAt
     );
   } catch {
     const initialPlatformRow = findPlatformRow(session, 0);
+    const initialElevatorLevel = 1;
+    const initialPlatformSlots = getElevatorLevelConfig(initialElevatorLevel).platformSlots;
 
     return {
       session,
@@ -288,9 +317,11 @@ function createRestoredMiningState(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: initialPlatformRow,
-      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow),
+      goblinPlacements: createDefaultGoblinPlacements(session, miningGoblins, initialPlatformRow, initialPlatformSlots),
+      elevatorLevel: initialElevatorLevel,
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
+      foremanAssignments: createEmptyForemanAssignments(),
       mineCompletionNoticeSeenIds: []
     };
   }
@@ -305,10 +336,20 @@ function applyOfflineMining(
   goblinPlacements: GoblinPlacementMap,
   bossEnergy: BossEnergyState,
   builtMines: BuiltMineState[],
+  foremanAssignments: ForemanAssignments,
+  elevatorLevel: number,
   mineCompletionNoticeSeenIds: string[],
   savedAt: number | undefined
 ): RestoredMiningState {
   const activePlatformRow = findPlatformRow(session, platformRow);
+  const platformSlots = getElevatorLevelConfig(elevatorLevel).platformSlots;
+  const availableGoblins = createAvailableGoblins(content);
+  const miningGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id) && isMiningGoblin(goblin));
+  const normalizedPlacements = normalizeGoblinPlacements(session, miningGoblins, goblinPlacements, {
+    maxPlacements: platformSlots,
+    placeMissing: false,
+    platformRow: activePlatformRow
+  });
 
   if (!savedAt) {
     return {
@@ -317,9 +358,11 @@ function applyOfflineMining(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
-      goblinPlacements,
+      goblinPlacements: normalizedPlacements,
+      elevatorLevel,
       bossEnergy,
       builtMines,
+      foremanAssignments,
       mineCompletionNoticeSeenIds
     };
   }
@@ -333,31 +376,57 @@ function applyOfflineMining(
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
-      goblinPlacements,
+      goblinPlacements: normalizedPlacements,
+      elevatorLevel,
       bossEnergy,
       builtMines,
+      foremanAssignments,
       mineCompletionNoticeSeenIds
     };
   }
 
-  const availableGoblins = createAvailableGoblins(content);
-  const miningGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id) && isMiningGoblin(goblin));
-  const restoredPlacements = normalizeGoblinPlacements(session, miningGoblins, goblinPlacements, {
-    placeMissing: false,
-    platformRow: activePlatformRow
-  });
-  const workers = assignGoblinWorkers(session, miningGoblins, restoredPlacements, activePlatformRow, roster);
+  const restoredPlacements = normalizedPlacements;
+  const hiredForemen = getAssignedForemen(availableGoblins, roster, foremanAssignments);
+  const offlineRelocationSlots = hiredForemen.reduce(
+    (slots, goblin) => slots + getGoblinOfflineRelocationSlots(goblin, getGoblinLevel(roster, goblin.id)),
+    0
+  );
+  const offlineDamageMultiplier = hiredForemen.reduce(
+    (multiplier, goblin) => multiplier + getGoblinOfflineAutoDamageMultiplier(goblin, getGoblinLevel(roster, goblin.id)) - 1,
+    1
+  );
+  const offlineRewardMultiplier = hiredForemen.reduce(
+    (multiplier, goblin) => multiplier + getGoblinOfflineRewardMultiplier(goblin, getGoblinLevel(roster, goblin.id)) - 1,
+    1
+  );
+  let nextPlacements = restoredPlacements;
+  let relocationMovesLeft = offlineRelocationSlots;
 
-  if (workers.length === 0) {
+  if (relocationMovesLeft > 0) {
+    const relocation = relocateOfflineGoblinPlacements(
+      session,
+      miningGoblins,
+      nextPlacements,
+      activePlatformRow,
+      roster,
+      relocationMovesLeft
+    );
+    nextPlacements = relocation.placements;
+    relocationMovesLeft -= relocation.moves;
+  }
+
+  if (assignGoblinWorkers(session, miningGoblins, nextPlacements, activePlatformRow, roster).length === 0) {
     return {
       session,
       activeCell,
       offlineSummary: null,
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
-      goblinPlacements: restoredPlacements,
+      goblinPlacements: nextPlacements,
+      elevatorLevel,
       bossEnergy,
       builtMines,
+      foremanAssignments,
       mineCompletionNoticeSeenIds
     };
   }
@@ -368,23 +437,53 @@ function applyOfflineMining(
   let destroyedBlocks = 0;
   let rewards: Record<string, number> = {};
   let pendingFinalHit: { row: number; col: number } | null = null;
+  const processedGoblinIds = new Set<string>();
+  const maxCycles = Math.max(1, miningGoblins.length + offlineRelocationSlots);
 
-  for (const worker of workers) {
-    const targetBlock = nextSession.blocks[nextPlatformRow]?.[worker.targetCell.col];
+  for (let cycle = 0; cycle < maxCycles; cycle += 1) {
+    const workers = assignGoblinWorkers(
+      nextSession,
+      miningGoblins.filter((goblin) => !processedGoblinIds.has(goblin.id)),
+      nextPlacements,
+      nextPlatformRow,
+      roster
+    );
+    const worker = workers[0];
 
-    if (!targetBlock || targetBlock.destroyed) {
+    if (!worker) {
+      if (relocationMovesLeft <= 0) {
+        break;
+      }
+
+      const relocation = relocateOfflineGoblinPlacements(
+        nextSession,
+        miningGoblins.filter((goblin) => !processedGoblinIds.has(goblin.id)),
+        nextPlacements,
+        nextPlatformRow,
+        roster,
+        relocationMovesLeft
+      );
+
+      if (relocation.moves === 0) {
+        break;
+      }
+
+      nextPlacements = relocation.placements;
+      relocationMovesLeft -= relocation.moves;
       continue;
     }
 
-    const autoDamage = calculateCrewAutoDamagePerSecond({
-      blockTags: targetBlock.tags,
-      goblins: [worker.goblin],
-      roster: {
-        hiredGoblinIds: [worker.goblin.id]
-      }
-    });
+    const targetBlock = nextSession.blocks[nextPlatformRow]?.[worker.targetCell.col];
+
+    if (!targetBlock || targetBlock.destroyed) {
+      processedGoblinIds.add(worker.goblin.id);
+      continue;
+    }
+
+    const autoDamage = worker.damagePerSecond * offlineDamageMultiplier;
 
     if (autoDamage <= 0) {
+      processedGoblinIds.add(worker.goblin.id);
       continue;
     }
 
@@ -395,14 +494,41 @@ function applyOfflineMining(
       holdLastDestroy: pendingFinalHit === null
     });
 
-    nextSession = result.session;
+    const scaledRewards = multiplyResourceRewards(result.report.rewards, offlineRewardMultiplier);
+    const bonusRewards = subtractResourceRewards(scaledRewards, result.report.rewards);
+
+    nextSession = Object.keys(bonusRewards).length > 0
+      ? {
+          ...result.session,
+          resources: mergeResourceMaps(result.session.resources, bonusRewards)
+        }
+      : result.session;
     nextPlatformRow = result.platformRow;
     nextActiveCell = result.nextTargetCell;
     destroyedBlocks += result.report.destroyedBlocks;
-    rewards = mergeResourceMaps(rewards, result.report.rewards);
+    rewards = mergeResourceMaps(rewards, scaledRewards);
 
     if (!pendingFinalHit && result.report.pendingFinalHit) {
       pendingFinalHit = result.report.pendingFinalHit;
+    }
+
+    processedGoblinIds.add(worker.goblin.id);
+
+    if (pendingFinalHit) {
+      break;
+    }
+
+    if (relocationMovesLeft > 0) {
+      const relocation = relocateOfflineGoblinPlacements(
+        nextSession,
+        miningGoblins.filter((goblin) => !processedGoblinIds.has(goblin.id)),
+        nextPlacements,
+        nextPlatformRow,
+        roster,
+        relocationMovesLeft
+      );
+      nextPlacements = relocation.placements;
+      relocationMovesLeft -= relocation.moves;
     }
   }
 
@@ -421,12 +547,15 @@ function applyOfflineMining(
       : null,
     pendingOfflineFinalHit: pendingFinalHit,
     platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow,
-    goblinPlacements: normalizeGoblinPlacements(nextSession, miningGoblins, restoredPlacements, {
+    goblinPlacements: normalizeGoblinPlacements(nextSession, miningGoblins, nextPlacements, {
+      maxPlacements: platformSlots,
       placeMissing: false,
       platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow
     }),
+    elevatorLevel,
     bossEnergy,
     builtMines,
+    foremanAssignments,
     mineCompletionNoticeSeenIds
   };
 }
@@ -502,6 +631,34 @@ function mergeResourceMaps(left: Record<string, number>, right: Record<string, n
 
   for (const [resourceId, amount] of Object.entries(right)) {
     result[resourceId] = (result[resourceId] ?? 0) + amount;
+  }
+
+  return result;
+}
+
+function multiplyResourceRewards(rewards: Record<string, number>, multiplier: number): Record<string, number> {
+  if (multiplier <= 1) {
+    return rewards;
+  }
+
+  const result: Record<string, number> = {};
+
+  for (const [resourceId, amount] of Object.entries(rewards)) {
+    result[resourceId] = Math.max(amount, Math.floor(amount * multiplier));
+  }
+
+  return result;
+}
+
+function subtractResourceRewards(left: Record<string, number>, right: Record<string, number>): Record<string, number> {
+  const result: Record<string, number> = {};
+
+  for (const [resourceId, amount] of Object.entries(left)) {
+    const delta = amount - (right[resourceId] ?? 0);
+
+    if (delta > 0) {
+      result[resourceId] = delta;
+    }
   }
 
   return result;

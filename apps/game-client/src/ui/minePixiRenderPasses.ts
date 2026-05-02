@@ -19,7 +19,7 @@ import {
   type MinePixiPlatformGoblin
 } from "./minePixiPlatform";
 import type { MinePixiRenderedNode } from "./minePixiRenderNodes";
-import { drawLiftCables, drawSurface } from "./minePixiSurface";
+import { drawLiftCables, drawSurface, type MinePixiForemanSlot } from "./minePixiSurface";
 import { currentPlatformDropOffset } from "./minePixiTicker";
 
 type AnimatedItemRef = MutableRefObject<MinePixiAnimatedItem | null>;
@@ -45,11 +45,13 @@ export function renderMinePixiBackground(input: {
 
 export function renderMinePixiSurface(input: {
   currentPlatformRow: number;
+  elevatorLevel: number;
+  foremen: readonly MinePixiForemanSlot[];
   layers: MinePixiSceneLayers;
   layout: MinePixiLayout;
 }) {
   clearMinePixiLayer(input.layers.surface);
-  drawSurface(input.layers.surface, input.layout, input.currentPlatformRow);
+  drawSurface(input.layers.surface, input.layout, input.currentPlatformRow, input.foremen, input.elevatorLevel);
   drawLiftCables(input.layers.surface, input.layout);
 }
 

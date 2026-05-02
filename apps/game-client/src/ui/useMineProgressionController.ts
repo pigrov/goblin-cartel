@@ -18,6 +18,7 @@ import {
 } from "./mineProgressionClientState";
 import { createSession, type OfflineMiningSummary } from "./useGameBootstrap";
 import { saveMiningSession } from "./useGamePersistence";
+import type { ForemanAssignments } from "./foremanTowerState";
 import { createDefaultGoblinPlacements, type GoblinPlacementMap } from "./useGoblinPlacement";
 import { useRewardChestFlow } from "./useRewardChestFlow";
 
@@ -30,9 +31,12 @@ export function useMineProgressionController(input: {
   content: ContentBundle;
   contentVersion: string;
   createBossEnergyStateForNow: (now: number) => BossEnergyState;
+  elevatorLevel: number;
+  foremanAssignments: ForemanAssignments;
   labels: Record<string, string>;
   mineCompletionNoticeSeenIds: string[];
   miningGoblins: GoblinConfig[];
+  platformSlots: number;
   session: MiningSession;
   setActiveCell: Dispatch<SetStateAction<{ row: number; col: number }>>;
   setActiveSection: Dispatch<SetStateAction<GameSection>>;
@@ -109,7 +113,12 @@ export function useMineProgressionController(input: {
     const nextSession = createSession(input.content);
     const nextActiveCell = findFirstPlayableCell(nextSession);
     const nextPlatformRow = findPlatformRow(nextSession, 0);
-    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, input.miningGoblins, nextPlatformRow);
+    const nextGoblinPlacements = createDefaultGoblinPlacements(
+      nextSession,
+      input.miningGoblins,
+      nextPlatformRow,
+      input.platformSlots
+    );
     const nextBossEnergy = input.createBossEnergyStateForNow(resetAt);
 
     input.setSession(nextSession);
@@ -133,6 +142,8 @@ export function useMineProgressionController(input: {
       nextActiveCell,
       nextPlatformRow,
       nextGoblinPlacements,
+      input.elevatorLevel,
+      input.foremanAssignments,
       nextBossEnergy,
       [],
       [],
@@ -169,7 +180,12 @@ export function useMineProgressionController(input: {
     const nextSession = carryFoundVeinsToNextMineSession(createSession(input.content, nextMine.id, input.session.resources), input.session);
     const nextPlatformRow = findPlatformRow(nextSession, 0);
     const nextActiveCell = findFirstPlayableCell(nextSession);
-    const nextGoblinPlacements = createDefaultGoblinPlacements(nextSession, input.miningGoblins, nextPlatformRow);
+    const nextGoblinPlacements = createDefaultGoblinPlacements(
+      nextSession,
+      input.miningGoblins,
+      nextPlatformRow,
+      input.platformSlots
+    );
     const nextSeenNoticeIds = markMineCompletionNoticeSeen(input.mineCompletionNoticeSeenIds, input.session.mine.templateId);
 
     input.setSession(nextSession);
@@ -189,6 +205,8 @@ export function useMineProgressionController(input: {
       nextActiveCell,
       nextPlatformRow,
       nextGoblinPlacements,
+      input.elevatorLevel,
+      input.foremanAssignments,
       input.bossEnergy,
       input.builtMines,
       nextSeenNoticeIds,

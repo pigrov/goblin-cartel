@@ -25,6 +25,7 @@ export function useGoblinRosterController(input: {
   currentPlatformRow: number;
   labels: Record<string, string>;
   onActiveCellChange: Dispatch<SetStateAction<{ row: number; col: number }>>;
+  platformSlots: number;
   resources: Record<string, number>;
   roster: GoblinRosterState;
   session: MiningSession;
@@ -63,6 +64,7 @@ export function useGoblinRosterController(input: {
     labels: input.labels,
     miningGoblins,
     onActiveCellChange: input.onActiveCellChange,
+    platformSlots: input.platformSlots,
     roster: input.roster,
     session: input.session
   });
@@ -85,7 +87,11 @@ export function useGoblinRosterController(input: {
 
     input.setRoster(result.roster);
     if (isMiningGoblin(goblin)) {
-      setGoblinPlacements((current) => placeGoblinInFirstFreeColumn(input.session, current, goblin.id, input.currentPlatformRow));
+      setGoblinPlacements((current) =>
+        placeGoblinInFirstFreeColumn(input.session, current, goblin.id, input.currentPlatformRow, {
+          maxPlacements: input.platformSlots
+        })
+      );
     }
     input.syncVisibleResourceAmounts(result.resources);
     input.setSession((current) => ({

@@ -80,3 +80,4 @@
 - `0075_chest_card_reveal_no_legacy_versions` - added a large Boss card reveal during chest opening and removed old runtime/backend/save fallbacks for previous content versions.
 - `0076_goblin_drag_chest_balance_vein_persistence` - normalized Pixi goblin drag hitboxes, added admin chest/card drop balance controls, and kept unbuilt found veins after moving to the next mine.
 - `0077_client_app_refactor` - split the game client App shell into screen components, controller hooks, and view-model builders before production deploy.
+- `0078_foreman_tower_elevator` - added foreman tower assignments, offline foreman bonuses, platform goblin statuses, and the first upgradeable elevator with platform slot limits.

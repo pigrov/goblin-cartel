@@ -11,6 +11,8 @@ import type {
   MiningSession
 } from "@goblin-cartel/game-core";
 import type { BuiltMineUpgradePreview, ConstructionSupportState } from "./builtMineClientState";
+import type { ElevatorProgressionState } from "./elevatorState";
+import { getAssignedForemen, type ForemanAssignments } from "./foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "./goblinHutClientState";
 import type { MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
 import type { GameSection } from "./screens/BottomNav";
@@ -43,9 +45,12 @@ export interface CreateGameViewModelsInput {
   currentMineTitle: string;
   currentPlatformRow: number;
   displayedBossEnergy: number;
+  elevatorLevel: number;
+  elevatorProgression: ElevatorProgressionState;
   exposedCellKeys: ReadonlySet<string>;
   foundVeinNotice: MiningFoundVein | null;
   foundVeinView: FoundVeinView | null;
+  foremanAssignments: ForemanAssignments;
   goblinHutProgression: GoblinHutProgressionState;
   goblinLevels: Record<string, number>;
   goblinRoleTab: GoblinHutRoleTabId;
@@ -57,12 +62,14 @@ export interface CreateGameViewModelsInput {
   handleConfirmResetMine: () => void;
   handleContinueRewardChest: () => void;
   handleDismissMineCompletionNotice: () => void;
+  handleAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   handleHireGoblin: (goblin: GoblinConfig) => void;
   handleOpenRewardChest: () => void;
   handlePlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   handleStartNextMine: () => void;
   handleUpgradeBossCard: (cardId: BossCardId) => void;
   handleUpgradeBuiltMine: (builtMineId: string) => void;
+  handleUpgradeElevator: () => void;
   handleUpgradeGoblin: (goblin: GoblinConfig) => void;
   handleUpgradeGoblinHut: () => void;
   hiredCollectorGoblins: GoblinConfig[];
@@ -117,6 +124,7 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
   return {
     activeSection: input.activeSection,
     base: {
+      elevatorProgression: input.elevatorProgression,
       goblinHutProgression: input.goblinHutProgression,
       rosterMessage: input.rosterMessage
     },
@@ -155,7 +163,16 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       currentPlatformRow: input.currentPlatformRow,
       depthMarkerLabel: input.pixiDepthMarkerLabel,
       devOverlayEnabled: input.pixiDevOverlayEnabled,
+      elevatorLevel: input.elevatorLevel,
       exposedCellKeys: input.exposedCellKeys,
+      foremanTower: {
+        assignedForemen: getAssignedForemen(input.availableGoblins, input.roster, input.foremanAssignments),
+        assignments: input.foremanAssignments,
+        availableForemen: input.availableGoblins.filter(
+          (goblin) => goblin.class === "foreman" && input.roster.hiredGoblinIds.includes(goblin.id)
+        ),
+        goblinLevels: input.goblinLevels
+      },
       goblins: input.pixiGoblins,
       hitEffects: input.hitEffects,
       loading: input.loading,
@@ -172,13 +189,19 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
     onBuildMine: input.handleBuildMineFromVein,
     onCollectAllMines: input.handleCollectAllBuiltMines,
     onCollectMine: input.handleCollectBuiltMine,
+    onAssignForemanSlot: input.handleAssignForemanSlot,
     onHireGoblin: input.handleHireGoblin,
+    onOpenGoblins: () => {
+      input.setGoblinRoleTab("builders");
+      input.setActiveSection("goblins");
+    },
     onOpenCollectorPicker: input.setCollectorPickerMineId,
     onPlaceGoblin: input.handlePlaceGoblin,
     onRoleTabChange: input.setGoblinRoleTab,
     onStartNextMine: input.handleStartNextMine,
     onUpgradeGoblin: input.handleUpgradeGoblin,
     onUpgradeGoblinHut: input.handleUpgradeGoblinHut,
+    onUpgradeElevator: input.handleUpgradeElevator,
     onUpgradeMine: input.handleUpgradeBuiltMine
   };
 }

@@ -79,6 +79,9 @@ const goblins: GoblinRosterGoblin[] = [
       id: "no_idle_picks",
       effects: [
         { type: "auto_select_next_block", enabled: true },
+        { type: "offline_relocation_slots", value: 1 },
+        { type: "offline_auto_damage_multiplier", value: 1.1 },
+        { type: "offline_reward_multiplier", value: 1.05 },
         { type: "build_time_multiplier", value: 0.9 }
       ]
     },
@@ -91,6 +94,7 @@ const goblins: GoblinRosterGoblin[] = [
       maxLevel: 4,
       mineCapacityMultiplierPerLevel: 0,
       mineProductionMultiplierPerLevel: 0,
+      offlineRelocationSlotsPerLevel: 1,
       statGrowthPerLevel: {
         loyalty: 1,
         luck: 0,
@@ -479,6 +483,9 @@ describe("goblin roster", () => {
   it("applies level growth to construction multipliers", () => {
     expect(calculateGoblinEffectiveAbilityEffects(goblins[2] as GoblinRosterGoblin, 3)).toEqual([
       { type: "auto_select_next_block", enabled: true },
+      { type: "offline_relocation_slots", value: 3 },
+      { type: "offline_auto_damage_multiplier", value: 1.1 },
+      { type: "offline_reward_multiplier", value: 1.05 },
       { type: "build_time_multiplier", value: 0.86 }
     ]);
   });

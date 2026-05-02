@@ -33,6 +33,7 @@ export interface GoblinRosterLevelingConfig {
   autoCollectSlotsPerLevel?: number;
   buildCostMultiplierPerLevel?: number;
   buildTimeMultiplierPerLevel?: number;
+  offlineRelocationSlotsPerLevel?: number;
   mineCapacityMultiplierPerLevel?: number;
   mineProductionMultiplierPerLevel?: number;
 }
@@ -71,6 +72,18 @@ export type GoblinRosterAbilityEffect =
   | {
       type: "auto_select_next_block";
       enabled: boolean;
+    }
+  | {
+      type: "offline_relocation_slots";
+      value: number;
+    }
+  | {
+      type: "offline_auto_damage_multiplier";
+      value: number;
+    }
+  | {
+      type: "offline_reward_multiplier";
+      value: number;
     };
 
 export type GoblinRosterUnlockRequirement =
@@ -486,6 +499,7 @@ export function calculateGoblinEffectiveAbilityEffects(
   const slotGrowth = goblin.leveling?.autoCollectSlotsPerLevel ?? 0;
   const buildCostGrowth = goblin.leveling?.buildCostMultiplierPerLevel ?? 0;
   const buildTimeGrowth = goblin.leveling?.buildTimeMultiplierPerLevel ?? 0;
+  const offlineRelocationGrowth = goblin.leveling?.offlineRelocationSlotsPerLevel ?? 0;
   const capacityGrowth = goblin.leveling?.mineCapacityMultiplierPerLevel ?? 0;
   const productionGrowth = goblin.leveling?.mineProductionMultiplierPerLevel ?? 0;
 
@@ -522,6 +536,13 @@ export function calculateGoblinEffectiveAbilityEffects(
       return {
         ...effect,
         value: Math.max(0.01, effect.value - levelDelta * buildTimeGrowth)
+      };
+    }
+
+    if (effect.type === "offline_relocation_slots") {
+      return {
+        ...effect,
+        value: Math.max(1, effect.value + Math.floor(levelDelta * offlineRelocationGrowth))
       };
     }
 

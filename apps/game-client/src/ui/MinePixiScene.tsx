@@ -29,6 +29,7 @@ import {
   bindMinePixiDragPlacement,
   bindMinePixiPointerInput
 } from "./minePixiInput";
+import type { MinePixiForemanSlot } from "./minePixiSurface";
 import { useMinePixiSceneRuntime } from "./useMinePixiSceneRuntime";
 
 export type { MinePixiHitEffect, MinePixiHitEffectVariant, MinePixiRewardDrop } from "./minePixiEffects";
@@ -37,6 +38,8 @@ export interface MinePixiGoblin extends MinePixiPlatformGoblin {
   id: string;
   name: string;
 }
+
+export type { MinePixiForemanSlot };
 
 interface MinePixiSceneProps {
   activeCell: {
@@ -47,7 +50,9 @@ interface MinePixiSceneProps {
   currentPlatformRow: number;
   devOverlayEnabled: boolean;
   depthMarkerLabel: (row: number) => string;
+  elevatorLevel: number;
   exposedCellKeys: ReadonlySet<string>;
+  foremen: readonly MinePixiForemanSlot[];
   goblins: MinePixiGoblin[];
   hitEffects: MinePixiHitEffect[];
   onBlockHit: (block: MiningBlockState) => void;
@@ -172,10 +177,12 @@ export function MinePixiScene(props: MinePixiSceneProps) {
 
     renderMinePixiSurface({
       currentPlatformRow: props.currentPlatformRow,
+      elevatorLevel: props.elevatorLevel,
+      foremen: props.foremen,
       layers,
       layout
     });
-  }, [layout, props.currentPlatformRow, runtime.readyTick]);
+  }, [layout, props.currentPlatformRow, props.elevatorLevel, props.foremen, runtime.readyTick]);
 
   useEffect(() => {
     const layers = runtime.layersRef.current;

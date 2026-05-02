@@ -57,6 +57,7 @@ export const goblinLevelingSchema = z.object({
   autoCollectSlotsPerLevel: z.number().nonnegative().default(0),
   buildCostMultiplierPerLevel: z.number().nonnegative().default(0),
   buildTimeMultiplierPerLevel: z.number().nonnegative().default(0),
+  offlineRelocationSlotsPerLevel: z.number().nonnegative().default(0),
   mineCapacityMultiplierPerLevel: z.number().nonnegative().default(0),
   mineProductionMultiplierPerLevel: z.number().nonnegative().default(0)
 });
@@ -95,6 +96,18 @@ export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("auto_select_next_block"),
     enabled: z.boolean().default(true)
+  }),
+  z.object({
+    type: z.literal("offline_relocation_slots"),
+    value: z.number().int().positive()
+  }),
+  z.object({
+    type: z.literal("offline_auto_damage_multiplier"),
+    value: z.number().positive()
+  }),
+  z.object({
+    type: z.literal("offline_reward_multiplier"),
+    value: z.number().positive()
   })
 ]);
 
@@ -320,6 +333,7 @@ export const goblinSchema = z.object({
     autoCollectSlotsPerLevel: 0,
     buildCostMultiplierPerLevel: 0,
     buildTimeMultiplierPerLevel: 0,
+    offlineRelocationSlotsPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   }),
@@ -386,6 +400,7 @@ function createStarterMinerLeveling(goldBaseAmount: number) {
     autoCollectSlotsPerLevel: 0,
     buildCostMultiplierPerLevel: 0,
     buildTimeMultiplierPerLevel: 0,
+    offlineRelocationSlotsPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   };
@@ -404,6 +419,7 @@ function createStarterBuilderLeveling(goldBaseAmount: number, buildCostMultiplie
     autoCollectSlotsPerLevel: 0,
     buildCostMultiplierPerLevel,
     buildTimeMultiplierPerLevel,
+    offlineRelocationSlotsPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
   };
@@ -422,6 +438,7 @@ function createStarterCollectorLeveling(goldBaseAmount: number) {
     autoCollectSlotsPerLevel: 0.5,
     buildCostMultiplierPerLevel: 0,
     buildTimeMultiplierPerLevel: 0,
+    offlineRelocationSlotsPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0.03,
     mineProductionMultiplierPerLevel: 0.03
   };
@@ -810,7 +827,7 @@ export const starterContentBundle: ContentBundle = {
       id: "old_well_01",
       displayNameKey: "mine.old_well.name",
       sortOrder: 10,
-      width: 8,
+      width: 7,
       height: 10,
       depthMeters: 10,
       difficultyStart: 1,
@@ -818,23 +835,23 @@ export const starterContentBundle: ContentBundle = {
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "wooden_completion_chest",
       cellMap: createStarterMineCellMap([
-        ["dirt", "dirt", "dirt", "stone", "dirt", "dirt", "stone", "dirt"],
-        ["dirt", "stone", "dirt", "dirt", "dirt", "stone", "dirt", "dirt"],
-        ["dirt", "dirt", "stone", "gold_cache", "stone", "dirt", "dirt", "stone"],
-        ["stone", "dirt", "stone", "stone", "dirt", "stone", "copper_ore", "stone"],
-        ["stone", "stone", "dirt", "stone", "stone", "copper_ore", "stone", "dirt"],
-        ["dirt", "stone", "stone", "copper_ore", "stone", "stone", "dirt", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "gold_cache"],
-        ["stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
-        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"]
+        ["dirt", "dirt", "dirt", "stone", "dirt", "dirt", "stone"],
+        ["dirt", "stone", "dirt", "dirt", "dirt", "stone", "dirt"],
+        ["dirt", "dirt", "stone", "gold_cache", "stone", "dirt", "dirt"],
+        ["stone", "dirt", "stone", "stone", "dirt", "stone", "copper_ore"],
+        ["stone", "stone", "dirt", "stone", "stone", "copper_ore", "stone"],
+        ["dirt", "stone", "stone", "copper_ore", "stone", "stone", "dirt"],
+        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
+        ["stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
+        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"],
+        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"]
       ])
     },
     {
       id: "abandoned_crosscut_02",
       displayNameKey: "mine.abandoned_crosscut.name",
       sortOrder: 20,
-      width: 8,
+      width: 7,
       height: 10,
       depthMeters: 10,
       difficultyStart: 1.05,
@@ -842,23 +859,23 @@ export const starterContentBundle: ContentBundle = {
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
       cellMap: createStarterMineCellMap([
-        ["dirt", "stone", "stone", "dirt", "stone", "dirt", "stone", "stone"],
-        ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone", "dirt"],
-        ["stone", "stone", "gold_cache", "stone", "stone", "dirt", "stone", "stone"],
-        ["stone", "stone", "dirt", "stone", "copper_ore", "stone", "stone", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "stone", "iron_ore", "copper_ore", "stone"],
-        ["stone", "stone", "iron_ore", "copper_ore", "stone", "dirt", "stone", "stone"],
-        ["copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone"],
-        ["stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone", "stone", "copper_ore"],
-        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
-        ["stone", "copper_ore", "stone", "gold_cache", "copper_ore", "stone", "iron_ore", "stone"]
+        ["dirt", "stone", "stone", "dirt", "stone", "dirt", "stone"],
+        ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone"],
+        ["stone", "stone", "gold_cache", "stone", "stone", "dirt", "stone"],
+        ["stone", "stone", "dirt", "stone", "copper_ore", "stone", "stone"],
+        ["stone", "copper_ore", "stone", "stone", "stone", "iron_ore", "copper_ore"],
+        ["stone", "stone", "iron_ore", "copper_ore", "stone", "dirt", "stone"],
+        ["copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore"],
+        ["stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone", "stone"],
+        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "iron_ore"],
+        ["stone", "copper_ore", "stone", "gold_cache", "copper_ore", "stone", "iron_ore"]
       ])
     },
     {
       id: "lower_gallery_03",
       displayNameKey: "mine.lower_gallery.name",
       sortOrder: 30,
-      width: 8,
+      width: 7,
       height: 10,
       depthMeters: 10,
       difficultyStart: 1.1,
@@ -866,23 +883,23 @@ export const starterContentBundle: ContentBundle = {
       completionVeinTypeId: "iron_vein_small",
       completionRewardChestTypeId: "steel_completion_chest",
       cellMap: createStarterMineCellMap([
-        ["dirt", "stone", "dirt", "stone", "stone", "dirt", "stone", "dirt"],
-        ["stone", "stone", "dirt", "copper_ore", "stone", "stone", "dirt", "stone"],
-        ["stone", "gold_cache", "stone", "stone", "dirt", "copper_ore", "stone", "stone"],
-        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone", "dirt"],
-        ["copper_ore", "stone", "stone", "iron_ore", "stone", "stone", "copper_ore", "stone"],
-        ["stone", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "stone"],
-        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
-        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "copper_ore", "iron_ore"],
-        ["stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore"],
-        ["iron_ore", "stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "gold_cache"]
+        ["dirt", "stone", "dirt", "stone", "stone", "dirt", "stone"],
+        ["stone", "stone", "dirt", "copper_ore", "stone", "stone", "dirt"],
+        ["stone", "gold_cache", "stone", "stone", "dirt", "copper_ore", "stone"],
+        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone"],
+        ["copper_ore", "stone", "stone", "iron_ore", "stone", "stone", "copper_ore"],
+        ["stone", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
+        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "iron_ore"],
+        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "copper_ore"],
+        ["stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "stone"],
+        ["iron_ore", "stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone"]
       ])
     },
     {
       id: "sunken_works_04",
       displayNameKey: "mine.sunken_works.name",
       sortOrder: 40,
-      width: 8,
+      width: 7,
       height: 10,
       depthMeters: 10,
       difficultyStart: 1.15,
@@ -890,23 +907,23 @@ export const starterContentBundle: ContentBundle = {
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
       cellMap: createStarterMineCellMap([
-        ["stone", "dirt", "stone", "dirt", "stone", "copper_ore", "stone", "dirt"],
-        ["stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone", "gold_cache"],
-        ["copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone"],
-        ["stone", "iron_ore", "stone", "stone", "gold_cache", "stone", "iron_ore", "stone"],
-        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "stone", "iron_ore"],
-        ["iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone"],
-        ["stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore"],
-        ["gold_cache", "stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone"],
-        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "gold_cache", "iron_ore"],
-        ["iron_ore", "stone", "copper_ore", "iron_ore", "stone", "iron_ore", "copper_ore", "stone"]
+        ["stone", "dirt", "stone", "dirt", "stone", "copper_ore", "stone"],
+        ["stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone"],
+        ["copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone"],
+        ["stone", "iron_ore", "stone", "stone", "gold_cache", "stone", "iron_ore"],
+        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "stone"],
+        ["iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore"],
+        ["stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone"],
+        ["gold_cache", "stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore"],
+        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "gold_cache"],
+        ["iron_ore", "stone", "copper_ore", "iron_ore", "stone", "iron_ore", "copper_ore"]
       ])
     },
     {
       id: "red_iron_drop_05",
       displayNameKey: "mine.red_iron_drop.name",
       sortOrder: 50,
-      width: 8,
+      width: 7,
       height: 10,
       depthMeters: 10,
       difficultyStart: 1.2,
@@ -914,16 +931,16 @@ export const starterContentBundle: ContentBundle = {
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "steel_completion_chest",
       cellMap: createStarterMineCellMap([
-        ["stone", "copper_ore", "stone", "dirt", "stone", "iron_ore", "stone", "dirt"],
-        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone"],
-        ["copper_ore", "iron_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone"],
-        ["stone", "gold_cache", "iron_ore", "copper_ore", "stone", "iron_ore", "stone", "stone"],
-        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "iron_ore", "copper_ore"],
-        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "iron_ore", "stone"],
-        ["copper_ore", "stone", "iron_ore", "gold_cache", "stone", "copper_ore", "stone", "iron_ore"],
-        ["iron_ore", "copper_ore", "stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone"],
-        ["stone", "iron_ore", "copper_ore", "stone", "iron_ore", "gold_cache", "stone", "iron_ore"],
-        ["iron_ore", "stone", "iron_ore", "copper_ore", "iron_ore", "stone", "copper_ore", "iron_ore"]
+        ["stone", "copper_ore", "stone", "dirt", "stone", "iron_ore", "stone"],
+        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "gold_cache"],
+        ["copper_ore", "iron_ore", "stone", "stone", "iron_ore", "stone", "copper_ore"],
+        ["stone", "gold_cache", "iron_ore", "copper_ore", "stone", "iron_ore", "stone"],
+        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "iron_ore"],
+        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "iron_ore"],
+        ["copper_ore", "stone", "iron_ore", "gold_cache", "stone", "copper_ore", "stone"],
+        ["iron_ore", "copper_ore", "stone", "iron_ore", "stone", "iron_ore", "copper_ore"],
+        ["stone", "iron_ore", "copper_ore", "stone", "iron_ore", "gold_cache", "stone"],
+        ["iron_ore", "stone", "iron_ore", "copper_ore", "iron_ore", "stone", "copper_ore"]
       ])
     }
   ],
@@ -1183,6 +1200,9 @@ export const starterContentBundle: ContentBundle = {
         descriptionKey: "ability.no_idle_picks.description",
         effects: [
           { type: "auto_select_next_block", enabled: true },
+          { type: "offline_relocation_slots", value: 1 },
+          { type: "offline_auto_damage_multiplier", value: 1.1 },
+          { type: "offline_reward_multiplier", value: 1.05 },
           { type: "build_time_multiplier", value: 0.9 }
         ]
       },
@@ -1204,6 +1224,7 @@ export const starterContentBundle: ContentBundle = {
         autoCollectSlotsPerLevel: 0,
         buildCostMultiplierPerLevel: 0,
         buildTimeMultiplierPerLevel: 0.015,
+        offlineRelocationSlotsPerLevel: 1,
         mineCapacityMultiplierPerLevel: 0,
         mineProductionMultiplierPerLevel: 0
       },
@@ -1360,7 +1381,7 @@ export const starterContentBundle: ContentBundle = {
       "ability.copper_tally.name": "Медная ведомость",
       "ability.copper_tally.description": "Открывает слот авто-сбора и усиливает добычу медной руды.",
       "ability.no_idle_picks.name": "Без простоев",
-      "ability.no_idle_picks.description": "Гоблины сами переходят к следующему блоку."
+      "ability.no_idle_picks.description": "Переставляет шахтеров офлайн, держит темп добычи и выбивает немного больше ресурсов."
     }
   }
 };

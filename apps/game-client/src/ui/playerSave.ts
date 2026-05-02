@@ -19,8 +19,10 @@ export interface StoredMineSave {
   };
   platformRow?: number;
   goblinPlacements?: Record<string, number>;
+  foremanAssignments?: Array<string | null>;
   bossEnergy?: BossEnergyState;
   builtMines?: BuiltMineState[];
+  elevatorLevel?: number;
   mineCompletionNoticeSeenIds?: string[];
   savedAt?: number;
 }

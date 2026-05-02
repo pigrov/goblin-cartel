@@ -12,7 +12,7 @@ import {
 const mine = {
   depthMeters: 60,
   height: 12,
-  width: 8
+  width: 7
 };
 
 describe("minePixiLayout", () => {
@@ -20,10 +20,11 @@ describe("minePixiLayout", () => {
     const layout = createMinePixiLayout(mine, 430, 3);
 
     expect(layout.width).toBe(430);
-    expect(layout.mineWidth).toBe(8);
+    expect(layout.mineWidth).toBe(7);
     expect(layout.mineHeight).toBe(12);
     expect(layout.cellSize).toBeGreaterThanOrEqual(28);
-    expect(layout.gridWidth).toBe(8 * layout.cellSize + 7 * layout.gap);
+    expect(layout.gridWidth).toBe(7 * layout.cellSize + 6 * layout.gap);
+    expect(layout.gridX).toBe(4 + minePixiLayoutConfig.depthWidth + minePixiLayoutConfig.gap + minePixiLayoutConfig.sideControlsWidth);
     expect(layout.platformY).toBe(layout.gridY + 3 * layout.rowStep - layout.platformHeight - minePixiLayoutConfig.platformGap);
   });
 

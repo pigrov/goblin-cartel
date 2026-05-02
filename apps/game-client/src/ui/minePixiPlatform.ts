@@ -1,4 +1,4 @@
-import { Container, Graphics, type FederatedPointerEvent } from "pixi.js";
+import { Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
 import type { MiningSession } from "@goblin-cartel/game-core";
 import {
   cellKey,
@@ -25,6 +25,7 @@ export interface MinePixiDragState {
 export interface MinePixiPlatformGoblin {
   id: string;
   col: number;
+  status?: "idle" | "waiting" | "working";
   working: boolean;
 }
 
@@ -76,7 +77,7 @@ export function drawPlatform(input: {
 
     const x = input.layout.gridX + goblin.col * input.layout.rowStep + input.layout.cellSize / 2;
     const y = input.layout.platformHeight - 40;
-    const goblinNode = drawGoblin(input.layout.cellSize, goblin.working, false, { showGrabArea: true });
+    const goblinNode = drawGoblin(input.layout.cellSize, goblin.working, false);
     goblinNode.position.set(x, y);
     goblinNode.eventMode = "static";
     goblinNode.cursor = "grab";
@@ -96,6 +97,9 @@ export function drawPlatform(input: {
     });
 
     platform.addChild(goblinNode);
+    const statusBadge = drawGoblinStatusBadge(goblin.status ?? (goblin.working ? "working" : "idle"));
+    statusBadge.position.set(x, y - 11);
+    platform.addChild(statusBadge);
     input.animatedGoblins.push({
       baseY: y,
       node: goblinNode,
@@ -130,18 +134,62 @@ export function drawDragPreview(input: {
     return;
   }
 
+  if (input.dragState.targetCell) {
+    const targetX = input.layout.gridX + input.dragState.targetCell.col * input.layout.rowStep;
+    input.root.addChild(
+      new Graphics()
+        .rect(targetX, input.layout.gridY, input.layout.cellSize, Math.max(0, input.layout.contentHeight - input.layout.gridY))
+        .fill({ color: 0xf2b84b, alpha: 0.1 })
+        .rect(targetX, input.layout.gridY, input.layout.cellSize, Math.max(0, input.layout.contentHeight - input.layout.gridY))
+        .stroke({ color: 0xf2b84b, alpha: 0.46, width: 2 })
+        .roundRect(targetX + 2, input.layout.platformY + input.layout.platformHeight - 27, input.layout.cellSize - 4, 16, 5)
+        .fill({ color: 0xf2b84b, alpha: 0.18 })
+        .stroke({ color: 0xf2b84b, alpha: 0.95, width: 3 })
+    );
+  }
+
   const preview = drawGoblin(input.layout.cellSize, sourceGoblin.working, true);
   preview.alpha = 0.94;
   preview.position.set(input.dragState.point.x, input.dragState.point.y - input.layout.platformHeight * 0.55);
   preview.scale.set(preview.scale.x * 1.16);
   input.root.addChild(preview);
+}
 
-  if (input.dragState.targetCell) {
-    const targetX = input.layout.gridX + input.dragState.targetCell.col * input.layout.rowStep;
-    input.root.addChild(
-      new Graphics()
-        .roundRect(targetX + 2, input.layout.platformY + input.layout.platformHeight - 27, input.layout.cellSize - 4, 16, 5)
-        .stroke({ color: 0xf2b84b, alpha: 0.95, width: 3 })
-    );
+function drawGoblinStatusBadge(status: "idle" | "waiting" | "working"): Container {
+  const label = status === "working" ? "БЬЕТ" : status === "waiting" ? "ЖДЕТ" : "ГОТОВ";
+  const colors = statusColors(status);
+  const badge = new Container();
+  const text = new Text({
+    style: {
+      fill: colors.text,
+      fontFamily: "Inter, Arial, sans-serif",
+      fontSize: 8,
+      fontWeight: "800"
+    },
+    text: label
+  });
+  const width = Math.max(27, Math.ceil(text.width) + 10);
+
+  text.anchor.set(0.5);
+  text.position.set(0, -0.5);
+  badge.addChild(
+    new Graphics()
+      .roundRect(-width / 2, -7, width, 14, 5)
+      .fill({ color: colors.fill, alpha: 0.9 })
+      .stroke({ color: colors.stroke, alpha: 0.95, width: 1 })
+  );
+  badge.addChild(text);
+  return badge;
+}
+
+function statusColors(status: "idle" | "waiting" | "working"): { fill: number; stroke: number; text: number } {
+  if (status === "working") {
+    return { fill: 0x25351e, stroke: 0x91c86c, text: 0xcaf7a9 };
   }
+
+  if (status === "waiting") {
+    return { fill: 0x3b2a1b, stroke: 0xf2b84b, text: 0xffe0a0 };
+  }
+
+  return { fill: 0x1f3143, stroke: 0x68c6c8, text: 0xc9f6ff };
 }

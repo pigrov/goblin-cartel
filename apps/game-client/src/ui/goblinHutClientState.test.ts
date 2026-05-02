@@ -49,6 +49,7 @@ const collector: GoblinConfig = {
     maxLevel: 5,
     mineCapacityMultiplierPerLevel: 0.05,
     mineProductionMultiplierPerLevel: 0,
+    offlineRelocationSlotsPerLevel: 0,
     statGrowthPerLevel: {
       loyalty: 1,
       luck: 1,

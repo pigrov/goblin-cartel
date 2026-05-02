@@ -7,6 +7,8 @@ import type {
   MiningSession
 } from "@goblin-cartel/game-core";
 import type { BuiltMineUpgradePreview, ConstructionSupportState } from "../builtMineClientState";
+import type { ElevatorProgressionState } from "../elevatorState";
+import type { ForemanAssignments } from "../foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "../goblinHutClientState";
 import type { MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
 import type { GameSection } from "./BottomNav";
@@ -16,22 +18,26 @@ import { MineScreen } from "./MineScreen";
 
 export interface GameMainContentActions {
   onBlockHit: (block: MiningBlockState) => void;
+  onAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
   onHireGoblin: (goblin: GoblinConfig) => void;
+  onOpenGoblins: () => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   onRoleTabChange: (roleTab: GoblinHutRoleTabId) => void;
   onStartNextMine: () => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   onUpgradeGoblinHut: () => void;
+  onUpgradeElevator: () => void;
   onUpgradeMine: (builtMineId: string) => void;
 }
 
 export interface GameMainContentView {
   activeSection: GameSection;
   base: {
+    elevatorProgression: ElevatorProgressionState;
     goblinHutProgression: GoblinHutProgressionState;
     rosterMessage: string | null;
   };
@@ -73,7 +79,14 @@ export interface GameMainContentView {
     currentPlatformRow: number;
     depthMarkerLabel: (row: number) => string;
     devOverlayEnabled: boolean;
+    elevatorLevel: number;
     exposedCellKeys: ReadonlySet<string>;
+    foremanTower: {
+      assignedForemen: GoblinConfig[];
+      assignments: ForemanAssignments;
+      availableForemen: GoblinConfig[];
+      goblinLevels: Record<string, number>;
+    };
     goblins: MinePixiGoblin[];
     hitEffects: MinePixiHitEffect[];
     loading: boolean;
@@ -103,8 +116,10 @@ export function GameMainContent(props: {
     return (
       <BaseSection
         goblinHutProgression={view.base.goblinHutProgression}
+        elevatorProgression={view.base.elevatorProgression}
         labels={common.labels}
         message={view.base.rosterMessage}
+        onUpgradeElevator={actions.onUpgradeElevator}
         onUpgradeGoblinHut={actions.onUpgradeGoblinHut}
       />
     );
@@ -165,11 +180,16 @@ export function GameMainContent(props: {
       currentPlatformRow={view.mine.currentPlatformRow}
       depthMarkerLabel={view.mine.depthMarkerLabel}
       devOverlayEnabled={view.mine.devOverlayEnabled}
+      elevatorLevel={view.mine.elevatorLevel}
       exposedCellKeys={view.mine.exposedCellKeys}
+      foremanTower={view.mine.foremanTower}
       goblins={view.mine.goblins}
       hitEffects={view.mine.hitEffects}
+      labels={common.labels}
       loading={view.mine.loading}
       onBlockHit={actions.onBlockHit}
+      onAssignForemanSlot={actions.onAssignForemanSlot}
+      onOpenGoblins={actions.onOpenGoblins}
       onPlaceGoblin={actions.onPlaceGoblin}
       platformCellKeys={view.mine.platformCellKeys}
       platformDropAnimating={view.mine.platformDropAnimating}

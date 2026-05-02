@@ -196,6 +196,12 @@ export function bindMinePixiDragPlacement(input: {
   }
 
   const activeDraggingGoblinId = input.dragState.goblinId;
+  const canvas = input.appRef.current?.canvas;
+  const previousTouchAction = canvas?.style.touchAction;
+
+  if (canvas) {
+    canvas.style.touchAction = "none";
+  }
 
   function updateDragPoint(event: PointerEvent): MinePixiPoint | null {
     const layout = input.layoutRef.current;
@@ -220,6 +226,10 @@ export function bindMinePixiDragPlacement(input: {
   }
 
   function finishDrag(event: PointerEvent) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
     const layout = input.layoutRef.current;
     const canvas = input.appRef.current?.canvas;
 
@@ -239,21 +249,33 @@ export function bindMinePixiDragPlacement(input: {
   }
 
   function handlePointerMove(event: PointerEvent) {
+    if (event.cancelable) {
+      event.preventDefault();
+    }
+
     updateDragPoint(event);
   }
 
-  function cancelDrag() {
+  function cancelDrag(event?: PointerEvent) {
+    if (event?.cancelable) {
+      event.preventDefault();
+    }
+
     input.setDragState(null);
   }
 
-  window.addEventListener("pointermove", handlePointerMove);
-  window.addEventListener("pointerup", finishDrag);
-  window.addEventListener("pointercancel", cancelDrag);
+  window.addEventListener("pointermove", handlePointerMove, { passive: false });
+  window.addEventListener("pointerup", finishDrag, { passive: false });
+  window.addEventListener("pointercancel", cancelDrag, { passive: false });
 
   return () => {
     window.removeEventListener("pointermove", handlePointerMove);
     window.removeEventListener("pointerup", finishDrag);
     window.removeEventListener("pointercancel", cancelDrag);
+
+    if (canvas) {
+      canvas.style.touchAction = previousTouchAction ?? "";
+    }
   };
 }
 

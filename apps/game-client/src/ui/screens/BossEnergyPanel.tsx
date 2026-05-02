@@ -1,5 +1,5 @@
 import type { BossEnergyConfig } from "@goblin-cartel/game-core";
-import { Sparkles, X } from "lucide-react";
+import { Bomb, Sparkles, X, Zap } from "lucide-react";
 
 export function BossEnergyPanel(props: {
   config: BossEnergyConfig;
@@ -13,16 +13,18 @@ export function BossEnergyPanel(props: {
     <section className="boss-panel">
       <button
         className={props.feedback ? "boss-energy-card warn" : "boss-energy-card"}
+        aria-label="Энергия босса"
         onClick={props.onOpenDetails}
         type="button"
       >
-        <span className="boss-energy-tank" aria-hidden="true">
+        <span className="boss-side-fill" aria-hidden="true">
           <i style={{ height: `${props.energyPercent}%` }} />
         </span>
+        <Zap size={17} />
         <span className="boss-energy-main">
           <span>Энергия босса</span>
           <strong>
-            {formatInteger(props.displayedEnergy)}/{props.config.maxEnergy}
+            {formatInteger(props.displayedEnergy)}
           </strong>
         </span>
         <span className="boss-energy-stats">
@@ -31,8 +33,12 @@ export function BossEnergyPanel(props: {
         </span>
       </button>
       <button className="boss-cards-button" onClick={props.onOpenCards} type="button" aria-label="Карты босса">
-        <Sparkles size={18} />
+        <Sparkles size={20} />
         <span>Карты</span>
+      </button>
+      <button className="boss-skill-button" type="button" disabled aria-label="Слот умения">
+        <Bomb size={20} />
+        <span>Скилл</span>
       </button>
     </section>
   );
@@ -45,17 +51,30 @@ export function BossDetailsModal(props: {
   secondsUntilReady: number;
 }) {
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+    <div className="modal-backdrop boss-fullscreen-backdrop" onClick={props.onClose} role="presentation">
       <section className="boss-modal" aria-label="Параметры босса" onClick={(event) => event.stopPropagation()}>
         <header>
           <div>
             <p>Босс</p>
             <strong>Параметры удара</strong>
+            <span>Карты усиливают удары по камням</span>
           </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
+          <button className="boss-modal-close" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={24} />
           </button>
         </header>
+        <section className="boss-hero-card">
+          <div className="boss-hero-orb" aria-hidden="true">
+            <Zap size={34} />
+          </div>
+          <div>
+            <span>Энергия</span>
+            <strong>{formatInteger(props.displayedEnergy)}/{props.config.maxEnergy}</strong>
+          </div>
+          <i aria-hidden="true">
+            <b style={{ width: `${Math.min(100, (props.displayedEnergy / props.config.maxEnergy) * 100)}%` }} />
+          </i>
+        </section>
         <div className="boss-stat-grid">
           <BossStat label="Энергия" value={`${formatInteger(props.displayedEnergy)}/${props.config.maxEnergy}`} />
           <BossStat label="Расход" value={`${props.config.energyPerHit}/удар`} />

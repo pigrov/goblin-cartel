@@ -119,7 +119,7 @@ describe("admin draft templates", () => {
     expect(result.content.localization?.ru?.["boss_card.draft_boss_card_01.name"]).toBe("Новая карта босса");
   });
 
-  it("creates a clean 8x10 mine cell map template", () => {
+  it("creates a clean 7x10 mine cell map template", () => {
     const result = addDraftMineTemplate({
       ...baseContent,
       mineTemplates: [
@@ -149,9 +149,9 @@ describe("admin draft templates", () => {
       difficultyStart: 1,
       height: 10,
       id: "draft_mine_02",
-      width: 8
+      width: 7
     });
-    expect(createdCellMap).toHaveLength(80);
+    expect(createdCellMap).toHaveLength(70);
     expect(createdCellMap[0]).toMatchObject({ blockTypeId: "stone_block", col: 0, row: 0 });
     expect(result.content.localization?.ru?.["mine.draft_mine_02.name"]).toBe("Новый рудник");
   });

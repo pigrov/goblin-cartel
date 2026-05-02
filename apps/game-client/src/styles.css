@@ -214,13 +214,12 @@ body,
 
 .boss-panel {
   position: absolute;
-  left: 10px;
-  bottom: 68px;
+  left: 42px;
+  top: 214px;
   z-index: 18;
-  width: min(286px, calc(100% - 20px));
+  width: 42px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 54px;
-  gap: 6px;
+  gap: 8px;
   pointer-events: none;
 }
 
@@ -247,7 +246,8 @@ body,
 .icon-button,
 .bottom-nav button,
 .boss-energy-card,
-.boss-cards-button {
+.boss-cards-button,
+.boss-skill-button {
   border: 1px solid var(--gc-border);
   color: var(--gc-text);
   background: var(--gc-panel-raised);
@@ -317,11 +317,24 @@ body,
   display: none;
 }
 
+.mine-screen-stage {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  position: relative;
+  overflow: hidden;
+}
+
+.mine-screen-stage > .pixi-playfield {
+  min-height: 0;
+}
+
 .mine-pixi-canvas {
   display: block;
   width: 100%;
   height: auto;
-  touch-action: pan-y !important;
+  touch-action: none !important;
   user-select: none;
 }
 
@@ -375,6 +388,37 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.foreman-tower-button {
+  position: absolute;
+  top: 92px;
+  right: 10px;
+  z-index: 16;
+  width: 52px;
+  height: 44px;
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  gap: 1px;
+  padding: 4px;
+  border: 1px solid rgb(240 211 134 / 58%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(111 69 33 / 32%)),
+    rgb(30 20 13 / 74%);
+  color: #f0d386;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 10px 24px rgb(0 0 0 / 28%);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.foreman-tower-button span {
+  color: var(--gc-text);
 }
 
 .surface-scene {
@@ -1305,6 +1349,141 @@ body,
 .goblin-hut-visual.stage-4 .hut-body {
   border-color: #39302a;
   background: linear-gradient(90deg, #5f5545, #b17b45 45%, #dcaa61);
+}
+
+.elevator-progress-card {
+  border-color: rgb(104 198 200 / 18%);
+  background:
+    linear-gradient(180deg, rgb(68 198 200 / 8%), rgb(0 0 0 / 18%)),
+    rgb(37 34 31 / 82%);
+}
+
+.elevator-visual {
+  position: relative;
+  width: 82px;
+  height: 58px;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, #6fa6c7 0 36%, #4d6d54 37% 58%, #2b2018 59% 100%),
+    #201712;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 20%);
+}
+
+.elevator-visual::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: -8px;
+  height: 20px;
+  border-radius: 50% 50% 0 0;
+  background: linear-gradient(180deg, #754e2f, #392415);
+}
+
+.elevator-visual::after {
+  content: "";
+  position: absolute;
+  right: 9px;
+  top: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ffd06b;
+  box-shadow: 0 0 12px rgb(255 208 107 / 56%);
+}
+
+.elevator-visual i {
+  position: absolute;
+  display: block;
+}
+
+.elevator-rail {
+  left: 18px;
+  top: 10px;
+  width: 5px;
+  height: 46px;
+  border-radius: 4px;
+  background: #6f4b2c;
+  box-shadow: 38px 0 0 #5b3b23;
+}
+
+.elevator-wheel {
+  left: 29px;
+  top: 6px;
+  width: 24px;
+  height: 24px;
+  border: 4px solid #7e8790;
+  border-radius: 50%;
+  background:
+    linear-gradient(90deg, transparent 42%, #7e8790 43% 56%, transparent 57%),
+    linear-gradient(0deg, transparent 42%, #7e8790 43% 56%, transparent 57%),
+    #2d2118;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 26%);
+}
+
+.elevator-cable {
+  left: 40px;
+  top: 28px;
+  width: 3px;
+  height: 25px;
+  border-radius: 999px;
+  background: #9ca3ad;
+  box-shadow: 5px 0 0 rgb(156 163 173 / 42%);
+}
+
+.elevator-platform {
+  left: 18px;
+  bottom: 7px;
+  width: 46px;
+  height: 11px;
+  border: 1px solid rgb(0 0 0 / 38%);
+  border-radius: 4px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), transparent 38%),
+    repeating-linear-gradient(90deg, #a8753f 0 12px, #6f4828 13px 16px);
+  box-shadow: inset 0 -3px 0 rgb(0 0 0 / 20%);
+}
+
+.elevator-brace {
+  left: 18px;
+  bottom: 20px;
+  width: 46px;
+  height: 22px;
+  background:
+    linear-gradient(30deg, transparent 0 47%, #6f4b2c 48% 53%, transparent 54%),
+    linear-gradient(150deg, transparent 0 47%, #6f4b2c 48% 53%, transparent 54%);
+}
+
+.elevator-visual.stage-2 .elevator-rail,
+.elevator-visual.stage-3 .elevator-rail,
+.elevator-visual.stage-4 .elevator-rail,
+.elevator-visual.stage-5 .elevator-rail {
+  background: #8b929b;
+  box-shadow: 38px 0 0 #6e7881;
+}
+
+.elevator-visual.stage-3 .elevator-platform,
+.elevator-visual.stage-4 .elevator-platform,
+.elevator-visual.stage-5 .elevator-platform {
+  left: 14px;
+  width: 54px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 22%), transparent 38%),
+    repeating-linear-gradient(90deg, #b17b45 0 12px, #6f4828 13px 16px);
+}
+
+.elevator-visual.stage-4 .elevator-wheel,
+.elevator-visual.stage-5 .elevator-wheel {
+  border-color: #c2c8cf;
+}
+
+.elevator-visual.stage-5 .elevator-platform {
+  border-color: #f2b84b;
+  box-shadow:
+    inset 0 -3px 0 rgb(0 0 0 / 18%),
+    0 0 0 2px rgb(242 184 75 / 18%);
 }
 
 .goblin-hut-progress-card span {
@@ -2695,6 +2874,20 @@ body,
   text-align: left;
 }
 
+.boss-energy-card {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  grid-template-columns: 1fr;
+  grid-template-rows: 18px 13px;
+  justify-items: center;
+  gap: 1px;
+  overflow: hidden;
+  padding: 5px 4px;
+  border-color: rgb(69 141 199 / 62%);
+}
+
 .goblin-info-card {
   border: 1px solid rgb(111 191 87 / 48%);
   color: var(--gc-text);
@@ -2709,18 +2902,15 @@ body,
   border-color: rgb(196 68 45 / 76%);
 }
 
-.boss-energy-tank {
-  position: relative;
-  width: 16px;
-  height: 26px;
-  overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: 5px;
-  background: rgb(0 0 0 / 22%);
-  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 24%);
+.boss-side-fill {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  pointer-events: none;
 }
 
-.boss-energy-tank i {
+.boss-side-fill i {
   position: absolute;
   left: 0;
   right: 0;
@@ -2728,9 +2918,15 @@ body,
   display: block;
   min-height: 2px;
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 40%), transparent 28%),
-    var(--gc-energy);
+    linear-gradient(180deg, rgb(255 255 255 / 24%), transparent 28%),
+    rgb(69 141 199 / 48%);
   transition: height 220ms ease;
+}
+
+.boss-energy-card > svg,
+.boss-energy-main {
+  position: relative;
+  z-index: 1;
 }
 
 .boss-energy-main,
@@ -2754,11 +2950,27 @@ body,
   white-space: nowrap;
 }
 
+.boss-energy-main span,
+.boss-energy-stats {
+  display: none;
+}
+
 .boss-energy-main strong,
 .goblin-info-main strong {
   color: var(--gc-text);
   font-size: 13px;
   line-height: 1;
+}
+
+.boss-energy-main strong {
+  display: block;
+  max-width: 40px;
+  overflow: hidden;
+  color: var(--gc-energy);
+  font-size: 11px;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .boss-energy-stats span:first-child,
@@ -2778,9 +2990,12 @@ body,
   justify-items: end;
 }
 
-.boss-cards-button {
+.boss-cards-button,
+.boss-skill-button {
+  width: 42px;
+  height: 42px;
   min-width: 0;
-  min-height: 36px;
+  min-height: 42px;
   display: grid;
   place-items: center;
   gap: 1px;
@@ -2804,34 +3019,63 @@ body,
   color: #d9c1ff;
 }
 
-.boss-cards-button span {
-  overflow: hidden;
-  max-width: 100%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.boss-skill-button {
+  border-color: rgb(242 184 75 / 46%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(242 184 75 / 12%)),
+    rgb(35 26 16 / 76%);
+  opacity: 0.76;
+}
+
+.boss-skill-button svg {
+  color: var(--gc-gold);
+}
+
+.boss-skill-button:disabled {
+  cursor: not-allowed;
+}
+
+.boss-cards-button span,
+.boss-skill-button span {
+  display: none;
 }
 
 .boss-cards-modal {
-  width: min(410px, calc(100% - 18px));
-  max-height: min(760px, calc(100dvh - 34px));
+  position: relative;
+  width: 100%;
+  height: 100%;
+  max-height: none;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 10px;
-  padding: 12px;
-  border: 1px solid rgb(177 124 255 / 24%);
-  border-radius: var(--gc-radius-md);
+  gap: 12px;
+  padding: 14px 12px 16px;
+  border: 0;
+  border-radius: 0;
   background:
-    radial-gradient(circle at 50% 0%, rgb(177 124 255 / 18%), transparent 35%),
-    rgb(24 18 31 / 94%);
+    radial-gradient(circle at 24% 10%, rgb(68 198 200 / 20%), transparent 28%),
+    radial-gradient(circle at 82% 4%, rgb(177 124 255 / 18%), transparent 30%),
+    linear-gradient(180deg, #12408f 0%, #0f3478 42%, #0a2559 100%);
   color: var(--gc-text);
-  box-shadow: 0 26px 70px rgb(0 0 0 / 54%);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 8%);
 }
 
 .boss-cards-modal > header {
-  display: flex;
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 48px;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
+  margin: 0 -6px;
+  padding: 7px 8px;
+  border-top: 2px solid rgb(255 241 190 / 44%);
+  border-bottom: 4px solid rgb(129 62 4 / 54%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 30%), transparent 24%),
+    linear-gradient(180deg, #ffb21d, #d46d05);
+  box-shadow:
+    0 5px 0 rgb(0 0 0 / 24%),
+    inset 0 -2px 0 rgb(80 32 0 / 30%);
+  text-align: center;
 }
 
 .boss-cards-modal p,
@@ -2840,16 +3084,37 @@ body,
 }
 
 .boss-cards-modal header p {
-  color: var(--gc-muted);
-  font-size: 11px;
+  color: rgb(255 248 223 / 94%);
+  font-size: 10px;
   font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px 0 rgb(90 37 0 / 42%);
   text-transform: uppercase;
 }
 
 .boss-cards-modal header strong {
   display: block;
   margin-top: 2px;
-  font-size: 18px;
+  color: #fff8df;
+  font-size: 22px;
+  line-height: 1;
+  text-shadow:
+    0 2px 0 rgb(89 43 0 / 74%),
+    0 4px 10px rgb(0 0 0 / 28%);
+}
+
+.boss-cards-modal header span,
+.boss-modal header span {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  color: #fff8df;
+  font-size: 11px;
+  font-weight: 900;
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 0 rgb(89 43 0 / 58%);
+  white-space: nowrap;
 }
 
 .boss-cards-list {
@@ -2857,7 +3122,7 @@ body,
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   align-content: start;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -2870,17 +3135,26 @@ body,
 
 .boss-card {
   min-width: 0;
-  min-height: 166px;
+  min-height: 226px;
   display: grid;
-  grid-template-rows: 52px minmax(0, 1fr) 30px;
+  grid-template-rows: 82px minmax(0, 1fr) 32px;
   align-items: stretch;
-  gap: 6px;
+  gap: 7px;
   padding: 7px;
-  border: 1px solid rgb(255 255 255 / 12%);
-  border-radius: var(--gc-radius-sm);
+  border: 2px solid rgb(219 233 255 / 68%);
+  border-radius: 8px;
   background:
-    linear-gradient(180deg, rgb(255 255 255 / 9%), rgb(255 255 255 / 3%)),
-    rgb(44 33 33 / 74%);
+    linear-gradient(135deg, rgb(255 255 255 / 48%) 0 10%, transparent 11%),
+    linear-gradient(180deg, #a9c4ff, #5b79c8);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 58%),
+    inset 0 -4px 0 rgb(45 63 126 / 40%),
+    0 5px 0 rgb(0 0 0 / 32%),
+    0 10px 18px rgb(0 0 0 / 24%);
+}
+
+.boss-card {
+  cursor: pointer;
 }
 
 .boss-card.rare {
@@ -2892,21 +3166,23 @@ body,
 }
 
 .boss-card-art {
-  width: 52px;
-  height: 52px;
+  width: 82px;
+  height: 82px;
   position: relative;
   justify-self: center;
   display: grid;
   place-items: center;
-  border: 1px solid rgb(255 255 255 / 16%);
-  border-radius: var(--gc-radius-sm);
+  border: 2px solid rgb(20 16 52 / 72%);
+  border-radius: 7px;
   color: #d9c1ff;
   background:
     radial-gradient(circle at 50% 22%, rgb(255 255 255 / 28%), transparent 28%),
     linear-gradient(180deg, #6e4aa5, #2e2543);
   box-shadow:
     inset 0 1px 0 rgb(255 255 255 / 20%),
-    0 8px 14px rgb(0 0 0 / 18%);
+    inset 0 2px 0 rgb(255 255 255 / 22%),
+    0 4px 0 rgb(20 16 52 / 52%),
+    0 8px 14px rgb(0 0 0 / 24%);
 }
 
 .boss-card-art::before,
@@ -2930,8 +3206,8 @@ body,
 .boss-card-art-face {
   position: relative;
   z-index: 1;
-  width: 34px;
-  height: 42px;
+  width: 54px;
+  height: 66px;
   display: grid;
   place-items: center;
   border: 1px solid rgb(255 255 255 / 24%);
@@ -2995,7 +3271,7 @@ body,
   min-width: 0;
   display: grid;
   grid-template-rows: auto auto auto 1fr;
-  gap: 4px;
+  gap: 5px;
 }
 
 .boss-card-title {
@@ -3011,7 +3287,7 @@ body,
 .boss-card-effect span,
 .boss-card-progress span {
   overflow: hidden;
-  color: var(--gc-muted);
+  color: rgb(25 36 81 / 82%);
   font-size: 10px;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -3020,13 +3296,18 @@ body,
 
 .boss-card-title strong {
   overflow: hidden;
-  color: var(--gc-text);
-  font-size: 12px;
+  color: #fff8f0;
+  font-size: 13px;
+  text-shadow:
+    0 2px 0 rgb(48 48 79 / 68%),
+    0 3px 8px rgb(0 0 0 / 24%);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .boss-card-copy p {
+  min-height: 30px;
+  color: rgb(18 28 67 / 88%);
   display: -webkit-box;
   overflow: hidden;
   line-height: 1.25;
@@ -3044,8 +3325,9 @@ body,
 
 .boss-card-effect strong,
 .boss-card-progress strong {
-  color: #d9c1ff;
+  color: #fff8df;
   font-size: 11px;
+  text-shadow: 0 2px 0 rgb(40 38 70 / 64%);
 }
 
 .boss-card-progress {
@@ -3060,17 +3342,18 @@ body,
 }
 
 .boss-card-progress i {
-  height: 5px;
+  height: 8px;
   overflow: hidden;
+  border: 1px solid rgb(25 32 79 / 54%);
   border-radius: 999px;
-  background: rgb(0 0 0 / 24%);
+  background: rgb(16 26 70 / 54%);
 }
 
 .boss-card-progress b {
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #7a5cff, #d9c1ff);
+  background: linear-gradient(90deg, #18c1ff, #f6f0ff);
 }
 
 .boss-card-progress.maxed {
@@ -3082,13 +3365,19 @@ body,
   min-width: 0;
   min-height: 32px;
   padding: 0 6px;
-  border: 1px solid rgb(177 124 255 / 56%);
-  border-radius: var(--gc-radius-sm);
-  background: linear-gradient(180deg, #7b55b4, #4a326f);
-  color: var(--gc-text);
+  border: 1px solid rgb(135 255 101 / 62%);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 26%),
+    linear-gradient(180deg, #70ee42, #1ca518);
+  color: #fff8df;
   cursor: pointer;
   font-size: 11px;
   font-weight: 900;
+  text-shadow: 0 2px 0 rgb(18 85 14 / 72%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 34%),
+    0 4px 0 rgb(11 82 12 / 78%);
 }
 
 .boss-card button:disabled {
@@ -3104,6 +3393,265 @@ body,
   color: #d9c1ff;
   font-size: 12px;
   font-weight: 800;
+}
+
+.boss-card-detail-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgb(1 8 22 / 72%);
+}
+
+.boss-card-detail {
+  width: min(366px, 100%);
+  max-height: calc(100dvh - 34px);
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 10px 12px 16px;
+  border: 3px solid #52c9ff;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 30%) 0 8%, transparent 9%),
+    linear-gradient(180deg, #2c67aa, #109fdb);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 42%),
+    inset 0 -5px 0 rgb(14 83 128 / 48%),
+    0 8px 0 rgb(8 39 82 / 84%),
+    0 26px 60px rgb(0 0 0 / 48%);
+  scrollbar-width: none;
+}
+
+.boss-card-detail::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.boss-card-detail.rare {
+  border-color: #78d4ff;
+}
+
+.boss-card-detail.golden {
+  border-color: #ffd76f;
+}
+
+.boss-card-detail header {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 8px;
+  margin: -2px 2px 4px;
+  padding: 7px 8px 7px 14px;
+  border: 2px solid rgb(255 241 190 / 54%);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 30%), transparent 24%),
+    linear-gradient(180deg, #ffb21d, #d46d05);
+  box-shadow:
+    inset 0 -2px 0 rgb(80 32 0 / 30%),
+    0 5px 0 rgb(0 0 0 / 24%);
+  text-align: center;
+}
+
+.boss-card-detail header p,
+.boss-card-detail header strong {
+  margin: 0;
+}
+
+.boss-card-detail header p {
+  color: rgb(255 248 223 / 94%);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 rgb(90 37 0 / 42%);
+}
+
+.boss-card-detail header strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: #fff8df;
+  font-size: 18px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-shadow:
+    0 2px 0 rgb(89 43 0 / 74%),
+    0 4px 10px rgb(0 0 0 / 28%);
+  white-space: nowrap;
+}
+
+.boss-card-detail-body {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgb(10 35 75 / 50%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 12%);
+}
+
+.boss-card-detail-body .boss-card-art {
+  width: 112px;
+  height: 134px;
+}
+
+.boss-card-detail-body .boss-card-art-face {
+  width: 74px;
+  height: 104px;
+}
+
+.boss-card-detail-info {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.boss-card-detail-info div {
+  min-height: 54px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 10px;
+  border-radius: 9px;
+  background: rgb(17 35 63 / 72%);
+}
+
+.boss-card-detail-info strong,
+.boss-card-detail-info span,
+.boss-card-detail-info p {
+  margin: 0;
+}
+
+.boss-card-detail-info strong {
+  color: #fff8df;
+  font-size: 18px;
+  text-shadow: 0 2px 0 rgb(30 41 86 / 72%);
+}
+
+.boss-card-detail-info span {
+  color: #b8cfff;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.boss-card-detail-info p {
+  color: #fff8df;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.25;
+  text-shadow: 0 2px 0 rgb(10 35 80 / 72%);
+}
+
+.boss-card-detail-level {
+  display: block;
+  justify-self: center;
+  color: #fff8df;
+  font-size: 18px;
+  text-shadow: 0 2px 0 rgb(10 35 80 / 76%);
+}
+
+.boss-card-detail-next,
+.boss-card-detail-cost {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 24%) 0 9%, transparent 10%),
+    rgb(11 42 82 / 62%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 18%),
+    0 4px 0 rgb(0 0 0 / 22%);
+  text-align: center;
+}
+
+.boss-card-detail-next span,
+.boss-card-detail-cost span {
+  color: #b8cfff;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.boss-card-detail-next strong,
+.boss-card-detail-cost strong {
+  color: #fff8df;
+  font-size: 26px;
+  line-height: 1;
+  text-shadow: 0 3px 0 rgb(10 35 80 / 78%);
+}
+
+.boss-card-detail-next b {
+  color: #80ff5a;
+}
+
+.boss-card-detail-cost {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.boss-card-detail-cost div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.boss-card-detail-cost div strong {
+  font-size: 15px;
+}
+
+.boss-card-detail-cost > i {
+  height: 12px;
+  overflow: hidden;
+  border: 2px solid rgb(13 33 78 / 72%);
+  border-radius: 999px;
+  background: rgb(8 25 70 / 58%);
+}
+
+.boss-card-detail-cost > i b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 42%), transparent 38%),
+    linear-gradient(90deg, #21d0ff, #f6f0ff);
+}
+
+.boss-card-detail-cost.maxed {
+  min-height: 48px;
+  place-items: center;
+}
+
+.boss-card-detail-upgrade {
+  min-height: 58px;
+  border: 1px solid rgb(135 255 101 / 62%);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 26%),
+    linear-gradient(180deg, #70ee42, #1ca518);
+  color: #fff8df;
+  cursor: pointer;
+  font-size: 18px;
+  font-weight: 900;
+  text-shadow: 0 2px 0 rgb(18 85 14 / 72%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 34%),
+    0 5px 0 rgb(11 82 12 / 78%);
+}
+
+.boss-card-detail-upgrade:disabled {
+  border-color: rgb(255 255 255 / 28%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), transparent 26%),
+    linear-gradient(180deg, #7b8797, #465160);
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .goblin-info-icon {
@@ -3798,6 +4346,12 @@ body,
   background: rgb(0 0 0 / 48%);
 }
 
+.boss-fullscreen-backdrop {
+  align-items: stretch;
+  padding: 0;
+  background: rgb(1 8 22 / 76%);
+}
+
 .boss-modal,
 .settings-modal,
 .vein-modal,
@@ -3959,6 +4513,197 @@ body,
   padding: 12px;
 }
 
+.foreman-modal {
+  width: min(390px, calc(100vw - 28px));
+  max-height: min(680px, calc(100dvh - 68px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  overflow: hidden;
+  border: 2px solid rgb(240 211 134 / 72%);
+  border-radius: var(--gc-radius-md);
+  background:
+    linear-gradient(180deg, rgb(54 87 111 / 92%), rgb(21 38 54 / 96%)),
+    var(--gc-panel-raised);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 22%),
+    0 22px 64px rgb(0 0 0 / 54%);
+}
+
+.foreman-modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, #d97619, #9f470f);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 28%);
+}
+
+.foreman-modal header p,
+.foreman-modal header strong {
+  margin: 0;
+  color: white;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 32%);
+}
+
+.foreman-modal header p {
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.foreman-modal header strong {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.foreman-slot-grid,
+.foreman-effect-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.foreman-slot {
+  min-height: 74px;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 14%), rgb(16 26 36 / 52%)),
+    rgb(12 18 24 / 68%);
+  color: var(--gc-text);
+  font: inherit;
+  font-weight: 900;
+  text-align: center;
+}
+
+.foreman-slot.active {
+  border-color: rgb(240 211 134 / 82%);
+  box-shadow: 0 0 0 2px rgb(240 211 134 / 22%);
+}
+
+.foreman-slot strong,
+.foreman-slot span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foreman-slot strong {
+  font-size: 13px;
+}
+
+.foreman-slot span {
+  color: var(--gc-muted);
+  font-size: 11px;
+}
+
+.foreman-effect-summary span {
+  min-width: 0;
+  padding: 7px 6px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(5 10 17 / 34%);
+  color: #d7ecff;
+  font-size: 11px;
+  font-weight: 900;
+  text-align: center;
+}
+
+.foreman-list {
+  min-height: 0;
+  display: grid;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: none;
+}
+
+.foreman-list::-webkit-scrollbar {
+  display: none;
+}
+
+.foreman-picker-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(11 18 25 / 58%);
+}
+
+.foreman-picker-card.assigned {
+  border-color: rgb(111 191 87 / 48%);
+}
+
+.foreman-picker-card div {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.foreman-picker-card strong,
+.foreman-picker-card span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foreman-picker-card strong {
+  color: var(--gc-text);
+  font-size: 13px;
+}
+
+.foreman-picker-card span {
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.foreman-picker-card button,
+.foreman-empty button,
+.foreman-clear-button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgb(255 255 255 / 18%);
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, #56c938, #1f7d25);
+  color: white;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.foreman-empty {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border: 1px dashed rgb(255 255 255 / 18%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(5 10 17 / 28%);
+  color: var(--gc-muted);
+  text-align: center;
+}
+
+.foreman-empty strong {
+  color: var(--gc-text);
+}
+
+.foreman-clear-button {
+  justify-self: stretch;
+  background: linear-gradient(180deg, #777f87, #3b454f);
+}
+
 .vein-modal {
   border-color: rgb(192 122 61 / 42%);
   background:
@@ -4117,6 +4862,216 @@ body,
   font-size: 12px;
   font-weight: 800;
   text-align: center;
+}
+
+.boss-modal {
+  width: 100%;
+  height: 100%;
+  align-content: start;
+  grid-template-rows: auto auto auto auto;
+  gap: 14px;
+  padding: 14px 12px 16px;
+  border: 0;
+  border-radius: 0;
+  background:
+    radial-gradient(circle at 24% 10%, rgb(68 198 200 / 20%), transparent 28%),
+    radial-gradient(circle at 80% 6%, rgb(69 141 199 / 22%), transparent 30%),
+    linear-gradient(180deg, #12408f 0%, #0f3478 42%, #0a2559 100%);
+  box-shadow: inset 0 0 0 2px rgb(255 255 255 / 8%);
+}
+
+.boss-modal header {
+  min-height: 62px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -6px;
+  padding: 7px 8px 7px 14px;
+  border-top: 2px solid rgb(255 241 190 / 44%);
+  border-bottom: 4px solid rgb(129 62 4 / 54%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 30%), transparent 24%),
+    linear-gradient(180deg, #ffb21d, #d46d05);
+  box-shadow:
+    0 5px 0 rgb(0 0 0 / 24%),
+    inset 0 -2px 0 rgb(80 32 0 / 30%);
+}
+
+.boss-modal header p {
+  color: rgb(255 248 223 / 94%);
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-shadow: 0 2px 0 rgb(90 37 0 / 42%);
+  text-transform: uppercase;
+}
+
+.boss-modal header strong {
+  display: block;
+  margin-top: 2px;
+  color: #fff8df;
+  font-size: 22px;
+  line-height: 1;
+  text-shadow:
+    0 2px 0 rgb(89 43 0 / 74%),
+    0 4px 10px rgb(0 0 0 / 28%);
+}
+
+.boss-modal-close,
+.boss-modal-filter-button {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgb(255 240 218 / 68%);
+  border-radius: 12px;
+  color: #fff8df;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 38%),
+    0 4px 0 rgb(82 25 18 / 72%),
+    0 9px 16px rgb(0 0 0 / 24%);
+}
+
+.boss-modal-close {
+  cursor: pointer;
+}
+
+.boss-modal-close {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 25%),
+    linear-gradient(180deg, #ff6f70, #c82232);
+}
+
+.boss-modal-filter-button {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 25%),
+    linear-gradient(180deg, #38d6ec, #1378a3);
+}
+
+.boss-hero-card {
+  min-height: 152px;
+  display: grid;
+  grid-template-columns: 94px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 2px solid rgb(219 233 255 / 58%);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 34%) 0 8%, transparent 9%),
+    linear-gradient(180deg, #366fb5, #174a91);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 40%),
+    inset 0 -5px 0 rgb(11 35 82 / 42%),
+    0 6px 0 rgb(0 0 0 / 28%),
+    0 14px 24px rgb(0 0 0 / 22%);
+}
+
+.boss-hero-orb {
+  width: 86px;
+  height: 86px;
+  display: grid;
+  place-items: center;
+  border: 2px solid rgb(202 239 255 / 74%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 36% 24%, rgb(255 255 255 / 56%), transparent 22%),
+    linear-gradient(180deg, #70dcff, #1861b6);
+  color: #fff8df;
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 52%),
+    0 5px 0 rgb(12 52 105 / 74%),
+    0 12px 22px rgb(0 0 0 / 28%);
+}
+
+.boss-hero-card div:nth-child(2) {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.boss-hero-card span {
+  color: rgb(211 232 255 / 82%);
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.boss-hero-card strong {
+  overflow: hidden;
+  color: #fff8df;
+  font-size: 34px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow:
+    0 3px 0 rgb(10 40 94 / 78%),
+    0 7px 16px rgb(0 0 0 / 28%);
+}
+
+.boss-hero-card > i {
+  grid-column: 1 / -1;
+  height: 14px;
+  overflow: hidden;
+  border: 2px solid rgb(13 33 78 / 72%);
+  border-radius: 999px;
+  background: rgb(8 25 70 / 58%);
+}
+
+.boss-hero-card > i b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 42%), transparent 38%),
+    linear-gradient(90deg, #21d0ff, #bfffe5);
+}
+
+.boss-stat-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.boss-stat {
+  min-height: 72px;
+  border: 2px solid rgb(219 233 255 / 50%);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 30%) 0 12%, transparent 13%),
+    linear-gradient(180deg, #79a8ed, #315fae);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 38%),
+    inset 0 -4px 0 rgb(31 59 121 / 40%),
+    0 4px 0 rgb(0 0 0 / 24%);
+}
+
+.boss-stat span {
+  color: rgb(24 39 86 / 82%);
+  font-weight: 900;
+}
+
+.boss-stat strong {
+  color: #fff8df;
+  font-size: 18px;
+  text-shadow: 0 2px 0 rgb(35 49 104 / 70%);
+}
+
+.boss-ready-line {
+  min-height: 48px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(135 255 101 / 62%);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 26%),
+    linear-gradient(180deg, #70ee42, #1ca518);
+  color: #fff8df;
+  font-size: 14px;
+  text-shadow: 0 2px 0 rgb(18 85 14 / 72%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 34%),
+    0 4px 0 rgb(11 82 12 / 78%);
 }
 
 .settings-list {

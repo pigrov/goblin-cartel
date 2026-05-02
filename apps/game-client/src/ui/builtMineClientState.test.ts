@@ -103,6 +103,7 @@ const collector = {
     maxLevel: 5,
     mineCapacityMultiplierPerLevel: 0.05,
     mineProductionMultiplierPerLevel: 0.05,
+    offlineRelocationSlotsPerLevel: 0,
     statGrowthPerLevel: {
       loyalty: 1,
       luck: 1,
