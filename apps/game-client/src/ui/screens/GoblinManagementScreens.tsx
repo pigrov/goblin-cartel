@@ -142,18 +142,27 @@ function ElevatorProgressCard(props: {
   onUpgradeElevator: () => void;
   state: ElevatorProgressionState;
 }) {
+  const currentLevelTitle = labelFromNameKey(props.state.currentLevel.nameKey, "Подъемник", props.labels);
+  const nextLevelTitle = props.state.nextLevel
+    ? labelFromNameKey(props.state.nextLevel.nameKey, "Следующий уровень", props.labels)
+    : null;
+
   return (
     <section className="goblin-hut-progress-card elevator-progress-card">
       <div className="goblin-hut-progress-overview">
         <ElevatorVisual stage={props.state.visualStage} />
         <div className="goblin-hut-progress-copy">
-          <span>Подъемник {props.state.levelNow} ур.</span>
+          <span>{currentLevelTitle} · {props.state.levelNow} ур.</span>
           <strong>{props.state.platformSlots} мест на платформе</strong>
         </div>
       </div>
       <div className="goblin-hut-progress-meta">
-        <span>Задает размер рабочей бригады в руднике</span>
-        {props.state.nextLevel ? <span>Далее: {props.state.nextLevel.platformSlots} мест</span> : <span>максимум</span>}
+        <span>
+          {props.state.platformSlots} мест · спуск {formatSeconds(props.state.dropDurationMs / 1000)} · офлайн x
+          {formatMultiplier(props.state.offlineDamageMultiplier)}
+        </span>
+        <span>Надежность {props.state.stabilityPercent}%</span>
+        {props.state.nextLevel ? <span>{nextLevelTitle}: {props.state.nextLevel.platformSlots} мест</span> : <span>максимум</span>}
       </div>
       {props.state.nextLevel ? (
         <footer>
@@ -703,6 +712,10 @@ function goblinConstructionUpgradeLabel(preview: GoblinUpgradePreview): string {
 
 function formatMultiplier(value: number): string {
   return value.toFixed(2).replace(/\.?0+$/u, "");
+}
+
+function formatSeconds(value: number): string {
+  return `${value.toFixed(2).replace(/\.?0+$/u, "")}с`;
 }
 
 function formatMultiplierReduction(value: number): string {

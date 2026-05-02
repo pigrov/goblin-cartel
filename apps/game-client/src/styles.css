@@ -214,7 +214,7 @@ body,
 
 .boss-panel {
   position: absolute;
-  left: 42px;
+  left: 8px;
   top: 214px;
   z-index: 18;
   width: 42px;
@@ -419,6 +419,237 @@ body,
 
 .foreman-tower-button span {
   color: var(--gc-text);
+}
+
+.mine-elevator-button {
+  position: absolute;
+  top: 92px;
+  left: 8px;
+  z-index: 16;
+  width: 52px;
+  height: 44px;
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  gap: 1px;
+  padding: 4px;
+  border: 1px solid rgb(104 198 200 / 58%);
+  border-radius: var(--gc-radius-sm);
+  color: #c9f6ff;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(24 107 130 / 34%)),
+    rgb(12 33 51 / 76%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    0 10px 24px rgb(0 0 0 / 28%);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.mine-elevator-button strong,
+.mine-elevator-button span {
+  color: var(--gc-text);
+}
+
+.mine-elevator-button.upgraded {
+  animation: elevator-button-upgraded 900ms ease-out;
+}
+
+.mine-elevator-button.lowering {
+  animation: elevator-button-lowering 720ms ease-in-out infinite;
+}
+
+.mine-elevator-upgrade-toast {
+  position: absolute;
+  left: 8px;
+  top: 140px;
+  z-index: 17;
+  min-width: 52px;
+  padding: 5px 7px;
+  border: 1px solid rgb(255 239 154 / 68%);
+  border-radius: 11px;
+  color: #fff8df;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 24%), transparent 30%),
+    linear-gradient(180deg, #f2b84b, #b66320);
+  box-shadow:
+    0 4px 0 rgb(94 52 18 / 60%),
+    0 12px 28px rgb(0 0 0 / 34%);
+  font-size: 12px;
+  font-weight: 1000;
+  line-height: 1;
+  pointer-events: none;
+  text-align: center;
+  text-shadow: 0 1px 0 rgb(70 37 6 / 60%);
+  animation: elevator-upgrade-toast 1300ms ease-out forwards;
+}
+
+.mine-depth-event-toast {
+  position: absolute;
+  top: 92px;
+  left: 70px;
+  right: 70px;
+  z-index: 18;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 3px 8px;
+  min-height: 48px;
+  padding: 7px 10px 8px;
+  border: 2px solid rgb(255 239 154 / 72%);
+  border-radius: 14px;
+  color: #fff8df;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 28%) 0 12%, transparent 13%),
+    linear-gradient(180deg, #ffb21d, #d46d05);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 34%),
+    inset 0 -3px 0 rgb(104 45 0 / 28%),
+    0 5px 0 rgb(77 39 11 / 58%),
+    0 16px 32px rgb(0 0 0 / 34%);
+  font-weight: 1000;
+  pointer-events: none;
+  text-shadow: 0 2px 0 rgb(80 39 0 / 62%);
+  animation: mine-depth-event-toast 2200ms ease-out forwards;
+}
+
+.mine-depth-event-toast span,
+.mine-depth-event-toast small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mine-depth-event-toast span {
+  grid-column: 1;
+  color: #ffeebf;
+  font-size: 11px;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.mine-depth-event-toast strong {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: #ffffff;
+  font-size: 24px;
+  line-height: 0.95;
+}
+
+.mine-depth-event-toast small {
+  grid-column: 1;
+  color: #fff8df;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.mine-depth-event-toast i {
+  grid-column: 1 / -1;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgb(67 30 0 / 42%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 18%);
+}
+
+.mine-depth-event-toast i::before {
+  content: "";
+  display: block;
+  width: var(--progress);
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #87f57a, #fff08a);
+  box-shadow: 0 0 10px rgb(255 240 138 / 54%);
+}
+
+@keyframes elevator-button-upgraded {
+  0% {
+    transform: scale(1);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 20%),
+      0 10px 24px rgb(0 0 0 / 28%);
+  }
+
+  35% {
+    transform: scale(1.08);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 30%),
+      0 0 0 5px rgb(242 184 75 / 20%),
+      0 14px 28px rgb(0 0 0 / 34%);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes elevator-button-lowering {
+  0%,
+  100% {
+    filter: brightness(1);
+    transform: translateY(0);
+  }
+
+  45% {
+    filter: brightness(1.16);
+    transform: translateY(2px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 26%),
+      0 0 0 5px rgb(104 198 200 / 16%),
+      0 12px 26px rgb(0 0 0 / 32%);
+  }
+}
+
+@keyframes elevator-upgrade-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.92);
+  }
+
+  18% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateY(-8px) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.96);
+  }
+}
+
+@keyframes mine-depth-event-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.94);
+  }
+
+  10% {
+    opacity: 1;
+    transform: translateY(0) scale(1.02);
+  }
+
+  18% {
+    transform: translateY(0) scale(1);
+  }
+
+  72% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.96);
+  }
 }
 
 .surface-scene {
@@ -5344,6 +5575,476 @@ body,
     width: 100vw;
     border: 0;
     border-radius: 0;
+  }
+}
+
+.modal-backdrop,
+.modal-backdrop *,
+.reward-chest-screen,
+.reward-chest-screen * {
+  box-sizing: border-box;
+}
+
+.boss-cards-modal,
+.boss-modal,
+.boss-card-detail {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.boss-cards-modal,
+.boss-modal {
+  width: 100%;
+}
+
+.boss-modal {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.boss-modal::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.boss-cards-list {
+  gap: clamp(6px, 2.2vw, 10px);
+}
+
+.boss-card {
+  min-height: clamp(190px, 58vw, 226px);
+  padding: clamp(5px, 1.6vw, 7px);
+}
+
+.boss-cards-list .boss-card-art {
+  width: clamp(66px, 21vw, 82px);
+  height: clamp(66px, 21vw, 82px);
+}
+
+.boss-cards-list .boss-card-art-face {
+  width: clamp(43px, 14vw, 54px);
+  height: clamp(52px, 17vw, 66px);
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) {
+  width: min(390px, 100%);
+  max-width: 100%;
+  max-height: min(680px, calc(100dvh - 24px));
+  overflow: hidden auto;
+  border: 3px solid #52c9ff;
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 24%) 0 8%, transparent 9%),
+    linear-gradient(180deg, #2c67aa, #123f82 68%, #0a2559);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 36%),
+    inset 0 -5px 0 rgb(14 83 128 / 40%),
+    0 8px 0 rgb(8 39 82 / 70%),
+    0 26px 60px rgb(0 0 0 / 46%);
+  scrollbar-width: none;
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal)::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header {
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 12px;
+  border: 2px solid rgb(255 241 190 / 54%);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 30%), transparent 24%),
+    linear-gradient(180deg, #ffb21d, #d46d05);
+  box-shadow:
+    inset 0 -2px 0 rgb(80 32 0 / 30%),
+    0 5px 0 rgb(0 0 0 / 22%);
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p,
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong,
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header span {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff8df;
+  text-overflow: ellipsis;
+  text-shadow: 0 2px 0 rgb(89 43 0 / 64%);
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p {
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong {
+  font-size: 18px;
+  line-height: 1.05;
+}
+
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header .icon-button {
+  width: 42px;
+  height: 42px;
+  border: 2px solid rgb(255 240 218 / 68%);
+  border-radius: 12px;
+  color: #fff8df;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 25%),
+    linear-gradient(180deg, #ff6f70, #c82232);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 38%),
+    0 4px 0 rgb(82 25 18 / 72%),
+    0 9px 16px rgb(0 0 0 / 24%);
+}
+
+:where(.settings-row, .vein-modal-stats > div, .mine-complete-summary > div, .collector-modal-summary span, .collector-card, .collector-empty, .foreman-slot, .foreman-effect-summary span, .foreman-picker-card, .foreman-empty, .goblin-modal-stats div, .goblin-modal-block, .elevator-modal-stat, .elevator-modal-next) {
+  border-color: rgb(219 233 255 / 28%);
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 18%) 0 10%, transparent 11%),
+    rgb(11 42 82 / 54%);
+}
+
+.elevator-modal {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+}
+
+.elevator-modal-visual {
+  position: relative;
+  height: 128px;
+  overflow: hidden;
+  border: 2px solid rgb(255 255 255 / 18%);
+  border-radius: 15px;
+  background:
+    radial-gradient(circle at 82% 18%, #ffe28b 0 10px, transparent 11px),
+    linear-gradient(180deg, #76b8da 0 44%, #4d8058 45% 61%, #332114 62% 100%);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 20%),
+    inset 0 -5px 0 rgb(0 0 0 / 18%);
+}
+
+.elevator-modal-visual i {
+  position: absolute;
+  display: block;
+}
+
+.elevator-modal-rail {
+  left: 34%;
+  top: 17px;
+  width: 8px;
+  height: 98px;
+  border-radius: 5px;
+  background: #8a6138;
+  box-shadow: 72px 0 0 #75502e;
+}
+
+.elevator-modal-wheel {
+  left: calc(34% + 26px);
+  top: 15px;
+  width: 52px;
+  height: 52px;
+  border: 7px solid #56636d;
+  border-radius: 50%;
+  background: rgb(15 35 55 / 18%);
+  box-shadow: inset 0 0 0 8px rgb(255 255 255 / 12%);
+}
+
+.elevator-modal-cable {
+  left: calc(34% + 50px);
+  top: 55px;
+  width: 5px;
+  height: 58px;
+  border-radius: 4px;
+  background: #283746;
+}
+
+.elevator-modal-platform {
+  left: calc(34% + 12px);
+  bottom: 16px;
+  width: 88px;
+  height: 22px;
+  border: 2px solid #3a2515;
+  border-radius: 7px;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 22%), transparent 36%),
+    repeating-linear-gradient(90deg, #a8753f 0 16px, #704827 17px 22px);
+  box-shadow:
+    inset 0 -4px 0 rgb(0 0 0 / 20%),
+    0 9px 0 rgb(0 0 0 / 20%);
+}
+
+.elevator-modal-glow {
+  left: 18px;
+  right: 18px;
+  bottom: -18px;
+  height: 46px;
+  border-radius: 50% 50% 0 0;
+  background: rgb(36 22 11 / 52%);
+}
+
+.elevator-modal-visual.stage-2 .elevator-modal-rail,
+.elevator-modal-visual.stage-3 .elevator-modal-rail,
+.elevator-modal-visual.stage-4 .elevator-modal-rail,
+.elevator-modal-visual.stage-5 .elevator-modal-rail {
+  background: #8b929b;
+  box-shadow: 72px 0 0 #6e7881;
+}
+
+.elevator-modal-visual.stage-4 .elevator-modal-wheel,
+.elevator-modal-visual.stage-5 .elevator-modal-wheel {
+  border-color: #c2c8cf;
+}
+
+.elevator-modal-visual.stage-5 .elevator-modal-platform {
+  border-color: #f2b84b;
+  box-shadow:
+    inset 0 -4px 0 rgb(0 0 0 / 20%),
+    0 9px 0 rgb(0 0 0 / 20%),
+    0 0 0 3px rgb(242 184 75 / 18%);
+}
+
+.elevator-modal.upgraded .elevator-modal-visual {
+  animation: elevator-modal-upgraded 1000ms ease-out;
+}
+
+@keyframes elevator-modal-upgraded {
+  0% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+
+  35% {
+    filter: brightness(1.22);
+    transform: scale(1.015);
+  }
+
+  100% {
+    filter: brightness(1);
+    transform: scale(1);
+  }
+}
+
+.elevator-modal-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.elevator-modal-stat {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  gap: 2px 7px;
+  padding: 8px;
+  border: 1px solid rgb(219 233 255 / 28%);
+  border-radius: 11px;
+}
+
+.elevator-modal-stat > span {
+  grid-row: span 2;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  color: #d5f9ff;
+  background: rgb(104 198 200 / 16%);
+}
+
+.elevator-modal-stat p,
+.elevator-modal-stat strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.elevator-modal-stat p {
+  color: #b7d5f4;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.elevator-modal-stat strong {
+  color: #fff8df;
+  font-size: 15px;
+}
+
+.elevator-modal-next {
+  display: grid;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid rgb(219 233 255 / 28%);
+  border-radius: 13px;
+}
+
+.elevator-modal-next > header {
+  display: grid;
+  gap: 2px;
+}
+
+.elevator-modal-next > header strong,
+.elevator-modal-next.complete strong {
+  color: #fff8df;
+  font-size: 15px;
+}
+
+.elevator-modal-next > header span,
+.elevator-modal-next.complete span {
+  color: #c9d8e9;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.elevator-modal-next button {
+  min-height: 42px;
+  border: 2px solid rgb(213 255 170 / 56%);
+  border-radius: 13px;
+  color: #fff8df;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 28%), transparent 28%),
+    linear-gradient(180deg, #61d747, #1f9f36);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 32%),
+    0 5px 0 rgb(15 89 31 / 72%);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 1000;
+  text-transform: uppercase;
+}
+
+.elevator-modal-next button:disabled {
+  border-color: rgb(255 255 255 / 18%);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 12%), transparent 28%),
+    linear-gradient(180deg, #5a6b79, #314253);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 12%),
+    0 5px 0 rgb(13 31 47 / 68%);
+  opacity: 0.78;
+}
+
+@media (max-width: 370px) {
+  .boss-cards-modal,
+  .boss-modal {
+    gap: 9px;
+    padding: 10px 8px 12px;
+  }
+
+  .boss-cards-modal > header,
+  .boss-modal header {
+    min-height: 56px;
+    grid-template-columns: 40px minmax(0, 1fr) 40px;
+    margin: 0 -2px;
+    padding: 6px;
+  }
+
+  .boss-modal header {
+    grid-template-columns: minmax(0, 1fr) 40px;
+  }
+
+  .boss-modal-close,
+  .boss-modal-filter-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+  }
+
+  .boss-cards-modal header strong,
+  .boss-modal header strong {
+    font-size: 18px;
+  }
+
+  .boss-cards-modal header span,
+  .boss-modal header span {
+    font-size: 10px;
+  }
+
+  .boss-card-title strong {
+    font-size: 11px;
+  }
+
+  .boss-card-copy p,
+  .boss-card-effect span,
+  .boss-card-progress span {
+    font-size: 9px;
+  }
+
+  .boss-card button {
+    min-height: 28px;
+    font-size: 10px;
+  }
+
+  .boss-card-detail {
+    gap: 9px;
+    padding: 8px 9px 13px;
+  }
+
+  .boss-card-detail-body {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 9px;
+    padding: 9px;
+  }
+
+  .boss-card-detail-body .boss-card-art {
+    width: 92px;
+    height: 110px;
+  }
+
+  .boss-card-detail-body .boss-card-art-face {
+    width: 62px;
+    height: 84px;
+  }
+
+  .boss-card-detail-info {
+    width: 100%;
+  }
+
+  .boss-card-detail-next strong,
+  .boss-card-detail-cost strong {
+    font-size: 20px;
+  }
+
+  .boss-hero-card {
+    min-height: 124px;
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: 9px;
+    padding: 10px;
+  }
+
+  .boss-hero-orb {
+    width: 66px;
+    height: 66px;
+  }
+
+  .boss-hero-card strong {
+    font-size: 25px;
+  }
+
+  .boss-stat-grid {
+    gap: 7px;
+  }
+
+  .boss-stat {
+    min-height: 62px;
+    padding: 7px;
+  }
+
+  .boss-stat strong {
+    font-size: 15px;
   }
 }
 

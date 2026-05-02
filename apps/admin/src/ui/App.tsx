@@ -48,6 +48,7 @@ type ContentEntityKind =
   | "blockTypes"
   | "bossCards"
   | "builtMineTypes"
+  | "elevator"
   | "goblins"
   | "goblinHut"
   | "mineTemplates"
@@ -56,6 +57,7 @@ type ContentEntityApiKind =
   | "blockType"
   | "bossCard"
   | "builtMineType"
+  | "elevator"
   | "goblin"
   | "goblinHut"
   | "mineTemplate"
@@ -85,6 +87,7 @@ interface ContentBundle {
   mineTemplates: ContentRecord[];
   goblins: ContentRecord[];
   goblinHut: ContentRecord;
+  elevator: ContentRecord;
   localization?: Record<string, Record<string, string>>;
 }
 
@@ -146,6 +149,7 @@ const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind 
   { value: "blockTypes", label: "Блоки" },
   { value: "goblins", label: "Гоблины" },
   { value: "goblinHut", label: "Хижина" },
+  { value: "elevator", label: "Подъемник" },
   { value: "mineTemplates", label: "Рудники" },
   { value: "builtMineTypes", label: "Типы шахт" },
   { value: "rewardChestTypes", label: "Сундуки" },
@@ -1191,6 +1195,7 @@ function ContentSection(props: {
             <ContentEntityKpi label="Гоблины" value={contentEntityCount(contentPreview, "goblins")} />
             <ContentEntityKpi label="Карты" value={contentEntityCount(contentPreview, "bossCards")} />
             <ContentEntityKpi label="Хижина" value={contentPreview?.goblinHut ? 1 : 0} />
+            <ContentEntityKpi label="Подъемник" value={contentPreview?.elevator ? 1 : 0} />
           </div>
 
           {contentPreview ? (
@@ -1461,6 +1466,16 @@ function renderEntityFields(
     );
   }
 
+  if (kind === "elevator") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <ContentElevatorLevelRows formState={formState} updateField={updateField} updateFields={updateFields} />
+      </>
+    );
+  }
+
   if (kind === "mineTemplates") {
     return (
       <>
@@ -1488,6 +1503,18 @@ function renderEntityFields(
             options={[{ value: "", label: "Не задан" }, ...rewardChestSelectOptions(content)]}
             value={formState.completionRewardChestTypeId}
           />
+        </div>
+        <div className="content-form-grid">
+          <ContentSelectField
+            label="Награда за метр"
+            name="depthRewardResourceId"
+            onChange={updateField}
+            options={[{ value: "", label: "Не задана" }, ...resourceSelectOptions(content)]}
+            value={formState.depthRewardResourceId}
+          />
+          <ContentTextField label="Сумма/м" name="depthRewardAmountPerMeter" onChange={updateField} type="number" value={formState.depthRewardAmountPerMeter} />
+          <ContentTextField label="Множитель" name="depthRewardMultiplier" onChange={updateField} type="number" value={formState.depthRewardMultiplier} />
+          <ContentTextField label="Лимит за спуск" name="depthRewardMaxAmount" onChange={updateField} type="number" value={formState.depthRewardMaxAmount} />
         </div>
         <ContentMineVisualEditor content={content} formState={formState} updateFields={updateFields} />
       </>
@@ -1958,6 +1985,85 @@ function ContentGoblinHutLevelRows(props: {
                     "CostIron",
                     "RequiredBuiltMines",
                     "RequiredMineTemplateId"
+                  ],
+                  count
+                )
+              )
+            }
+            type="button"
+          >
+            Убрать
+          </button>
+        </div>
+      ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentElevatorLevelRows(props: {
+  formState: EntityFormState;
+  updateField: (name: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const count = formCount(props.formState, "levelCount", 1);
+
+  return (
+    <ContentNestedSection
+      addLabel="Добавить уровень"
+      onAdd={() =>
+        props.updateFields({
+          [`levelCostCopper_${count}`]: "0",
+          [`levelCostElixir_${count}`]: "0",
+          [`levelCostGold_${count}`]: "0",
+          [`levelCostIron_${count}`]: "0",
+          [`levelCostStone_${count}`]: "0",
+          [`levelDropDurationMs_${count}`]: String(Math.max(500, (toInteger(props.formState[`levelDropDurationMs_${count - 1}`]) || 1450) - 130)),
+          levelCount: String(count + 1),
+          [`levelLevel_${count}`]: String(count + 1),
+          [`levelOfflineDamageMultiplier_${count}`]: String(Math.round(((toNumber(props.formState[`levelOfflineDamageMultiplier_${count - 1}`]) || 1) + 0.05) * 100) / 100),
+          [`levelPlatformSlots_${count}`]: String((toInteger(props.formState[`levelPlatformSlots_${count - 1}`]) || count + 1) + 1),
+          [`levelStabilityPercent_${count}`]: String(Math.min(100, (toInteger(props.formState[`levelStabilityPercent_${count - 1}`]) || 20) + 15)),
+          [`levelTitle_${count}`]: "",
+          [`levelVisualStage_${count}`]: String(Math.min(5, count + 1))
+        })
+      }
+      title="Уровни подъемника"
+    >
+      {Array.from({ length: count }, (_, index) => (
+        <div className="content-list-row content-list-row-wide" key={`elevator-level-${index}`}>
+          <ContentTextField label="Ур." name={`levelLevel_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelLevel_${index}`]} />
+          <ContentTextField label="Название RU" name={`levelTitle_${index}`} onChange={props.updateField} value={props.formState[`levelTitle_${index}`]} />
+          <ContentTextField label="Мест" name={`levelPlatformSlots_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelPlatformSlots_${index}`]} />
+          <ContentTextField label="Вид" name={`levelVisualStage_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelVisualStage_${index}`]} />
+          <ContentTextField label="Золото" name={`levelCostGold_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostGold_${index}`]} />
+          <ContentTextField label="Камень" name={`levelCostStone_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostStone_${index}`]} />
+          <ContentTextField label="Медь" name={`levelCostCopper_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostCopper_${index}`]} />
+          <ContentTextField label="Железо" name={`levelCostIron_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostIron_${index}`]} />
+          <ContentTextField label="Эликсир" name={`levelCostElixir_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostElixir_${index}`]} />
+          <ContentTextField label="Спуск ms" name={`levelDropDurationMs_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelDropDurationMs_${index}`]} />
+          <ContentTextField label="Офф x" name={`levelOfflineDamageMultiplier_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelOfflineDamageMultiplier_${index}`]} />
+          <ContentTextField label="Надеж. %" name={`levelStabilityPercent_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelStabilityPercent_${index}`]} />
+          <button
+            disabled={count <= 1}
+            onClick={() =>
+              props.updateFields(
+                removeIndexedFormRow(
+                  props.formState,
+                  "level",
+                  index,
+                  [
+                    "Level",
+                    "Title",
+                    "PlatformSlots",
+                    "DropDurationMs",
+                    "OfflineDamageMultiplier",
+                    "StabilityPercent",
+                    "VisualStage",
+                    "CostGold",
+                    "CostStone",
+                    "CostCopper",
+                    "CostIron",
+                    "CostElixir"
                   ],
                   count
                 )
@@ -2661,6 +2767,7 @@ export function addDraftMineTemplate(content: ContentBundle): DraftContentToolRe
   const displayNameKey = `mine.${id}.name`;
   const width = 7;
   const height = 10;
+  const sourceDepthProgressReward = recordField(source, "depthProgressReward");
   const entity: ContentRecord = {
     completionRewardChestTypeId: stringField(source, "completionRewardChestTypeId") || undefined,
     completionVeinTypeId: stringField(source, "completionVeinTypeId") || undefined,
@@ -2674,6 +2781,9 @@ export function addDraftMineTemplate(content: ContentBundle): DraftContentToolRe
     sortOrder: nextSortOrder(content.mineTemplates),
     width
   };
+  if (stringField(sourceDepthProgressReward, "resourceId")) {
+    entity.depthProgressReward = sourceDepthProgressReward;
+  }
   const localization = {
     [displayNameKey]: "Новый рудник"
   };
@@ -2821,7 +2931,9 @@ function isContentBundleLike(value: unknown): value is ContentBundle {
     Array.isArray(value.resources) &&
     Array.isArray(value.blockTypes) &&
     Array.isArray(value.mineTemplates) &&
-    Array.isArray(value.goblins)
+    Array.isArray(value.goblins) &&
+    isRecord(value.goblinHut) &&
+    isRecord(value.elevator)
   );
 }
 
@@ -2894,6 +3006,8 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
       return content.bossCards ?? [];
     case "builtMineTypes":
       return content.builtMineTypes ?? [];
+    case "elevator":
+      return [content.elevator ?? { id: "default", nameKey: "elevator.name", levels: [] }];
     case "goblinHut":
       return [content.goblinHut ?? { id: "default", nameKey: "goblin_hut.name", levels: [] }];
     case "mineTemplates":
@@ -2920,6 +3034,10 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
 
   if (kind === "goblinHut") {
     return createGoblinHutFormState(entity, content);
+  }
+
+  if (kind === "elevator") {
+    return createElevatorFormState(entity, content);
   }
 
   if (kind === "mineTemplates") {
@@ -3027,15 +3145,50 @@ function createGoblinHutFormState(entity: ContentRecord, content: ContentBundle)
   return state;
 }
 
+function createElevatorFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const levels = arrayField(entity, "levels");
+  const count = Math.max(1, levels.length);
+  const state: EntityFormState = {
+    id: stringField(entity, "id") || "default",
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    levelCount: String(count)
+  };
+
+  for (let index = 0; index < count; index += 1) {
+    const level = recordAt(levels, index);
+    const upgradeCost = arrayField(level, "upgradeCost");
+
+    state[`levelLevel_${index}`] = numberString(numberField(level, "level", index + 1));
+    state[`levelTitle_${index}`] = localizationValue(content, stringField(level, "nameKey"));
+    state[`levelPlatformSlots_${index}`] = numberString(numberField(level, "platformSlots", Math.max(1, index + 2)));
+    state[`levelDropDurationMs_${index}`] = numberString(numberField(level, "dropDurationMs", 1450));
+    state[`levelOfflineDamageMultiplier_${index}`] = numberString(numberField(level, "offlineDamageMultiplier", 1));
+    state[`levelStabilityPercent_${index}`] = numberString(numberField(level, "stabilityPercent", 20));
+    state[`levelVisualStage_${index}`] = numberString(numberField(level, "visualStage", Math.min(5, index + 1)));
+    state[`levelCostGold_${index}`] = numberString(resourceAmountField(upgradeCost, "gold"));
+    state[`levelCostStone_${index}`] = numberString(resourceAmountField(upgradeCost, "stone"));
+    state[`levelCostCopper_${index}`] = numberString(resourceAmountField(upgradeCost, "copper_ore"));
+    state[`levelCostIron_${index}`] = numberString(resourceAmountField(upgradeCost, "iron"));
+    state[`levelCostElixir_${index}`] = numberString(resourceAmountField(upgradeCost, "elixir"));
+  }
+
+  return state;
+}
+
 function createMineTemplateFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
   const width = Math.max(1, numberField(entity, "width", 8));
   const height = Math.max(1, numberField(entity, "height", 10));
   const difficulty = numberField(entity, "difficulty", 1);
+  const depthProgressReward = recordField(entity, "depthProgressReward");
 
   return {
     completionRewardChestTypeId: stringField(entity, "completionRewardChestTypeId"),
     completionVeinTypeId: stringField(entity, "completionVeinTypeId"),
     depthMeters: numberString(numberField(entity, "depthMeters", 1)),
+    depthRewardAmountPerMeter: numberString(numberField(depthProgressReward, "amountPerMeter", 0)),
+    depthRewardMaxAmount: numberField(depthProgressReward, "maxAmount", 0) > 0 ? numberString(numberField(depthProgressReward, "maxAmount", 0)) : "",
+    depthRewardMultiplier: numberString(numberField(depthProgressReward, "multiplier", 1)),
+    depthRewardResourceId: stringField(depthProgressReward, "resourceId"),
     difficultyEnd: numberString(numberField(entity, "difficultyEnd", difficulty)),
     difficultyStart: numberString(numberField(entity, "difficultyStart", difficulty)),
     height: numberString(height),
@@ -3270,6 +3423,8 @@ function validateEntityForm(
     validateGoblinForm(state, content, errors);
   } else if (kind === "goblinHut") {
     validateGoblinHutForm(state, content, errors);
+  } else if (kind === "elevator") {
+    validateElevatorForm(state, errors);
   } else if (kind === "mineTemplates") {
     validateMineTemplateForm(state, content, errors);
   } else if (kind === "rewardChestTypes") {
@@ -3401,6 +3556,37 @@ function validateGoblinHutForm(state: EntityFormState, content: ContentBundle, e
   }
 }
 
+function validateElevatorForm(state: EntityFormState, errors: string[]) {
+  const count = formCount(state, "levelCount", 1);
+  const seenLevels = new Set<number>();
+
+  for (let index = 0; index < count; index += 1) {
+    const rowLabel = `Уровень подъемника ${index + 1}`;
+    const level = toInteger(state[`levelLevel_${index}`]);
+
+    validateIntegerField(state, `levelLevel_${index}`, `${rowLabel}: номер`, errors, { min: 1 });
+    validateIntegerField(state, `levelPlatformSlots_${index}`, `${rowLabel}: места`, errors, { min: 1 });
+    validateIntegerField(state, `levelDropDurationMs_${index}`, `${rowLabel}: спуск`, errors, { min: 500, max: 2500 });
+    validateNumberField(state, `levelOfflineDamageMultiplier_${index}`, `${rowLabel}: оффлайн-урон`, errors, { min: 1 });
+    validateIntegerField(state, `levelStabilityPercent_${index}`, `${rowLabel}: надежность`, errors, { min: 0, max: 100 });
+    validateIntegerField(state, `levelVisualStage_${index}`, `${rowLabel}: вид`, errors, { min: 1, max: 5 });
+    validateIntegerField(state, `levelCostGold_${index}`, `${rowLabel}: золото`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostStone_${index}`, `${rowLabel}: камень`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostCopper_${index}`, `${rowLabel}: медь`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostIron_${index}`, `${rowLabel}: железо`, errors, { min: 0 });
+    validateIntegerField(state, `levelCostElixir_${index}`, `${rowLabel}: эликсир`, errors, { min: 0 });
+
+    if (!formValue(state, `levelTitle_${index}`).trim()) {
+      errors.push(`${rowLabel}: название RU обязательно.`);
+    }
+
+    if (seenLevels.has(level)) {
+      errors.push(`${rowLabel}: номер уровня должен быть уникальным.`);
+    }
+    seenLevels.add(level);
+  }
+}
+
 function validateMineTemplateForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
   validateIntegerField(state, "sortOrder", "Sort order", errors);
   validateIntegerField(state, "width", "Ширина", errors, { min: 1 });
@@ -3411,6 +3597,7 @@ function validateMineTemplateForm(state: EntityFormState, content: ContentBundle
 
   const completionVeinTypeId = formValue(state, "completionVeinTypeId");
   const completionRewardChestTypeId = formValue(state, "completionRewardChestTypeId");
+  const depthRewardResourceId = formValue(state, "depthRewardResourceId");
 
   if (completionVeinTypeId && !veinIdSet(content).has(completionVeinTypeId)) {
     errors.push("Жила после расчистки не найдена.");
@@ -3418,6 +3605,19 @@ function validateMineTemplateForm(state: EntityFormState, content: ContentBundle
 
   if (completionRewardChestTypeId && !rewardChestIdSet(content).has(completionRewardChestTypeId)) {
     errors.push("Сундук перехода не найден.");
+  }
+
+  if (depthRewardResourceId) {
+    if (!resourceIdSet(content).has(depthRewardResourceId)) {
+      errors.push("Ресурс награды за метр не найден.");
+    }
+
+    validateNumberField(state, "depthRewardAmountPerMeter", "Награда за метр", errors, { min: 0.01 });
+    validateNumberField(state, "depthRewardMultiplier", "Множитель награды за метр", errors, { min: 0.01 });
+
+    if (formValue(state, "depthRewardMaxAmount")) {
+      validateIntegerField(state, "depthRewardMaxAmount", "Лимит награды за спуск", errors, { min: 1 });
+    }
   }
 
   validateCellMapRows(state, content, errors);
@@ -3685,6 +3885,10 @@ function applyEntityForm(
     return applyGoblinHutForm(content, selectedId, state);
   }
 
+  if (kind === "elevator") {
+    return applyElevatorForm(content, selectedId, state);
+  }
+
   if (kind === "mineTemplates") {
     return applyMineTemplateForm(content, selectedId, state);
   }
@@ -3839,6 +4043,35 @@ function applyGoblinHutForm(content: ContentBundle, selectedId: string, state: E
   };
 }
 
+function applyElevatorForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const current = content.elevator;
+  const id = formValue(state, "id") || "default";
+  const nameKey = stringField(current, "nameKey") || "elevator.name";
+  const currentLevels = arrayField(current, "levels");
+  const levels = createElevatorLevelsFromForm(state, currentLevels);
+  const localization: Record<string, string> = {
+    [nameKey]: formValue(state, "title").trim()
+  };
+
+  for (let index = 0; index < levels.length; index += 1) {
+    const level = numberField(levels[index] ?? {}, "level", index + 1);
+    const levelNameKey = stringField(levels[index] ?? {}, "nameKey") || `elevator.level.${level}.name`;
+    localization[levelNameKey] = formValue(state, `levelTitle_${index}`).trim();
+  }
+
+  return {
+    entity: {
+      id,
+      levels,
+      nameKey
+    },
+    entityId: selectedId,
+    entityType: "elevator",
+    localization,
+    message: `Подъемник ${id} сохранен как draft.`
+  };
+}
+
 function applyMineTemplateForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
   const current = content.mineTemplates.find((item) => stringField(item, "id") === selectedId);
 
@@ -3862,6 +4095,17 @@ function applyMineTemplateForm(content: ContentBundle, selectedId: string, state
 
   setOptionalField(nextMineTemplate, "completionVeinTypeId", formValue(state, "completionVeinTypeId"));
   setOptionalField(nextMineTemplate, "completionRewardChestTypeId", formValue(state, "completionRewardChestTypeId"));
+
+  const depthRewardResourceId = formValue(state, "depthRewardResourceId");
+  if (depthRewardResourceId) {
+    const maxAmount = toInteger(state.depthRewardMaxAmount);
+    nextMineTemplate.depthProgressReward = {
+      amountPerMeter: toNumber(state.depthRewardAmountPerMeter),
+      multiplier: toNumber(state.depthRewardMultiplier) || 1,
+      resourceId: depthRewardResourceId,
+      ...(maxAmount > 0 ? { maxAmount } : {})
+    };
+  }
 
   return {
     entity: nextMineTemplate,
@@ -4089,6 +4333,44 @@ function createGoblinHutUnlockRequirementsFromForm(state: EntityFormState, index
   return requirements;
 }
 
+function createElevatorLevelsFromForm(state: EntityFormState, currentLevels: ContentRecord[]): ContentRecord[] {
+  const count = formCount(state, "levelCount", 1);
+
+  return Array.from({ length: count }, (_, index) => {
+    const level = toInteger(state[`levelLevel_${index}`]) || index + 1;
+    const current = currentLevels.find((item) => numberField(item, "level", 0) === level) ?? currentLevels[index] ?? {};
+    const nameKey = stringField(current, "nameKey") || `elevator.level.${level}.name`;
+
+    return {
+      level,
+      nameKey,
+      dropDurationMs: toInteger(state[`levelDropDurationMs_${index}`]),
+      offlineDamageMultiplier: Math.max(1, toNumber(state[`levelOfflineDamageMultiplier_${index}`])),
+      platformSlots: toInteger(state[`levelPlatformSlots_${index}`]),
+      stabilityPercent: Math.max(0, Math.min(100, toInteger(state[`levelStabilityPercent_${index}`]))),
+      upgradeCost: createElevatorUpgradeCostFromForm(state, index),
+      visualStage: Math.max(1, Math.min(5, toInteger(state[`levelVisualStage_${index}`]) || 1))
+    };
+  }).sort((left, right) => numberField(left, "level", 0) - numberField(right, "level", 0));
+}
+
+function createElevatorUpgradeCostFromForm(state: EntityFormState, index: number): Array<{ amount: number; resourceId: string }> {
+  const resources: Array<[string, string]> = [
+    ["gold", "Gold"],
+    ["stone", "Stone"],
+    ["copper_ore", "Copper"],
+    ["iron", "Iron"],
+    ["elixir", "Elixir"]
+  ];
+
+  return resources
+    .map(([resourceId, suffix]) => ({
+      amount: toInteger(state[`levelCost${suffix}_${index}`]),
+      resourceId
+    }))
+    .filter((cost) => cost.amount > 0);
+}
+
 function createMineUpgradeCostFromForm(
   state: EntityFormState,
   prefix: string
@@ -4283,7 +4565,7 @@ function validateIntegerField(
   field: string,
   label: string,
   errors: string[],
-  options: { min?: number } = {}
+  options: { max?: number; min?: number } = {}
 ) {
   const value = toNumber(state[field]);
 
@@ -4294,6 +4576,10 @@ function validateIntegerField(
 
   if (options.min !== undefined && value < options.min) {
     errors.push(`${label}: минимум ${options.min}.`);
+  }
+
+  if (options.max !== undefined && value > options.max) {
+    errors.push(`${label}: максимум ${options.max}.`);
   }
 }
 

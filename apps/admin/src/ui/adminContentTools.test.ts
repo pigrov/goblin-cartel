@@ -42,12 +42,30 @@ const baseContent = {
     ],
     nameKey: "goblin_hut.name"
   },
+  elevator: {
+    id: "default",
+    levels: [
+      {
+        dropDurationMs: 1450,
+        level: 1,
+        nameKey: "elevator.level.1.name",
+        offlineDamageMultiplier: 1,
+        platformSlots: 2,
+        stabilityPercent: 20,
+        upgradeCost: [],
+        visualStage: 1
+      }
+    ],
+    nameKey: "elevator.name"
+  },
   localization: {
     ru: {
       "block.gold.name": "Золотой блок",
       "block.stone.name": "Каменный блок",
       "goblin_hut.level.1.name": "Стартовая Хижина",
       "goblin_hut.name": "Хижина",
+      "elevator.level.1.name": "Стартовый подъемник",
+      "elevator.name": "Подъемник",
       "resource.stone.name": "Камень",
       "resource.gold.name": "Золото",
       "vein.gold.name": "Золотая жила"
@@ -128,6 +146,7 @@ describe("admin draft templates", () => {
           completionRewardChestTypeId: "wooden_completion_chest",
           completionVeinTypeId: "gold_vein",
           depthMeters: 20,
+          depthProgressReward: { resourceId: "stone", amountPerMeter: 2, multiplier: 1.5, maxAmount: 9 },
           difficultyEnd: 3,
           difficultyStart: 2,
           displayNameKey: "mine.old.name",
@@ -145,6 +164,7 @@ describe("admin draft templates", () => {
     expect(result.entityId).toBe("draft_mine_02");
     expect(createdMine).toMatchObject({
       depthMeters: 10,
+      depthProgressReward: { resourceId: "stone", amountPerMeter: 2, multiplier: 1.5, maxAmount: 9 },
       difficultyEnd: 1.8,
       difficultyStart: 1,
       height: 10,

@@ -29,6 +29,7 @@ export function renderMinePixiBackground(input: {
   layout: MinePixiLayout;
   liftRailRef: MutableRefObject<MinePixiLiftRail | null>;
   platformAnimationStartedAtRef: MutableRefObject<number>;
+  platformDropDurationMsRef: MutableRefObject<number>;
   platformDropAnimatingRef: MutableRefObject<boolean>;
 }) {
   clearMinePixiLayer(input.layers.background);
@@ -38,7 +39,8 @@ export function renderMinePixiBackground(input: {
     input.liftRailRef.current.baseHeight + currentPlatformDropOffset(
       performance.now(),
       input.platformDropAnimatingRef.current,
-      input.platformAnimationStartedAtRef.current
+      input.platformAnimationStartedAtRef.current,
+      input.platformDropDurationMsRef.current
     )
   );
 }
@@ -46,12 +48,13 @@ export function renderMinePixiBackground(input: {
 export function renderMinePixiSurface(input: {
   currentPlatformRow: number;
   elevatorLevel: number;
+  elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
   foremen: readonly MinePixiForemanSlot[];
   layers: MinePixiSceneLayers;
   layout: MinePixiLayout;
 }) {
   clearMinePixiLayer(input.layers.surface);
-  drawSurface(input.layers.surface, input.layout, input.currentPlatformRow, input.foremen, input.elevatorLevel);
+  drawSurface(input.layers.surface, input.layout, input.currentPlatformRow, input.foremen, input.elevatorLevel, input.elevatorVisualStage);
   drawLiftCables(input.layers.surface, input.layout);
 }
 
@@ -121,12 +124,14 @@ export function renderMinePixiPlatform(input: {
   blocks: MiningSession["blocks"];
   currentPlatformRow: number;
   dragState: MinePixiDragState | null;
+  elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
   goblins: MinePixiPlatformGoblin[];
   layers: MinePixiSceneLayers;
   layout: MinePixiLayout;
   mineWidth: number;
   platformAnimationStartedAtRef: MutableRefObject<number>;
   platformCellKeys: ReadonlySet<string>;
+  platformDropDurationMsRef: MutableRefObject<number>;
   platformDropAnimatingRef: MutableRefObject<boolean>;
   platformRef: AnimatedItemRef;
   setDragState: (state: MinePixiDragState | null) => void;
@@ -138,6 +143,7 @@ export function renderMinePixiPlatform(input: {
     blocks: input.blocks,
     currentPlatformRow: input.currentPlatformRow,
     dragState: input.dragState,
+    elevatorVisualStage: input.elevatorVisualStage,
     goblins: input.goblins,
     layout: input.layout,
     mineWidth: input.mineWidth,
@@ -152,7 +158,8 @@ export function renderMinePixiPlatform(input: {
     platform.node.y = platform.baseY + currentPlatformDropOffset(
       performance.now(),
       input.platformDropAnimatingRef.current,
-      input.platformAnimationStartedAtRef.current
+      input.platformAnimationStartedAtRef.current,
+      input.platformDropDurationMsRef.current
     );
   }
 }

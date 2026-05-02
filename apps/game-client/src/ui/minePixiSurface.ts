@@ -15,7 +15,8 @@ export function drawSurface(
   layout: MinePixiLayout,
   platformRow: number,
   foremen: readonly MinePixiForemanSlot[] = [],
-  elevatorLevel = 1
+  elevatorLevel = 1,
+  elevatorVisualStage: 1 | 2 | 3 | 4 | 5 = 1
 ) {
   const surface = new Container();
 
@@ -40,7 +41,7 @@ export function drawSurface(
   drawTree(surface, 78, layout.surfaceHeight - 54, 0.82);
   drawTree(surface, layout.width - 58, layout.surfaceHeight - 56, 0.96);
   drawGrassClumps(surface, layout);
-  drawSurfaceLift(surface, layout, elevatorLevel);
+  drawSurfaceLift(surface, layout, elevatorLevel, elevatorVisualStage);
   drawForemanTower(surface, layout, foremen);
 
   const depthText = createText({
@@ -164,14 +165,15 @@ function drawGrassClumps(container: Container, layout: MinePixiLayout) {
   container.addChild(grass);
 }
 
-function drawSurfaceLift(container: Container, layout: MinePixiLayout, elevatorLevel: number) {
+function drawSurfaceLift(container: Container, layout: MinePixiLayout, elevatorLevel: number, elevatorVisualStage: 1 | 2 | 3 | 4 | 5) {
   const x = minePixiLiftX(layout);
   const y = layout.surfaceHeight - 104;
-  const level = Math.max(1, Math.min(5, Math.floor(elevatorLevel)));
-  const railColor = level >= 2 ? 0x8b929b : 0x8a6138;
-  const railShadowColor = level >= 2 ? 0x6e7881 : 0x75502e;
-  const wheelColor = level >= 4 ? 0xc2c8cf : 0x56636d;
-  const trimColor = level >= 5 ? 0xf2b84b : 0xf7ead8;
+  const level = Math.max(1, Math.floor(elevatorLevel));
+  const stage = Math.max(1, Math.min(5, Math.floor(elevatorVisualStage)));
+  const railColor = stage >= 2 ? 0x8b929b : 0x8a6138;
+  const railShadowColor = stage >= 2 ? 0x6e7881 : 0x75502e;
+  const wheelColor = stage >= 4 ? 0xc2c8cf : 0x56636d;
+  const trimColor = stage >= 5 ? 0xf2b84b : 0xf7ead8;
 
   container.addChild(
     new Graphics()
@@ -180,7 +182,7 @@ function drawSurfaceLift(container: Container, layout: MinePixiLayout, elevatorL
       .rect(x + 15, y + 20, 5, 76)
       .fill({ color: railShadowColor })
       .rect(x - 20, y + 18, 46, 6)
-      .fill({ color: level >= 3 ? 0xb17b45 : 0xa8753f })
+      .fill({ color: stage >= 3 ? 0xb17b45 : 0xa8753f })
       .rect(x - 18, y + 32, 42, 4)
       .fill({ color: 0x6a4728 })
       .circle(x + 3, y + 12, 15)
@@ -196,7 +198,7 @@ function drawSurfaceLift(container: Container, layout: MinePixiLayout, elevatorL
   );
 
   const levelText = createText({
-    color: level >= 5 ? 0xf2b84b : 0xe8f4ff,
+    color: stage >= 5 ? 0xf2b84b : 0xe8f4ff,
     fontSize: 9,
     fontWeight: "800",
     text: `LV ${level}`

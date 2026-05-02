@@ -20,6 +20,7 @@ import type { GameMainContentActions, GameMainContentView } from "./screens/Game
 import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverlays";
 import type { ContentState } from "./useGameBootstrap";
 import type { FoundVeinView } from "./useMineUiController";
+import type { PlatformDropEvent } from "./useMiningLoop";
 import type { ChestRewardFlyout, PendingRewardChest, RewardChestStage } from "./useRewardChestFlow";
 
 export interface CreateGameViewModelsInput {
@@ -87,6 +88,7 @@ export interface CreateGameViewModelsInput {
   pixiGoblins: MinePixiGoblin[];
   platformCellKeys: ReadonlySet<string>;
   platformDropAnimating: boolean;
+  platformDropEvent: PlatformDropEvent | null;
   resources: Record<string, number>;
   rewardChestStage: RewardChestStage;
   roster: GoblinRosterState;
@@ -164,6 +166,8 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       depthMarkerLabel: input.pixiDepthMarkerLabel,
       devOverlayEnabled: input.pixiDevOverlayEnabled,
       elevatorLevel: input.elevatorLevel,
+      elevatorProgression: input.elevatorProgression,
+      elevatorVisualStage: input.elevatorProgression.visualStage,
       exposedCellKeys: input.exposedCellKeys,
       foremanTower: {
         assignedForemen: getAssignedForemen(input.availableGoblins, input.roster, input.foremanAssignments),
@@ -178,6 +182,7 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       loading: input.loading,
       platformCellKeys: input.platformCellKeys,
       platformDropAnimating: input.platformDropAnimating,
+      platformDropEvent: input.platformDropEvent,
       session: input.session
     }
   };

@@ -26,6 +26,7 @@ export function useMinePixiSceneRuntime(input: {
   onBlockHit: (block: MiningBlockState) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   platformCellKeys: ReadonlySet<string>;
+  platformDropDurationMs: number;
   platformDropAnimating: boolean;
   session: MiningSession;
   visibleRowRange: MinePixiVisibleRowRange;
@@ -54,6 +55,7 @@ export function useMinePixiSceneRuntime(input: {
   const platformCellKeysRef = useRef(input.platformCellKeys);
   const sessionBlocksRef = useRef(input.session.blocks);
   const platformRef = useRef<MinePixiAnimatedItem | null>(null);
+  const platformDropDurationMsRef = useRef(input.platformDropDurationMs);
   const platformDropAnimatingRef = useRef(false);
   const platformAnimationStartedAtRef = useRef(0);
   const totalCellCountRef = useRef(input.session.mine.width * input.session.mine.height);
@@ -86,6 +88,10 @@ export function useMinePixiSceneRuntime(input: {
   useEffect(() => {
     platformDropAnimatingRef.current = input.platformDropAnimating;
   }, [input.platformDropAnimating]);
+
+  useEffect(() => {
+    platformDropDurationMsRef.current = input.platformDropDurationMs;
+  }, [input.platformDropDurationMs]);
 
   useEffect(() => {
     const previous = previousPlatformDropSignalRef.current;
@@ -155,6 +161,7 @@ export function useMinePixiSceneRuntime(input: {
           now: performance.now(),
           platform: platformRef.current,
           platformAnimationStartedAt: platformAnimationStartedAtRef.current,
+          platformDropDurationMs: platformDropDurationMsRef.current,
           platformDropAnimating: platformDropAnimatingRef.current,
           setDevStats,
           totalCells: totalCellCountRef.current,
@@ -212,6 +219,7 @@ export function useMinePixiSceneRuntime(input: {
     onPlaceGoblinRef,
     platformAnimationStartedAtRef,
     platformCellKeysRef,
+    platformDropDurationMsRef,
     platformDropAnimatingRef,
     platformRef,
     readyTick,

@@ -51,6 +51,7 @@ interface MinePixiSceneProps {
   devOverlayEnabled: boolean;
   depthMarkerLabel: (row: number) => string;
   elevatorLevel: number;
+  elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
   exposedCellKeys: ReadonlySet<string>;
   foremen: readonly MinePixiForemanSlot[];
   goblins: MinePixiGoblin[];
@@ -58,6 +59,7 @@ interface MinePixiSceneProps {
   onBlockHit: (block: MiningBlockState) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   platformCellKeys: ReadonlySet<string>;
+  platformDropDurationMs: number;
   platformDropAnimating: boolean;
   session: MiningSession;
 }
@@ -85,6 +87,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     onBlockHit: props.onBlockHit,
     onPlaceGoblin: props.onPlaceGoblin,
     platformCellKeys: props.platformCellKeys,
+    platformDropDurationMs: props.platformDropDurationMs,
     platformDropAnimating: props.platformDropAnimating,
     session: props.session,
     visibleRowRange
@@ -164,6 +167,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       layout,
       liftRailRef: runtime.liftRailRef,
       platformAnimationStartedAtRef: runtime.platformAnimationStartedAtRef,
+      platformDropDurationMsRef: runtime.platformDropDurationMsRef,
       platformDropAnimatingRef: runtime.platformDropAnimatingRef
     });
   }, [layout, runtime.readyTick]);
@@ -178,11 +182,12 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     renderMinePixiSurface({
       currentPlatformRow: props.currentPlatformRow,
       elevatorLevel: props.elevatorLevel,
+      elevatorVisualStage: props.elevatorVisualStage,
       foremen: props.foremen,
       layers,
       layout
     });
-  }, [layout, props.currentPlatformRow, props.elevatorLevel, props.foremen, runtime.readyTick]);
+  }, [layout, props.currentPlatformRow, props.elevatorLevel, props.elevatorVisualStage, props.foremen, runtime.readyTick]);
 
   useEffect(() => {
     const layers = runtime.layersRef.current;
@@ -248,12 +253,14 @@ export function MinePixiScene(props: MinePixiSceneProps) {
       blocks: props.session.blocks,
       currentPlatformRow: props.currentPlatformRow,
       dragState,
+      elevatorVisualStage: props.elevatorVisualStage,
       goblins: props.goblins,
       layers,
       layout,
       mineWidth: props.session.mine.width,
       platformAnimationStartedAtRef: runtime.platformAnimationStartedAtRef,
       platformCellKeys: props.platformCellKeys,
+      platformDropDurationMsRef: runtime.platformDropDurationMsRef,
       platformDropAnimatingRef: runtime.platformDropAnimatingRef,
       platformRef: runtime.platformRef,
       setDragState
@@ -262,6 +269,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     layout,
     props.currentPlatformRow,
     dragState?.goblinId,
+    props.elevatorVisualStage,
     props.goblins,
     props.platformCellKeys,
     props.platformDropAnimating,

@@ -156,6 +156,25 @@ export const goblinHutSchema = z.object({
   levels: z.array(goblinHutLevelSchema).min(1)
 });
 
+export const elevatorVisualStageSchema = z.union([z.literal(1), z.literal(2), z.literal(3), z.literal(4), z.literal(5)]);
+
+export const elevatorLevelSchema = z.object({
+  level: z.number().int().positive(),
+  nameKey: z.string().min(1),
+  platformSlots: z.number().int().positive(),
+  dropDurationMs: z.number().int().min(500).max(2500).default(1450),
+  offlineDamageMultiplier: z.number().min(1).default(1),
+  stabilityPercent: z.number().int().min(0).max(100).default(20),
+  upgradeCost: z.array(resourceAmountSchema).default([]),
+  visualStage: elevatorVisualStageSchema.default(1)
+});
+
+export const elevatorSchema = z.object({
+  id: z.literal("default").default("default"),
+  nameKey: z.string().min(1),
+  levels: z.array(elevatorLevelSchema).min(1)
+});
+
 export const resourceSchema = z.object({
   id: z.string().min(1),
   nameKey: z.string().min(1),
@@ -292,6 +311,15 @@ export const mineCellSchema = z
   })
   .strict();
 
+export const mineDepthProgressRewardSchema = z
+  .object({
+    resourceId: z.string().min(1),
+    amountPerMeter: z.number().positive(),
+    multiplier: z.number().positive().default(1),
+    maxAmount: z.number().int().positive().optional()
+  })
+  .strict();
+
 export const mineTemplateSchema = z
   .object({
     id: z.string().min(1),
@@ -304,6 +332,7 @@ export const mineTemplateSchema = z
     difficultyEnd: z.number().positive().default(1),
     completionVeinTypeId: z.string().min(1).optional(),
     completionRewardChestTypeId: z.string().min(1).optional(),
+    depthProgressReward: mineDepthProgressRewardSchema.optional(),
     cellMap: z.array(mineCellSchema).min(1)
   })
   .strict();
@@ -354,6 +383,7 @@ export const contentBundleSchema = z
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
     goblinHut: goblinHutSchema,
+    elevator: elevatorSchema,
     localization: localizationSchema
   })
   .strict();
@@ -369,6 +399,8 @@ export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
 export type GoblinHutConfig = z.infer<typeof goblinHutSchema>;
 export type GoblinHutLevelConfig = z.infer<typeof goblinHutLevelSchema>;
+export type ElevatorConfig = z.infer<typeof elevatorSchema>;
+export type ElevatorLevelConfig = z.infer<typeof elevatorLevelSchema>;
 export type LocalizationConfig = z.infer<typeof localizationSchema>;
 export type ContentBundle = z.infer<typeof contentBundleSchema>;
 
@@ -834,6 +866,7 @@ export const starterContentBundle: ContentBundle = {
       difficultyEnd: 1.15,
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "wooden_completion_chest",
+      depthProgressReward: { resourceId: "stone", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
       cellMap: createStarterMineCellMap([
         ["dirt", "dirt", "dirt", "stone", "dirt", "dirt", "stone"],
         ["dirt", "stone", "dirt", "dirt", "dirt", "stone", "dirt"],
@@ -858,6 +891,7 @@ export const starterContentBundle: ContentBundle = {
       difficultyEnd: 1.2,
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
+      depthProgressReward: { resourceId: "stone", amountPerMeter: 4, multiplier: 1, maxAmount: 16 },
       cellMap: createStarterMineCellMap([
         ["dirt", "stone", "stone", "dirt", "stone", "dirt", "stone"],
         ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone"],
@@ -882,6 +916,7 @@ export const starterContentBundle: ContentBundle = {
       difficultyEnd: 1.25,
       completionVeinTypeId: "iron_vein_small",
       completionRewardChestTypeId: "steel_completion_chest",
+      depthProgressReward: { resourceId: "copper_ore", amountPerMeter: 2, multiplier: 1, maxAmount: 10 },
       cellMap: createStarterMineCellMap([
         ["dirt", "stone", "dirt", "stone", "stone", "dirt", "stone"],
         ["stone", "stone", "dirt", "copper_ore", "stone", "stone", "dirt"],
@@ -906,6 +941,7 @@ export const starterContentBundle: ContentBundle = {
       difficultyEnd: 1.3,
       completionVeinTypeId: "gold_vein_small",
       completionRewardChestTypeId: "iron_completion_chest",
+      depthProgressReward: { resourceId: "copper_ore", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
       cellMap: createStarterMineCellMap([
         ["stone", "dirt", "stone", "dirt", "stone", "copper_ore", "stone"],
         ["stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone"],
@@ -930,6 +966,7 @@ export const starterContentBundle: ContentBundle = {
       difficultyEnd: 1.35,
       completionVeinTypeId: "copper_vein_small",
       completionRewardChestTypeId: "steel_completion_chest",
+      depthProgressReward: { resourceId: "iron", amountPerMeter: 1, multiplier: 1, maxAmount: 6 },
       cellMap: createStarterMineCellMap([
         ["stone", "copper_ore", "stone", "dirt", "stone", "iron_ore", "stone"],
         ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "gold_cache"],
@@ -1293,6 +1330,76 @@ export const starterContentBundle: ContentBundle = {
       }
     ]
   },
+  elevator: {
+    id: "default",
+    nameKey: "elevator.name",
+    levels: [
+      {
+        level: 1,
+        nameKey: "elevator.level.1.name",
+        dropDurationMs: 1450,
+        offlineDamageMultiplier: 1,
+        platformSlots: 2,
+        stabilityPercent: 20,
+        upgradeCost: [],
+        visualStage: 1
+      },
+      {
+        level: 2,
+        nameKey: "elevator.level.2.name",
+        dropDurationMs: 1320,
+        offlineDamageMultiplier: 1.05,
+        platformSlots: 3,
+        stabilityPercent: 35,
+        upgradeCost: [
+          { resourceId: "gold", amount: 700 },
+          { resourceId: "stone", amount: 120 }
+        ],
+        visualStage: 2
+      },
+      {
+        level: 3,
+        nameKey: "elevator.level.3.name",
+        dropDurationMs: 1190,
+        offlineDamageMultiplier: 1.1,
+        platformSlots: 4,
+        stabilityPercent: 50,
+        upgradeCost: [
+          { resourceId: "gold", amount: 1600 },
+          { resourceId: "copper_ore", amount: 75 }
+        ],
+        visualStage: 3
+      },
+      {
+        level: 4,
+        nameKey: "elevator.level.4.name",
+        dropDurationMs: 1060,
+        offlineDamageMultiplier: 1.16,
+        platformSlots: 5,
+        stabilityPercent: 68,
+        upgradeCost: [
+          { resourceId: "gold", amount: 3200 },
+          { resourceId: "copper_ore", amount: 160 },
+          { resourceId: "iron", amount: 35 }
+        ],
+        visualStage: 4
+      },
+      {
+        level: 5,
+        nameKey: "elevator.level.5.name",
+        dropDurationMs: 920,
+        offlineDamageMultiplier: 1.25,
+        platformSlots: 7,
+        stabilityPercent: 85,
+        upgradeCost: [
+          { resourceId: "gold", amount: 6500 },
+          { resourceId: "iron", amount: 120 },
+          { resourceId: "elixir", amount: 20 }
+        ],
+        visualStage: 5
+      }
+    ]
+  },
   localization: {
     ru: {
       "resource.gold.name": "Золото",
@@ -1356,6 +1463,12 @@ export const starterContentBundle: ContentBundle = {
       "goblin_hut.level.2.name": "Навес бригады",
       "goblin_hut.level.3.name": "Складская хижина",
       "goblin_hut.level.4.name": "Большая артель",
+      "elevator.name": "Подъемник",
+      "elevator.level.1.name": "Скрипучая клеть",
+      "elevator.level.2.name": "Усиленная клеть",
+      "elevator.level.3.name": "Стальная платформа",
+      "elevator.level.4.name": "Глубинный подъемник",
+      "elevator.level.5.name": "Золотой механизм",
       "boss_card.hit_damage.name": "Сила удара",
       "boss_card.hit_damage.description": "Каждый уровень увеличивает урон босса за тап.",
       "boss_card.crit_chance.name": "Критический шанс",
@@ -1451,6 +1564,12 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
       errors.push(`mineTemplates.${mineTemplate.id} references missing completion vein type ${mineTemplate.completionVeinTypeId}`);
     }
 
+    if (mineTemplate.depthProgressReward && !resourceIds.has(mineTemplate.depthProgressReward.resourceId)) {
+      errors.push(
+        `mineTemplates.${mineTemplate.id}.depthProgressReward references missing resource ${mineTemplate.depthProgressReward.resourceId}`
+      );
+    }
+
     const cellKeys = new Set<string>();
 
     for (const cell of mineTemplate.cellMap) {
@@ -1512,6 +1631,8 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
 
   validateLocalizationKey(parsed.data.goblinHut.nameKey, "ru", ruLocalization, errors);
   validateGoblinHut(parsed.data.goblinHut, resourceIds, mineTemplateIds, ruLocalization, errors);
+  validateLocalizationKey(parsed.data.elevator.nameKey, "ru", ruLocalization, errors);
+  validateElevator(parsed.data.elevator, resourceIds, ruLocalization, errors);
 
   for (const goblin of parsed.data.goblins) {
     validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
@@ -1583,6 +1704,63 @@ function validateGoblinHut(
   for (let index = 0; index < sortedLevels.length; index += 1) {
     if (sortedLevels[index] !== index + 1) {
       errors.push("goblinHut.levels must start at 1 and be sequential");
+      break;
+    }
+  }
+}
+
+function validateElevator(
+  elevator: ElevatorConfig,
+  resourceIds: Set<string>,
+  ruLocalization: Record<string, string> | undefined,
+  errors: string[]
+) {
+  const seenLevels = new Set<number>();
+  let previousDropDurationMs = Number.POSITIVE_INFINITY;
+  let previousOfflineDamageMultiplier = 1;
+  let previousPlatformSlots = 0;
+  let previousStabilityPercent = 0;
+
+  for (const level of [...elevator.levels].sort((left, right) => left.level - right.level)) {
+    if (seenLevels.has(level.level)) {
+      errors.push(`elevator.levels has duplicate level ${level.level}`);
+    }
+
+    seenLevels.add(level.level);
+    validateLocalizationKey(level.nameKey, "ru", ruLocalization, errors);
+    validateResourceAmounts(`elevator.levels.${level.level}.upgradeCost`, level.upgradeCost, resourceIds, errors);
+
+    if (level.level === 1 && level.upgradeCost.length > 0) {
+      errors.push("elevator.levels.1 must be available without cost");
+    }
+
+    if (level.platformSlots < previousPlatformSlots) {
+      errors.push(`elevator.levels.${level.level}.platformSlots cannot be lower than previous level`);
+    }
+
+    if (level.dropDurationMs > previousDropDurationMs) {
+      errors.push(`elevator.levels.${level.level}.dropDurationMs cannot be higher than previous level`);
+    }
+
+    if (level.offlineDamageMultiplier < previousOfflineDamageMultiplier) {
+      errors.push(`elevator.levels.${level.level}.offlineDamageMultiplier cannot be lower than previous level`);
+    }
+
+    if (level.stabilityPercent < previousStabilityPercent) {
+      errors.push(`elevator.levels.${level.level}.stabilityPercent cannot be lower than previous level`);
+    }
+
+    previousDropDurationMs = level.dropDurationMs;
+    previousOfflineDamageMultiplier = level.offlineDamageMultiplier;
+    previousPlatformSlots = level.platformSlots;
+    previousStabilityPercent = level.stabilityPercent;
+  }
+
+  const sortedLevels = [...seenLevels].sort((left, right) => left - right);
+
+  for (let index = 0; index < sortedLevels.length; index += 1) {
+    if (sortedLevels[index] !== index + 1) {
+      errors.push("elevator.levels must start at 1 and be sequential");
       break;
     }
   }

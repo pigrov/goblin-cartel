@@ -11,6 +11,7 @@ import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "../goblinHutClientState";
 import type { MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import type { PlatformDropEvent } from "../useMiningLoop";
 import type { GameSection } from "./BottomNav";
 import { BuiltMinesSection } from "./BuiltMinesSection";
 import { BaseSection, GoblinSection } from "./GoblinManagementScreens";
@@ -80,6 +81,8 @@ export interface GameMainContentView {
     depthMarkerLabel: (row: number) => string;
     devOverlayEnabled: boolean;
     elevatorLevel: number;
+    elevatorProgression: ElevatorProgressionState;
+    elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
     exposedCellKeys: ReadonlySet<string>;
     foremanTower: {
       assignedForemen: GoblinConfig[];
@@ -92,6 +95,7 @@ export interface GameMainContentView {
     loading: boolean;
     platformCellKeys: ReadonlySet<string>;
     platformDropAnimating: boolean;
+    platformDropEvent: PlatformDropEvent | null;
     session: MiningSession;
   };
 }
@@ -181,6 +185,8 @@ export function GameMainContent(props: {
       depthMarkerLabel={view.mine.depthMarkerLabel}
       devOverlayEnabled={view.mine.devOverlayEnabled}
       elevatorLevel={view.mine.elevatorLevel}
+      elevatorProgression={view.mine.elevatorProgression}
+      elevatorVisualStage={view.mine.elevatorVisualStage}
       exposedCellKeys={view.mine.exposedCellKeys}
       foremanTower={view.mine.foremanTower}
       goblins={view.mine.goblins}
@@ -191,8 +197,10 @@ export function GameMainContent(props: {
       onAssignForemanSlot={actions.onAssignForemanSlot}
       onOpenGoblins={actions.onOpenGoblins}
       onPlaceGoblin={actions.onPlaceGoblin}
+      onUpgradeElevator={actions.onUpgradeElevator}
       platformCellKeys={view.mine.platformCellKeys}
       platformDropAnimating={view.mine.platformDropAnimating}
+      platformDropEvent={view.mine.platformDropEvent}
       session={view.mine.session}
     />
   );

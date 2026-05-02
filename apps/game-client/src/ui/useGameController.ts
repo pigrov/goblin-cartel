@@ -118,8 +118,8 @@ export function useGameController() {
   });
   const currentPlatformRow = useMemo(() => findPlatformRow(session, platformRow), [platformRow, session]);
   const elevatorProgression = useMemo(
-    () => createElevatorProgressionState(elevatorLevel, session.resources),
-    [elevatorLevel, session.resources]
+    () => createElevatorProgressionState(contentState.content.elevator, elevatorLevel, session.resources),
+    [contentState.content.elevator, elevatorLevel, session.resources]
   );
   const completedMineTemplateIds = useMemo(
     () => Array.from(new Set(session.foundVeins.map((vein) => vein.mineTemplateId))),
@@ -289,6 +289,7 @@ export function useGameController() {
 
   function handleUpgradeElevator() {
     const result = upgradeElevator({
+      elevator: contentState.content.elevator,
       level: elevatorLevel,
       resources: session.resources
     });
@@ -341,7 +342,8 @@ export function useGameController() {
   const {
     handleBlockHit,
     hitEffects,
-    platformDropAnimating
+    platformDropAnimating,
+    platformDropEvent
   } = useMiningLoop({
     activeCell,
     applyBossTap,
@@ -355,6 +357,7 @@ export function useGameController() {
     onFoundVein: notifyFoundVein,
     onRewardChestBlock: queueCellRewardChest,
     pendingOfflineFinalHit,
+    platformDropDurationMs: elevatorProgression.dropDurationMs,
     platformRow,
     roster,
     scheduleResourceRewardDisplay,
@@ -436,6 +439,7 @@ export function useGameController() {
     pixiGoblins,
     platformCellKeys,
     platformDropAnimating,
+    platformDropEvent,
     resources: session.resources,
     rewardChestStage,
     roster,

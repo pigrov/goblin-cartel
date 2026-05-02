@@ -114,6 +114,12 @@ export class DrizzleContentStore implements ContentStore {
           entityId: "default",
           data: content.goblinHut
         },
+        {
+          contentVersionId,
+          entityType: "elevator",
+          entityId: "default",
+          data: content.elevator
+        },
         ...Object.entries(content.localization).map(([locale, messages]) => ({
           contentVersionId,
           entityType: "localization",

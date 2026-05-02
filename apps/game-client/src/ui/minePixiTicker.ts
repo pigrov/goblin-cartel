@@ -16,6 +16,7 @@ export interface PixiDevStats {
 }
 
 export const platformDropDurationMs = 1450;
+const platformDropHoldProgress = 0.12;
 
 export function runMinePixiTickerFrame(input: {
   animatedBlockImpacts: Map<number, MinePixiAnimatedBlockImpact>;
@@ -31,6 +32,7 @@ export function runMinePixiTickerFrame(input: {
   now: number;
   platform: MinePixiAnimatedItem | null;
   platformAnimationStartedAt: number;
+  platformDropDurationMs: number;
   platformDropAnimating: boolean;
   setDevStats: (stats: PixiDevStats) => void;
   totalCells: number;
@@ -39,11 +41,36 @@ export function runMinePixiTickerFrame(input: {
   const platformOffset = currentPlatformDropOffset(
     input.now,
     input.platformDropAnimating,
-    input.platformAnimationStartedAt
+    input.platformAnimationStartedAt,
+    input.platformDropDurationMs
   );
+  const platformDropProgress = currentPlatformDropProgress(
+    input.now,
+    input.platformDropAnimating,
+    input.platformAnimationStartedAt,
+    input.platformDropDurationMs
+  );
+  const platformDropActive = input.platformDropAnimating && platformDropProgress > 0;
 
   if (input.platform) {
     input.platform.node.y = input.platform.baseY + platformOffset;
+    input.platform.node.x = platformDropActive
+      ? Math.sin(input.now / 55) * (1.2 + (1 - platformDropProgress) * 0.7)
+      : 0;
+
+    if (input.platform.dropEffects) {
+      const pulse = Math.sin(platformDropProgress * Math.PI);
+      input.platform.dropEffects.visible = platformDropActive && pulse > 0;
+      input.platform.dropEffects.alpha = platformDropActive ? Math.max(0, pulse) * 0.95 : 0;
+      input.platform.dropEffects.y = Math.sin(input.now / 70) * 2;
+      input.platform.dropEffects.x = Math.sin(input.now / 35) * 1.5;
+    }
+
+    for (const cable of input.platform.cableNodes ?? []) {
+      cable.rotation = platformDropActive
+        ? Math.sin(input.now / 64 + cable.x * 0.07) * 0.018 * (1 - platformDropProgress * 0.35)
+        : 0;
+    }
   }
 
   if (input.liftRail) {
@@ -63,14 +90,26 @@ export function runMinePixiTickerFrame(input: {
   updatePixiDevStats(input);
 }
 
-export function currentPlatformDropOffset(now: number, animating: boolean, startedAt: number): number {
+export function currentPlatformDropOffset(now: number, animating: boolean, startedAt: number, durationMs = platformDropDurationMs): number {
   const elapsed = now - startedAt;
+  const duration = normalizePlatformDropDurationMs(durationMs);
 
-  if (!animating || elapsed < 0 || elapsed >= platformDropDurationMs) {
+  if (!animating || elapsed < 0 || elapsed >= duration) {
     return 0;
   }
 
-  return platformDropOffset(elapsed / platformDropDurationMs);
+  return platformDropOffset(elapsed / duration);
+}
+
+export function currentPlatformDropProgress(now: number, animating: boolean, startedAt: number, durationMs = platformDropDurationMs): number {
+  const elapsed = now - startedAt;
+  const duration = normalizePlatformDropDurationMs(durationMs);
+
+  if (!animating || elapsed < 0 || elapsed >= duration) {
+    return 0;
+  }
+
+  return clamp01(elapsed / duration);
 }
 
 function updatePixiDevStats(input: {
@@ -138,7 +177,7 @@ function animateBlockImpacts(
 }
 
 function platformDropOffset(progress: number): number {
-  if (progress <= 0) {
+  if (progress <= platformDropHoldProgress) {
     return -30;
   }
 
@@ -146,9 +185,10 @@ function platformDropOffset(progress: number): number {
     return 0;
   }
 
-  const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  const activeProgress = (progress - platformDropHoldProgress) / (1 - platformDropHoldProgress);
+  const eased = activeProgress < 0.5
+    ? 4 * activeProgress * activeProgress * activeProgress
+    : 1 - Math.pow(-2 * activeProgress + 2, 3) / 2;
   return -30 * (1 - eased);
 }
 
@@ -158,4 +198,12 @@ function clamp01(value: number): number {
   }
 
   return Math.max(0, Math.min(1, value));
+}
+
+function normalizePlatformDropDurationMs(value: number): number {
+  if (!Number.isFinite(value)) {
+    return platformDropDurationMs;
+  }
+
+  return Math.max(500, Math.min(2500, Math.floor(value)));
 }

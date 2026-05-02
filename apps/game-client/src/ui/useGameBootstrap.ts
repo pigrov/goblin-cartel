@@ -246,7 +246,7 @@ function createRestoredMiningState(
   if (!storedSave) {
     const initialPlatformRow = findPlatformRow(session, 0);
     const initialElevatorLevel = 1;
-    const initialPlatformSlots = getElevatorLevelConfig(initialElevatorLevel).platformSlots;
+    const initialPlatformSlots = getElevatorLevelConfig(content.elevator, initialElevatorLevel).platformSlots;
 
     return {
       session,
@@ -266,8 +266,8 @@ function createRestoredMiningState(
   try {
     const restoredSession = restoreMiningSession(session, storedSave.save);
     const restoredPlatformRow = findPlatformRow(restoredSession, storedSave.platformRow ?? 0);
-    const restoredElevatorLevel = normalizeElevatorLevel(storedSave.elevatorLevel);
-    const restoredPlatformSlots = getElevatorLevelConfig(restoredElevatorLevel).platformSlots;
+    const restoredElevatorLevel = normalizeElevatorLevel(content.elevator, storedSave.elevatorLevel);
+    const restoredPlatformSlots = getElevatorLevelConfig(content.elevator, restoredElevatorLevel).platformSlots;
     const restoredActiveCell = storedSave.activeCell ?? findFirstPlayableCell(restoredSession);
     const restoredPlacements = storedSave.goblinPlacements
       ? normalizeGoblinPlacements(restoredSession, miningGoblins, storedSave.goblinPlacements, {
@@ -309,7 +309,7 @@ function createRestoredMiningState(
   } catch {
     const initialPlatformRow = findPlatformRow(session, 0);
     const initialElevatorLevel = 1;
-    const initialPlatformSlots = getElevatorLevelConfig(initialElevatorLevel).platformSlots;
+    const initialPlatformSlots = getElevatorLevelConfig(content.elevator, initialElevatorLevel).platformSlots;
 
     return {
       session,
@@ -342,7 +342,8 @@ function applyOfflineMining(
   savedAt: number | undefined
 ): RestoredMiningState {
   const activePlatformRow = findPlatformRow(session, platformRow);
-  const platformSlots = getElevatorLevelConfig(elevatorLevel).platformSlots;
+  const elevatorLevelConfig = getElevatorLevelConfig(content.elevator, elevatorLevel);
+  const platformSlots = elevatorLevelConfig.platformSlots;
   const availableGoblins = createAvailableGoblins(content);
   const miningGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id) && isMiningGoblin(goblin));
   const normalizedPlacements = normalizeGoblinPlacements(session, miningGoblins, goblinPlacements, {
@@ -393,7 +394,7 @@ function applyOfflineMining(
   );
   const offlineDamageMultiplier = hiredForemen.reduce(
     (multiplier, goblin) => multiplier + getGoblinOfflineAutoDamageMultiplier(goblin, getGoblinLevel(roster, goblin.id)) - 1,
-    1
+    Math.max(1, elevatorLevelConfig.offlineDamageMultiplier)
   );
   const offlineRewardMultiplier = hiredForemen.reduce(
     (multiplier, goblin) => multiplier + getGoblinOfflineRewardMultiplier(goblin, getGoblinLevel(roster, goblin.id)) - 1,

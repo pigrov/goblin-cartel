@@ -17,6 +17,7 @@ export type ContentEntityType =
   | "mineTemplate"
   | "goblin"
   | "goblinHut"
+  | "elevator"
   | "localization";
 export type EditableContentEntityType =
   | "blockType"
@@ -24,6 +25,7 @@ export type EditableContentEntityType =
   | "builtMineType"
   | "goblin"
   | "goblinHut"
+  | "elevator"
   | "mineTemplate"
   | "rewardChestType";
 
@@ -430,6 +432,8 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   );
   const goblinHutEntity = entities.find((entity) => entity.entityType === "goblinHut" && entity.entityId === "default");
   const goblinHut = goblinHutEntity?.data as ContentBundle["goblinHut"];
+  const elevatorEntity = entities.find((entity) => entity.entityType === "elevator" && entity.entityId === "default");
+  const elevator = (elevatorEntity?.data as ContentBundle["elevator"] | undefined) ?? starterContentBundle.elevator;
 
   return {
     resources: sortContentItems(entities, "resource", starterContentBundle.resources),
@@ -441,6 +445,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     goblinHut,
+    elevator,
     localization
   } as ContentBundle;
 }
@@ -477,6 +482,14 @@ function upsertEditableContentEntity(
     };
   }
 
+  if (input.entityType === "elevator") {
+    return {
+      ...content,
+      elevator: normalizedEntity as ContentBundle["elevator"],
+      localization: nextLocalization
+    };
+  }
+
   return {
     ...content,
     localization: nextLocalization,
@@ -500,6 +513,9 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
       return content.mineTemplates;
     case "rewardChestType":
       return content.rewardChestTypes;
+    case "elevator":
+    case "goblinHut":
+      return [];
     default:
       return content.goblins;
   }

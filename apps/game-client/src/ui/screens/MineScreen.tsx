@@ -1,10 +1,12 @@
 import type { BlockTypeConfig, GoblinConfig } from "@goblin-cartel/content-schemas";
 import { getGoblinLevel, type MiningBlockState, type MiningSession } from "@goblin-cartel/game-core";
-import { Hammer, Plus, X } from "lucide-react";
-import { lazy, Suspense, useMemo, useState } from "react";
+import { ArrowDownUp, Coins, Gem, Gauge, Hammer, Mountain, Pickaxe, Plus, ShieldCheck, X, Zap } from "lucide-react";
+import { lazy, type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import { createGoblinIdentity } from "../goblinHutClientState";
 import type { MinePixiForemanSlot, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import type { PlatformDropEvent } from "../useMiningLoop";
 import {
   getGoblinOfflineAutoDamageMultiplier,
   getGoblinOfflineRelocationSlots,
@@ -26,6 +28,8 @@ export function MineScreen(props: {
   depthMarkerLabel: (row: number) => string;
   devOverlayEnabled: boolean;
   elevatorLevel: number;
+  elevatorProgression: ElevatorProgressionState;
+  elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
   exposedCellKeys: ReadonlySet<string>;
   foremanTower: {
     assignedForemen: GoblinConfig[];
@@ -41,11 +45,16 @@ export function MineScreen(props: {
   onAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   onOpenGoblins: () => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
+  onUpgradeElevator: () => void;
   platformCellKeys: ReadonlySet<string>;
   platformDropAnimating: boolean;
+  platformDropEvent: PlatformDropEvent | null;
   session: MiningSession;
 }) {
   const [foremanPickerOpen, setForemanPickerOpen] = useState(false);
+  const [elevatorOpen, setElevatorOpen] = useState(false);
+  const [elevatorUpgradePulse, setElevatorUpgradePulse] = useState(false);
+  const previousElevatorLevelRef = useRef(props.elevatorProgression.levelNow);
   const pixiForemen = useMemo<MinePixiForemanSlot[]>(() => {
     const foremanById = new Map(props.foremanTower.availableForemen.map((goblin) => [goblin.id, goblin]));
 
@@ -64,6 +73,18 @@ export function MineScreen(props: {
     });
   }, [props.foremanTower.assignments, props.foremanTower.availableForemen, props.labels]);
 
+  useEffect(() => {
+    if (props.elevatorProgression.levelNow > previousElevatorLevelRef.current) {
+      setElevatorUpgradePulse(true);
+      const timeoutId = window.setTimeout(() => setElevatorUpgradePulse(false), 1300);
+      previousElevatorLevelRef.current = props.elevatorProgression.levelNow;
+      return () => window.clearTimeout(timeoutId);
+    }
+
+    previousElevatorLevelRef.current = props.elevatorProgression.levelNow;
+    return undefined;
+  }, [props.elevatorProgression.levelNow]);
+
   if (props.loading) {
     return <MineLoadingState />;
   }
@@ -77,6 +98,7 @@ export function MineScreen(props: {
           currentPlatformRow={props.currentPlatformRow}
           depthMarkerLabel={props.depthMarkerLabel}
           elevatorLevel={props.elevatorLevel}
+          elevatorVisualStage={props.elevatorVisualStage}
           exposedCellKeys={props.exposedCellKeys}
           foremen={pixiForemen}
           goblins={props.goblins}
@@ -85,14 +107,33 @@ export function MineScreen(props: {
           onPlaceGoblin={props.onPlaceGoblin}
           devOverlayEnabled={props.devOverlayEnabled}
           platformCellKeys={props.platformCellKeys}
+          platformDropDurationMs={props.elevatorProgression.dropDurationMs}
           platformDropAnimating={props.platformDropAnimating}
           session={props.session}
         />
       </Suspense>
+      <ElevatorMineButton
+        lowering={props.platformDropAnimating}
+        upgraded={elevatorUpgradePulse}
+        level={props.elevatorProgression.levelNow}
+        slots={props.elevatorProgression.platformSlots}
+        onOpen={() => setElevatorOpen(true)}
+      />
+      {elevatorUpgradePulse ? <div className="mine-elevator-upgrade-toast">LV {props.elevatorProgression.levelNow}</div> : null}
+      {props.platformDropEvent ? <MineDepthEventToast event={props.platformDropEvent} key={props.platformDropEvent.id} /> : null}
       <ForemanTowerButton
         assignedCount={props.foremanTower.assignedForemen.length}
         onOpen={() => setForemanPickerOpen(true)}
       />
+      {elevatorOpen ? (
+        <ElevatorModal
+          labels={props.labels}
+          onClose={() => setElevatorOpen(false)}
+          onUpgrade={props.onUpgradeElevator}
+          state={props.elevatorProgression}
+          upgraded={elevatorUpgradePulse}
+        />
+      ) : null}
       {foremanPickerOpen ? (
         <ForemanTowerModal
           foremanTower={props.foremanTower}
@@ -106,6 +147,119 @@ export function MineScreen(props: {
         />
       ) : null}
     </section>
+  );
+}
+
+function ElevatorMineButton(props: { level: number; lowering: boolean; slots: number; onOpen: () => void; upgraded: boolean }) {
+  const className = [
+    "mine-elevator-button",
+    props.lowering ? "lowering" : "",
+    props.upgraded ? "upgraded" : ""
+  ].filter(Boolean).join(" ");
+
+  return (
+    <button className={className} onClick={props.onOpen} type="button" aria-label="Подъемник">
+      <ArrowDownUp size={18} />
+      <span>LV {props.level}</span>
+      <strong>{props.slots}</strong>
+    </button>
+  );
+}
+
+function MineDepthEventToast(props: { event: PlatformDropEvent }) {
+  const progress = `${Math.max(0, Math.min(100, Math.round((props.event.depthMeters / props.event.totalDepthMeters) * 100)))}%`;
+  const rewardLabel = props.event.rewardDrops.length > 0
+    ? props.event.rewardDrops.map((reward) => `+${formatInteger(reward.amount)} ${reward.label}`).join(" · ")
+    : `${props.event.depthMeters}/${props.event.totalDepthMeters} м`;
+
+  return (
+    <div className="mine-depth-event-toast" style={{ "--progress": progress } as CSSProperties}>
+      <span>Ряд очищен</span>
+      <strong>+{props.event.metersGained} м</strong>
+      <small>{rewardLabel}</small>
+      <i aria-hidden="true" />
+    </div>
+  );
+}
+
+function ElevatorModal(props: {
+  labels: Record<string, string>;
+  onClose: () => void;
+  onUpgrade: () => void;
+  state: ElevatorProgressionState;
+  upgraded: boolean;
+}) {
+  const currentTitle = labelFromNameKey(props.state.currentLevel.nameKey, "Подъемник", props.labels);
+  const nextTitle = props.state.nextLevel ? labelFromNameKey(props.state.nextLevel.nameKey, "Следующий уровень", props.labels) : null;
+
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section className={props.upgraded ? "elevator-modal upgraded" : "elevator-modal"} aria-label="Подъемник" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <p>Рудник</p>
+            <strong>Подъемник</strong>
+            <span>{currentTitle} · уровень {props.state.levelNow}/{props.state.maxLevel}</span>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className={`elevator-modal-visual stage-${props.state.visualStage}`} aria-hidden="true">
+          <i className="elevator-modal-rail" />
+          <i className="elevator-modal-wheel" />
+          <i className="elevator-modal-cable" />
+          <i className="elevator-modal-platform" />
+          <i className="elevator-modal-glow" />
+        </div>
+
+        <div className="elevator-modal-stat-grid">
+          <ElevatorStat icon={<Pickaxe size={16} />} label="Места" value={`${props.state.platformSlots}`} />
+          <ElevatorStat icon={<Gauge size={16} />} label="Спуск" value={formatSeconds(props.state.dropDurationMs / 1000)} />
+          <ElevatorStat icon={<Zap size={16} />} label="Офлайн" value={`x${formatMultiplier(props.state.offlineDamageMultiplier)}`} />
+          <ElevatorStat icon={<ShieldCheck size={16} />} label="Надежность" value={`${props.state.stabilityPercent}%`} />
+        </div>
+
+        {props.state.nextLevel ? (
+          <section className="elevator-modal-next">
+            <header>
+              <strong>{nextTitle}</strong>
+              <span>
+                {props.state.platformSlots} → {props.state.nextLevel.platformSlots} мест · x
+                {formatMultiplier(props.state.offlineDamageMultiplier)} → x{formatMultiplier(props.state.nextLevel.offlineDamageMultiplier)}
+              </span>
+            </header>
+            <div className="build-cost-list">
+              {props.state.costRequirements.map((requirement) => (
+                <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                  <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                  {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                </span>
+              ))}
+            </div>
+            <button disabled={!props.state.canUpgrade} onClick={props.onUpgrade} type="button">
+              {elevatorUpgradeActionLabel(props.state)}
+            </button>
+          </section>
+        ) : (
+          <section className="elevator-modal-next complete">
+            <strong>Подъемник полностью улучшен</strong>
+            <span>Платформа работает на максимальном уровне.</span>
+          </section>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function ElevatorStat(props: { icon: ReactNode; label: string; value: string }) {
+  return (
+    <div className="elevator-modal-stat">
+      <span aria-hidden="true">{props.icon}</span>
+      <p>{props.label}</p>
+      <strong>{props.value}</strong>
+    </div>
   );
 }
 
@@ -249,4 +403,47 @@ function sumForemanRewards(foremen: GoblinConfig[], levels: Record<string, numbe
 
 function formatMultiplier(value: number): string {
   return value.toFixed(2).replace(/\.?0+$/u, "");
+}
+
+function formatInteger(value: number): string {
+  return Number.isFinite(value) ? String(Math.max(0, Math.floor(value))) : "0";
+}
+
+function formatSeconds(value: number): string {
+  return `${value.toFixed(2).replace(/\.?0+$/u, "")}с`;
+}
+
+function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
+  return labels[nameKey] ?? fallback;
+}
+
+function elevatorUpgradeActionLabel(state: ElevatorProgressionState): string {
+  switch (state.failureReason) {
+    case null:
+      return "Улучшить";
+    case "not_enough_resources":
+      return "Не хватает ресурсов";
+    default:
+      return "Максимум";
+  }
+}
+
+function ResourceIcon(props: { resourceId: string; size: number }) {
+  if (props.resourceId.includes("elixir")) {
+    return <Zap size={props.size} />;
+  }
+
+  if (props.resourceId.includes("gold")) {
+    return <Coins size={props.size} />;
+  }
+
+  if (props.resourceId.includes("copper")) {
+    return <Gem size={props.size} />;
+  }
+
+  if (props.resourceId.includes("iron")) {
+    return <Pickaxe size={props.size} />;
+  }
+
+  return <Mountain size={props.size} />;
 }

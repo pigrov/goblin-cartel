@@ -65,6 +65,7 @@ class MemoryContentStore implements ContentStore {
       ),
       ...content.goblins.map((goblin) => this.createEntity(contentVersionId, "goblin", goblin.id, goblin)),
       this.createEntity(contentVersionId, "goblinHut", "default", content.goblinHut),
+      this.createEntity(contentVersionId, "elevator", "default", content.elevator),
       ...Object.entries(content.localization).map(([locale, messages]) =>
         this.createEntity(contentVersionId, "localization", locale, messages)
       )
@@ -151,6 +152,7 @@ describe("content service", () => {
     expect(detail.content.bossCards.map((card) => card.id)).toContain("hit_damage");
     expect(detail.content.goblins.map((goblin) => goblin.id)).toContain("gryzz_crooked_tooth");
     expect(detail.content.goblinHut.levels[0]?.maxHiredGoblins).toBe(2);
+    expect(detail.content.elevator.levels[0]?.platformSlots).toBe(2);
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
   });
 
@@ -174,6 +176,7 @@ describe("content service", () => {
     expect(current?.version.version).toBe("0.1.0");
     expect(current?.content.mineTemplates[0]?.id).toBe("old_well_01");
     expect(current?.content.goblinHut.id).toBe("default");
+    expect(current?.content.elevator.id).toBe("default");
   });
 
   it("reads content entities without legacy boss card backfill", async () => {
@@ -384,6 +387,42 @@ describe("content service", () => {
         localization: {
           ru: {
             [goblinHut.nameKey]: "Хижина проверки"
+          }
+        }
+      }
+    });
+  });
+
+  it("updates elevator progression through the same server validation path", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+    const elevator = structuredClone(starterContentBundle.elevator);
+    const secondLevel = elevator.levels[1];
+
+    if (!secondLevel) {
+      throw new Error("Missing starter elevator level");
+    }
+
+    secondLevel.platformSlots = 4;
+
+    const result = await service.updateEntity("admin-1", detail.version.id, {
+      entityType: "elevator",
+      entityId: "default",
+      entity: elevator,
+      localization: {
+        [elevator.nameKey]: "Подъемник проверки"
+      }
+    });
+
+    expect(result && "content" in result ? result.content.elevator.levels[1]?.platformSlots : null).toBe(4);
+    expect(result).toMatchObject({
+      content: {
+        localization: {
+          ru: {
+            [elevator.nameKey]: "Подъемник проверки"
           }
         }
       }

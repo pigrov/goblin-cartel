@@ -40,12 +40,25 @@ interface OfflineMiningSummary {
   pendingFinalHit: boolean;
 }
 
+export interface PlatformDropEvent {
+  id: number;
+  fromRow: number;
+  toRow: number;
+  metersGained: number;
+  depthMeters: number;
+  totalDepthMeters: number;
+  rewardDrops: RewardDrop[];
+  rewards: Record<string, number>;
+}
+
 type SpawnHitEffect = (
   cell: { row: number; col: number },
   variant: HitEffectVariant,
   damage: number,
   rewards?: Record<string, number>
 ) => void;
+
+let platformDropEventSequence = 0;
 
 export function useMiningLoop(input: {
   activeCell: { row: number; col: number };
@@ -60,6 +73,7 @@ export function useMiningLoop(input: {
   onFoundVein: (vein: MiningFoundVein | null) => void;
   onRewardChestBlock: (block: MiningBlockState | undefined, session: MiningSession) => void;
   pendingOfflineFinalHit: { row: number; col: number } | null;
+  platformDropDurationMs: number;
   platformRow: number;
   roster: GoblinRosterState;
   scheduleResourceRewardDisplay: (rewards: Record<string, number>) => void;
@@ -72,6 +86,7 @@ export function useMiningLoop(input: {
   setSession: Dispatch<SetStateAction<MiningSession>>;
 }) {
   const [hitEffects, setHitEffects] = useState<HitEffect[]>([]);
+  const [platformDropEvent, setPlatformDropEvent] = useState<PlatformDropEvent | null>(null);
   const [platformDropAnimating, setPlatformDropAnimating] = useState(false);
   const activeCellRef = useRef(input.activeCell);
   const blockTypesRef = useRef(input.blockTypes);
@@ -127,13 +142,46 @@ export function useMiningLoop(input: {
       return;
     }
 
+    const previousPlatformRow = previousPlatformRowRef.current;
     previousPlatformRowRef.current = input.currentPlatformRow;
+    const baseEvent = createPlatformDropEvent(sessionRef.current, previousPlatformRow, input.currentPlatformRow);
+    const rewards = createDepthProgressRewards(input.content, sessionRef.current.mine.templateId, baseEvent.metersGained);
+    const rewardDrops = rewardDropsFromMap(rewards, input.content, input.labels);
+    const event = {
+      ...baseEvent,
+      rewardDrops,
+      rewards
+    };
+    setPlatformDropEvent(event);
+
+    if (Object.keys(rewards).length > 0) {
+      input.setSession((current) => ({
+        ...current,
+        lastRewards: rewards,
+        resources: mergeResourceMaps(current.resources, rewards)
+      }));
+      input.scheduleResourceRewardDisplay(rewards);
+    }
+
     setPlatformDropAnimating(true);
 
-    const timeoutId = window.setTimeout(() => setPlatformDropAnimating(false), 1450);
+    const dropDurationMs = normalizePlatformDropDurationMs(input.platformDropDurationMs);
+    const animationTimeoutId = window.setTimeout(() => setPlatformDropAnimating(false), dropDurationMs);
+    const eventTimeoutId = window.setTimeout(() => setPlatformDropEvent(null), dropDurationMs + 850);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [input.currentPlatformRow, input.sessionReady]);
+    return () => {
+      window.clearTimeout(animationTimeoutId);
+      window.clearTimeout(eventTimeoutId);
+    };
+  }, [
+    input.content,
+    input.currentPlatformRow,
+    input.labels,
+    input.platformDropDurationMs,
+    input.scheduleResourceRewardDisplay,
+    input.sessionReady,
+    input.setSession
+  ]);
 
   useEffect(() => {
     if (!input.sessionReady) {
@@ -290,8 +338,51 @@ export function useMiningLoop(input: {
   return {
     handleBlockHit,
     hitEffects,
-    platformDropAnimating
+    platformDropAnimating,
+    platformDropEvent
   };
+}
+
+export function createPlatformDropEvent(
+  session: MiningSession,
+  fromRow: number,
+  toRow: number,
+  rewards: Record<string, number> = {},
+  rewardDrops: RewardDrop[] = []
+): PlatformDropEvent {
+  const normalizedFromRow = clampInteger(fromRow, 0, Math.max(0, session.mine.height - 1));
+  const normalizedToRow = clampInteger(toRow, normalizedFromRow, Math.max(normalizedFromRow, session.mine.height - 1));
+  const fromDepthMeters = depthMetersForRow(session, normalizedFromRow);
+  const depthMeters = depthMetersForRow(session, normalizedToRow);
+
+  return {
+    id: ++platformDropEventSequence,
+    fromRow: normalizedFromRow,
+    toRow: normalizedToRow,
+    metersGained: Math.max(1, depthMeters - fromDepthMeters),
+    depthMeters,
+    totalDepthMeters: Math.max(1, Math.round(session.mine.depthMeters ?? session.mine.height)),
+    rewardDrops,
+    rewards
+  };
+}
+
+export function createDepthProgressRewards(
+  content: ContentBundle,
+  mineTemplateId: string,
+  metersGained: number
+): Record<string, number> {
+  const reward = content.mineTemplates.find((template) => template.id === mineTemplateId)?.depthProgressReward;
+
+  if (!reward || !Number.isFinite(metersGained) || metersGained <= 0) {
+    return {};
+  }
+
+  const rawAmount = Math.floor(metersGained * reward.amountPerMeter * reward.multiplier);
+  const cappedAmount = reward.maxAmount ? Math.min(rawAmount, reward.maxAmount) : rawAmount;
+  const amount = Math.max(0, cappedAmount);
+
+  return amount > 0 ? { [reward.resourceId]: amount } : {};
 }
 
 export function findExposedCellForPreferred(
@@ -359,4 +450,27 @@ function mergeResourceMaps(left: Record<string, number>, right: Record<string, n
   }
 
   return result;
+}
+
+function normalizePlatformDropDurationMs(value: number): number {
+  if (!Number.isFinite(value)) {
+    return 1450;
+  }
+
+  return Math.max(500, Math.min(2500, Math.floor(value)));
+}
+
+function depthMetersForRow(session: MiningSession, row: number): number {
+  const rowCount = Math.max(1, session.mine.height);
+  const depthMeters = Math.max(1, session.mine.depthMeters ?? rowCount);
+
+  return Math.max(1, Math.round(((row + 1) * depthMeters) / rowCount));
+}
+
+function clampInteger(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+
+  return Math.max(min, Math.min(max, Math.trunc(value)));
 }

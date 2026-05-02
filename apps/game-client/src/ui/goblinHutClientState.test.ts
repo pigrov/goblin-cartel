@@ -137,6 +137,22 @@ const content: ContentBundle = {
     ],
     nameKey: "hut.name"
   },
+  elevator: {
+    id: "default" as const,
+    levels: [
+      {
+        dropDurationMs: 1450,
+        level: 1,
+        nameKey: "elevator.1",
+        offlineDamageMultiplier: 1,
+        platformSlots: 2,
+        stabilityPercent: 20,
+        upgradeCost: [],
+        visualStage: 1 as const
+      }
+    ],
+    nameKey: "elevator.name"
+  },
   goblins: [builder, collector, miner],
   localization: {
     ru: {}

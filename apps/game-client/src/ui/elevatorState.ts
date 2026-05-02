@@ -1,15 +1,9 @@
+import { starterContentBundle, type ElevatorConfig, type ElevatorLevelConfig } from "@goblin-cartel/content-schemas";
 import { createBuildCostRequirements, type BuildCostRequirement } from "./builtMineClientState";
 
 export interface ElevatorUpgradeCost {
   amount: number;
   resourceId: string;
-}
-
-export interface ElevatorLevelConfig {
-  level: number;
-  platformSlots: number;
-  upgradeCost: ElevatorUpgradeCost[];
-  visualStage: 1 | 2 | 3 | 4 | 5;
 }
 
 export type UpgradeElevatorFailureReason = "max_level" | "not_enough_resources";
@@ -18,67 +12,25 @@ export interface ElevatorProgressionState {
   canUpgrade: boolean;
   costRequirements: BuildCostRequirement[];
   currentLevel: ElevatorLevelConfig;
+  dropDurationMs: number;
   failureReason: UpgradeElevatorFailureReason | null;
   levelNow: number;
   maxLevel: number;
   nextLevel: ElevatorLevelConfig | null;
+  offlineDamageMultiplier: number;
   platformSlots: number;
+  stabilityPercent: number;
   visualStage: 1 | 2 | 3 | 4 | 5;
 }
 
-export const elevatorLevels: ElevatorLevelConfig[] = [
-  {
-    level: 1,
-    platformSlots: 2,
-    upgradeCost: [],
-    visualStage: 1
-  },
-  {
-    level: 2,
-    platformSlots: 3,
-    upgradeCost: [
-      { resourceId: "gold", amount: 700 },
-      { resourceId: "stone", amount: 120 }
-    ],
-    visualStage: 2
-  },
-  {
-    level: 3,
-    platformSlots: 4,
-    upgradeCost: [
-      { resourceId: "gold", amount: 1600 },
-      { resourceId: "copper_ore", amount: 75 }
-    ],
-    visualStage: 3
-  },
-  {
-    level: 4,
-    platformSlots: 5,
-    upgradeCost: [
-      { resourceId: "gold", amount: 3200 },
-      { resourceId: "copper_ore", amount: 160 },
-      { resourceId: "iron", amount: 35 }
-    ],
-    visualStage: 4
-  },
-  {
-    level: 5,
-    platformSlots: 7,
-    upgradeCost: [
-      { resourceId: "gold", amount: 6500 },
-      { resourceId: "iron", amount: 120 },
-      { resourceId: "elixir", amount: 20 }
-    ],
-    visualStage: 5
-  }
-];
-
 export function createElevatorProgressionState(
+  elevator: ElevatorConfig | undefined,
   level: number | undefined,
   resources: Record<string, number>
 ): ElevatorProgressionState {
-  const currentLevel = getElevatorLevelConfig(level);
-  const nextLevel = getNextElevatorLevelConfig(currentLevel.level);
+  const levels = sortedElevatorLevels(elevator);
+  const currentLevel = getElevatorLevelConfig(elevator, level);
+  const nextLevel = getNextElevatorLevelConfig(elevator, currentLevel.level);
   const costRequirements = createBuildCostRequirements(nextLevel?.upgradeCost ?? [], resources);
   const failureReason = nextLevel
     ? costRequirements.every((requirement) => requirement.ok)
@@ -90,16 +42,20 @@ export function createElevatorProgressionState(
     canUpgrade: failureReason === null,
     costRequirements,
     currentLevel,
+    dropDurationMs: currentLevel.dropDurationMs,
     failureReason,
     levelNow: currentLevel.level,
-    maxLevel: elevatorLevels[elevatorLevels.length - 1]?.level ?? currentLevel.level,
+    maxLevel: levels[levels.length - 1]?.level ?? currentLevel.level,
     nextLevel,
+    offlineDamageMultiplier: currentLevel.offlineDamageMultiplier,
     platformSlots: currentLevel.platformSlots,
+    stabilityPercent: currentLevel.stabilityPercent,
     visualStage: currentLevel.visualStage
   };
 }
 
 export function upgradeElevator(input: {
+  elevator?: ElevatorConfig;
   level: number | undefined;
   resources: Record<string, number>;
 }):
@@ -112,7 +68,7 @@ export function upgradeElevator(input: {
       ok: false;
       reason: UpgradeElevatorFailureReason;
     } {
-  const state = createElevatorProgressionState(input.level, input.resources);
+  const state = createElevatorProgressionState(input.elevator, input.level, input.resources);
 
   if (!state.nextLevel) {
     return { ok: false, reason: "max_level" };
@@ -129,17 +85,17 @@ export function upgradeElevator(input: {
   };
 }
 
-export function normalizeElevatorLevel(level: number | undefined): number {
+export function normalizeElevatorLevel(elevator: ElevatorConfig | undefined, level: number | undefined): number {
   if (!Number.isFinite(level)) {
-    return elevatorLevels[0]?.level ?? 1;
+    return sortedElevatorLevels(elevator)[0]?.level ?? 1;
   }
 
-  return getElevatorLevelConfig(Math.floor(level ?? 1)).level;
+  return getElevatorLevelConfig(elevator, Math.floor(level ?? 1)).level;
 }
 
-export function getElevatorLevelConfig(level: number | undefined): ElevatorLevelConfig {
+export function getElevatorLevelConfig(elevator: ElevatorConfig | undefined, level: number | undefined): ElevatorLevelConfig {
   const normalizedLevel = Number.isFinite(level) ? Math.floor(level ?? 1) : 1;
-  const levels = [...elevatorLevels].sort((left, right) => right.level - left.level);
+  const levels = sortedElevatorLevels(elevator).sort((left, right) => right.level - left.level);
   const fallbackLevel = levels[levels.length - 1];
 
   if (!fallbackLevel) {
@@ -149,10 +105,10 @@ export function getElevatorLevelConfig(level: number | undefined): ElevatorLevel
   return levels.find((item) => item.level <= normalizedLevel) ?? fallbackLevel;
 }
 
-export function getNextElevatorLevelConfig(level: number | undefined): ElevatorLevelConfig | null {
-  const currentLevel = getElevatorLevelConfig(level).level;
+export function getNextElevatorLevelConfig(elevator: ElevatorConfig | undefined, level: number | undefined): ElevatorLevelConfig | null {
+  const currentLevel = getElevatorLevelConfig(elevator, level).level;
 
-  return [...elevatorLevels].sort((left, right) => left.level - right.level).find((item) => item.level > currentLevel) ?? null;
+  return sortedElevatorLevels(elevator).find((item) => item.level > currentLevel) ?? null;
 }
 
 function deductResources(
@@ -166,4 +122,9 @@ function deductResources(
   }
 
   return nextResources;
+}
+
+function sortedElevatorLevels(elevator: ElevatorConfig | undefined): ElevatorLevelConfig[] {
+  const levels = elevator?.levels.length ? elevator.levels : starterContentBundle.elevator.levels;
+  return [...levels].sort((left, right) => left.level - right.level);
 }

@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { blockTypeSchema, bossCardSchema, goblinSchema, rewardChestTypeSchema, starterContentBundle, validateContentBundle } from "./index";
+import {
+  blockTypeSchema,
+  bossCardSchema,
+  elevatorSchema,
+  goblinSchema,
+  rewardChestTypeSchema,
+  starterContentBundle,
+  validateContentBundle
+} from "./index";
 
 describe("content schemas", () => {
   it("accepts a valid block type", () => {
@@ -99,6 +107,28 @@ describe("content schemas", () => {
         ]
       ]
     ]);
+    expect(elevatorSchema.safeParse(starterContentBundle.elevator).success).toBe(true);
+    expect(
+      starterContentBundle.elevator.levels.map((level) => [
+        level.level,
+        level.platformSlots,
+        level.dropDurationMs,
+        level.offlineDamageMultiplier,
+        level.stabilityPercent,
+        level.visualStage
+      ])
+    ).toEqual([
+      [1, 2, 1450, 1, 20, 1],
+      [2, 3, 1320, 1.05, 35, 2],
+      [3, 4, 1190, 1.1, 50, 3],
+      [4, 5, 1060, 1.16, 68, 4],
+      [5, 7, 920, 1.25, 85, 5]
+    ]);
+    expect(starterContentBundle.elevator.levels[4]?.upgradeCost).toEqual([
+      { resourceId: "gold", amount: 6500 },
+      { resourceId: "iron", amount: 120 },
+      { resourceId: "elixir", amount: 20 }
+    ]);
     expect(starterContentBundle.mineTemplates).toHaveLength(5);
     expect(starterContentBundle.mineTemplates.map((mineTemplate) => [mineTemplate.difficultyStart, mineTemplate.difficultyEnd])).toEqual([
       [1, 1.15],
@@ -106,6 +136,13 @@ describe("content schemas", () => {
       [1.1, 1.25],
       [1.15, 1.3],
       [1.2, 1.35]
+    ]);
+    expect(starterContentBundle.mineTemplates.map((mineTemplate) => mineTemplate.depthProgressReward)).toEqual([
+      { resourceId: "stone", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
+      { resourceId: "stone", amountPerMeter: 4, multiplier: 1, maxAmount: 16 },
+      { resourceId: "copper_ore", amountPerMeter: 2, multiplier: 1, maxAmount: 10 },
+      { resourceId: "copper_ore", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
+      { resourceId: "iron", amountPerMeter: 1, multiplier: 1, maxAmount: 6 }
     ]);
     expect(starterContentBundle.localization.ru?.["resource.copper_ore.name"]).toBe("Медь");
   });
@@ -234,6 +271,20 @@ describe("content schemas", () => {
     expect(result.errors).toContain("mineTemplates.old_well_01 references missing completion vein type missing_vein");
   });
 
+  it("rejects missing depth progress reward resources", () => {
+    const broken = structuredClone(starterContentBundle);
+    const mineTemplate = broken.mineTemplates[0];
+
+    if (mineTemplate?.depthProgressReward) {
+      mineTemplate.depthProgressReward.resourceId = "missing_resource";
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("mineTemplates.old_well_01.depthProgressReward references missing resource missing_resource");
+  });
+
   it("rejects missing reward chest references in mine cell map", () => {
     const broken = structuredClone(starterContentBundle);
     const firstCell = broken.mineTemplates[0]?.cellMap[0];
@@ -321,6 +372,22 @@ describe("content schemas", () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("goblinHut.levels has duplicate level 1");
     expect(result.errors).toContain("goblinHut.levels.1.upgradeCost references missing resource missing_resource");
+  });
+
+  it("rejects broken elevator progression config", () => {
+    const broken = structuredClone(starterContentBundle);
+    const level = broken.elevator.levels[1];
+
+    if (level) {
+      level.level = 1;
+      level.upgradeCost = [{ resourceId: "missing_resource", amount: 10 }];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("elevator.levels has duplicate level 1");
+    expect(result.errors).toContain("elevator.levels.1.upgradeCost references missing resource missing_resource");
   });
 
   it("accepts legacy content without localization", () => {
