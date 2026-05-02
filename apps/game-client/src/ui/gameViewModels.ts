@@ -1,0 +1,254 @@
+import type { GoblinConfig, RewardChestTypeConfig } from "@goblin-cartel/content-schemas";
+import type {
+  BossCardDefinition,
+  BossCardId,
+  BossCardState,
+  BossEnergyConfig,
+  BuiltMineState,
+  GoblinRosterState,
+  MiningBlockState,
+  MiningFoundVein,
+  MiningSession
+} from "@goblin-cartel/game-core";
+import type { BuiltMineUpgradePreview, ConstructionSupportState } from "./builtMineClientState";
+import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "./goblinHutClientState";
+import type { MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
+import type { GameSection } from "./screens/BottomNav";
+import type { GameMainContentActions, GameMainContentView } from "./screens/GameMainContent";
+import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverlays";
+import type { ContentState } from "./useGameBootstrap";
+import type { FoundVeinView } from "./useMineUiController";
+import type { ChestRewardFlyout, PendingRewardChest, RewardChestStage } from "./useRewardChestFlow";
+
+export interface CreateGameViewModelsInput {
+  activeSection: GameSection;
+  availableGoblins: GoblinConfig[];
+  blockTypeById: GameMainContentView["mine"]["blockTypeById"];
+  bossCardDefinitions: BossCardDefinition[];
+  bossCards: BossCardState;
+  bossCardsMessage: string | null;
+  bossCardsOpen: boolean;
+  bossDetailsOpen: boolean;
+  bossEnergyConfig: BossEnergyConfig;
+  bossSecondsUntilReady: number;
+  builtMineMessage: string | null;
+  builtMineUpgradePreviews: ReadonlyMap<string, BuiltMineUpgradePreview>;
+  canStartNextMine: boolean;
+  chestRewardFlyouts: ChestRewardFlyout[];
+  clockNow: number;
+  collectorPickerBuiltMine: BuiltMineState | null;
+  completedMineTemplateIds: string[];
+  constructionSupport: ConstructionSupportState;
+  contentState: ContentState;
+  currentMineTitle: string;
+  currentPlatformRow: number;
+  displayedBossEnergy: number;
+  exposedCellKeys: ReadonlySet<string>;
+  foundVeinNotice: MiningFoundVein | null;
+  foundVeinView: FoundVeinView | null;
+  goblinHutProgression: GoblinHutProgressionState;
+  goblinLevels: Record<string, number>;
+  goblinRoleTab: GoblinHutRoleTabId;
+  handleAssignBuiltMineCollector: (builtMineId: string, goblinId: string | null) => void;
+  handleBlockHit: (block: MiningBlockState) => void;
+  handleBuildMineFromVein: (vein: MiningFoundVein) => boolean;
+  handleCollectAllBuiltMines: () => void;
+  handleCollectBuiltMine: (builtMineId: string) => void;
+  handleConfirmResetMine: () => void;
+  handleContinueRewardChest: () => void;
+  handleDismissMineCompletionNotice: () => void;
+  handleHireGoblin: (goblin: GoblinConfig) => void;
+  handleOpenRewardChest: () => void;
+  handlePlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
+  handleStartNextMine: () => void;
+  handleUpgradeBossCard: (cardId: BossCardId) => void;
+  handleUpgradeBuiltMine: (builtMineId: string) => void;
+  handleUpgradeGoblin: (goblin: GoblinConfig) => void;
+  handleUpgradeGoblinHut: () => void;
+  hiredCollectorGoblins: GoblinConfig[];
+  hitEffects: MinePixiHitEffect[];
+  labels: Record<string, string>;
+  loading: boolean;
+  mineCompletionNextMineLabel: string;
+  mineCompletionNoticeOpen: boolean;
+  nextMineTemplate: GameMainContentView["builtMines"]["nextMineTemplate"];
+  nextMineTitle: string | null;
+  pendingRewardChest: PendingRewardChest | null;
+  pendingRewardChestType: RewardChestTypeConfig | null;
+  pixiDepthMarkerLabel: (row: number) => string;
+  pixiDevOverlayEnabled: boolean;
+  pixiGoblins: MinePixiGoblin[];
+  platformCellKeys: ReadonlySet<string>;
+  platformDropAnimating: boolean;
+  resources: Record<string, number>;
+  rewardChestStage: RewardChestStage;
+  roster: GoblinRosterState;
+  rosterMessage: string | null;
+  selectedCell: { row: number; col: number };
+  session: MiningSession;
+  setActiveSection: (section: GameSection) => void;
+  setBossCardsOpen: (open: boolean) => void;
+  setBossDetailsOpen: (open: boolean) => void;
+  setCollectorPickerMineId: (builtMineId: string | null) => void;
+  setFoundVeinNotice: (notice: MiningFoundVein | null) => void;
+  setGoblinRoleTab: (roleTab: GoblinHutRoleTabId) => void;
+  setPixiDevOverlayEnabled: (enabled: boolean) => void;
+  setSettingsOpen: (open: boolean) => void;
+  settingsOpen: boolean;
+  unbuiltFoundVeins: MiningFoundVein[];
+  visibleBuiltMines: BuiltMineState[];
+}
+
+export function createGameViewModels(input: CreateGameViewModelsInput) {
+  const mainContentView = createMainContentView(input);
+  const mainContentActions = createMainContentActions(input);
+  const overlaysView = createOverlaysView(input);
+  const overlaysActions = createOverlaysActions(input);
+
+  return {
+    mainContentActions,
+    mainContentView,
+    overlaysActions,
+    overlaysView
+  };
+}
+
+function createMainContentView(input: CreateGameViewModelsInput): GameMainContentView {
+  return {
+    activeSection: input.activeSection,
+    base: {
+      goblinHutProgression: input.goblinHutProgression,
+      rosterMessage: input.rosterMessage
+    },
+    builtMines: {
+      builtMines: input.visibleBuiltMines,
+      builtMineTypes: input.contentState.content.builtMineTypes,
+      canStartNextMine: input.canStartNextMine,
+      collectorGoblins: input.hiredCollectorGoblins,
+      constructionSupport: input.constructionSupport,
+      foundVeins: input.unbuiltFoundVeins,
+      goblinLevels: input.goblinLevels,
+      message: input.builtMineMessage,
+      nextMineTemplate: input.nextMineTemplate,
+      now: input.clockNow,
+      upgradePreviews: input.builtMineUpgradePreviews
+    },
+    common: {
+      content: input.contentState.content,
+      contentErrorMessage: input.contentState.source === "error" ? input.contentState.message : null,
+      labels: input.labels,
+      resources: input.resources
+    },
+    goblins: {
+      activeRoleTab: input.goblinRoleTab,
+      availableGoblins: input.availableGoblins,
+      builtMinesCount: input.visibleBuiltMines.length,
+      completedMineTemplateIds: input.completedMineTemplateIds,
+      hutLevel: input.goblinHutProgression.levelNow,
+      hutLimit: input.goblinHutProgression.maxHiredGoblins,
+      roster: input.roster,
+      rosterMessage: input.rosterMessage
+    },
+    mine: {
+      activeCell: input.selectedCell,
+      blockTypeById: input.blockTypeById,
+      currentPlatformRow: input.currentPlatformRow,
+      depthMarkerLabel: input.pixiDepthMarkerLabel,
+      devOverlayEnabled: input.pixiDevOverlayEnabled,
+      exposedCellKeys: input.exposedCellKeys,
+      goblins: input.pixiGoblins,
+      hitEffects: input.hitEffects,
+      loading: input.loading,
+      platformCellKeys: input.platformCellKeys,
+      platformDropAnimating: input.platformDropAnimating,
+      session: input.session
+    }
+  };
+}
+
+function createMainContentActions(input: CreateGameViewModelsInput): GameMainContentActions {
+  return {
+    onBlockHit: input.handleBlockHit,
+    onBuildMine: input.handleBuildMineFromVein,
+    onCollectAllMines: input.handleCollectAllBuiltMines,
+    onCollectMine: input.handleCollectBuiltMine,
+    onHireGoblin: input.handleHireGoblin,
+    onOpenCollectorPicker: input.setCollectorPickerMineId,
+    onPlaceGoblin: input.handlePlaceGoblin,
+    onRoleTabChange: input.setGoblinRoleTab,
+    onStartNextMine: input.handleStartNextMine,
+    onUpgradeGoblin: input.handleUpgradeGoblin,
+    onUpgradeGoblinHut: input.handleUpgradeGoblinHut,
+    onUpgradeMine: input.handleUpgradeBuiltMine
+  };
+}
+
+function createOverlaysView(input: CreateGameViewModelsInput): GameOverlaysView {
+  return {
+    bossCards: {
+      cards: input.bossCardDefinitions,
+      message: input.bossCardsMessage,
+      open: input.bossCardsOpen,
+      resources: input.resources,
+      state: input.bossCards
+    },
+    bossDetails: {
+      config: input.bossEnergyConfig,
+      displayedEnergy: input.displayedBossEnergy,
+      open: input.bossDetailsOpen,
+      secondsUntilReady: input.bossSecondsUntilReady
+    },
+    collector: {
+      builtMine: input.collectorPickerBuiltMine,
+      builtMines: input.visibleBuiltMines,
+      collectors: input.hiredCollectorGoblins,
+      goblinLevels: input.goblinLevels
+    },
+    common: {
+      content: input.contentState.content,
+      currentMineTitle: input.currentMineTitle,
+      labels: input.labels
+    },
+    foundVein: {
+      notice: input.foundVeinNotice,
+      view: input.foundVeinView
+    },
+    mineCompletion: {
+      nextMineLabel: input.mineCompletionNextMineLabel,
+      nextMineVisible: Boolean(input.nextMineTemplate),
+      open: input.mineCompletionNoticeOpen
+    },
+    rewardChest: {
+      chestType: input.pendingRewardChestType,
+      flyouts: input.chestRewardFlyouts,
+      nextMineTitle: input.nextMineTitle,
+      pending: input.pendingRewardChest,
+      stage: input.rewardChestStage
+    },
+    settings: {
+      contentLabel: input.contentState.source === "published" ? input.contentState.version : input.contentState.message,
+      open: input.settingsOpen,
+      pixiDevOverlayEnabled: input.pixiDevOverlayEnabled
+    }
+  };
+}
+
+function createOverlaysActions(input: CreateGameViewModelsInput): GameOverlaysActions {
+  return {
+    onAssignBuiltMineCollector: input.handleAssignBuiltMineCollector,
+    onBossCardUpgrade: input.handleUpgradeBossCard,
+    onBossCardsClose: () => input.setBossCardsOpen(false),
+    onBossDetailsClose: () => input.setBossDetailsOpen(false),
+    onBuildMineFromVein: input.handleBuildMineFromVein,
+    onCloseCollectorPicker: () => input.setCollectorPickerMineId(null),
+    onConfirmResetMine: input.handleConfirmResetMine,
+    onContinueRewardChest: input.handleContinueRewardChest,
+    onDismissMineCompletionNotice: input.handleDismissMineCompletionNotice,
+    onFoundVeinClose: () => input.setFoundVeinNotice(null),
+    onOpenBuiltMines: () => input.setActiveSection("builtMines"),
+    onOpenRewardChest: input.handleOpenRewardChest,
+    onPixiDevOverlayChange: input.setPixiDevOverlayEnabled,
+    onSettingsClose: () => input.setSettingsOpen(false),
+    onStartNextMine: input.handleStartNextMine
+  };
+}
