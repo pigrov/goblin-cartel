@@ -7,6 +7,7 @@ import {
   createGoblinIdentity,
   createGoblinHutRoleTabs,
   createGoblinRoleSummary,
+  createRandomGoblinContractPreview,
   createGoblinUpgradePreview,
   filterGoblinsByHutRole,
   isMiningGoblin
@@ -111,6 +112,15 @@ const content: ContentBundle = {
   blockTypes: [],
   bossCards: [],
   builtMineTypes: [],
+  goblinGeneration: {
+    archetypes: [],
+    id: "default",
+    nameKey: "goblin_generation.name",
+    namePool: {
+      names: ["Krikk"],
+      nicknames: ["Stone Ear"]
+    }
+  },
   goblinHut: {
     id: "default" as const,
     levels: [
@@ -315,6 +325,101 @@ describe("goblin hut client state", () => {
     expect(createGoblinHutRoleTabs(content.goblins, { hiredGoblinIds: ["miner_1"] }, content.goblinHut)[2]).toMatchObject({
       id: "collectors",
       locked: true
+    });
+  });
+
+  it("previews random goblin contracts with hut limits and resources", () => {
+    const archetype = {
+      class: "miner" as const,
+      equipmentSlots: [],
+      hireCost: [{ amount: 120, resourceId: "gold" }],
+      id: "miner_contract",
+      nameKey: "contract.miner",
+      rarityWeights: [{ rarity: "common" as const, statMultiplier: 1, weight: 1 }],
+      sortOrder: 1,
+      statRanges: {
+        loyalty: { max: 5, min: 5 },
+        luck: { max: 5, min: 5 },
+        speed: { max: 5, min: 5 },
+        strength: { max: 5, min: 5 }
+      },
+      templateGoblinId: "miner_1",
+      traitPool: []
+    };
+
+    expect(
+      createRandomGoblinContractPreview({
+        archetype,
+        goblinHut: content.goblinHut,
+        goblins: content.goblins,
+        resources: { gold: 140 },
+        roster: { hiredGoblinIds: ["miner_1"] }
+      })
+    ).toMatchObject({
+      canHire: true,
+      costRequirements: [{ available: 140, missing: 0, ok: true, required: 120, resourceId: "gold" }],
+      failureReason: null
+    });
+
+    expect(
+      createRandomGoblinContractPreview({
+        archetype,
+        goblinHut: content.goblinHut,
+        goblins: content.goblins,
+        resources: { gold: 20 },
+        roster: { hiredGoblinIds: ["miner_1"] }
+      })
+    ).toMatchObject({
+      canHire: false,
+      failureReason: "not_enough_resources"
+    });
+
+    expect(
+      createRandomGoblinContractPreview({
+        archetype,
+        goblinHut: content.goblinHut,
+        goblins: content.goblins,
+        resources: { gold: 500 },
+        roster: { hiredGoblinIds: ["miner_1", "rolled:miner_contract:1"] }
+      })
+    ).toMatchObject({
+      canHire: false,
+      failureReason: "hut_limit"
+    });
+  });
+
+  it("counts rolled goblin instances in hut summaries", () => {
+    expect(
+      createGoblinRoleSummary(content.goblins, {
+        hiredGoblinIds: ["miner_1", "rolled:miner_contract:1"],
+        instances: [
+          {
+            class: "miner",
+            equipment: [],
+            id: "template:miner_1",
+            level: 1,
+            lifetimeStats: {},
+            rarity: "common",
+            rolledStats: { loyalty: 5, luck: 5, speed: 5, strength: 5 },
+            templateId: "miner_1",
+            traits: []
+          },
+          {
+            class: "miner",
+            equipment: [],
+            id: "rolled:miner_contract:1",
+            level: 1,
+            lifetimeStats: {},
+            rarity: "rare",
+            rolledStats: { loyalty: 6, luck: 4, speed: 5, strength: 8 },
+            templateId: "miner_1",
+            traits: []
+          }
+        ]
+      })
+    ).toMatchObject({
+      hiredCount: 2,
+      minerCount: 2
     });
   });
 

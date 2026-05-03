@@ -1504,6 +1504,220 @@ body,
   white-space: nowrap;
 }
 
+.goblin-contract-panel,
+.owned-random-goblins {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  background: linear-gradient(180deg, rgb(255 255 255 / 7%), rgb(0 0 0 / 16%)), rgb(35 31 26 / 78%);
+}
+
+.goblin-contract-panel > header,
+.owned-random-goblins > header {
+  min-width: 0;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.goblin-contract-panel > header div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.goblin-contract-panel > header span,
+.goblin-contract-panel > header small,
+.owned-random-goblins > header span,
+.owned-random-goblin small,
+.owned-random-goblin footer span {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.goblin-contract-panel > header strong,
+.owned-random-goblins > header strong {
+  font-size: 13px;
+}
+
+.goblin-contract-grid,
+.owned-random-goblin-list {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.goblin-contract-card,
+.owned-random-goblin {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  padding: 7px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 5%);
+}
+
+.goblin-contract-card.locked {
+  opacity: 0.66;
+}
+
+.goblin-contract-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 50%;
+  color: var(--gc-gold);
+  background: rgb(255 255 255 / 8%);
+}
+
+.goblin-contract-icon.collector {
+  color: #7be0ce;
+}
+
+.goblin-contract-icon.builder,
+.goblin-contract-icon.foreman {
+  color: #ffd778;
+}
+
+.goblin-contract-card strong,
+.goblin-contract-card small,
+.owned-random-goblin strong,
+.owned-random-goblin small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goblin-contract-card strong {
+  font-size: 12px;
+}
+
+.goblin-contract-card small {
+  color: var(--gc-muted);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.goblin-contract-card .build-cost-list {
+  justify-content: start;
+}
+
+.goblin-contract-card button {
+  min-height: 29px;
+  padding: 0 7px;
+  border: 1px solid #a86235;
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-text);
+  background: linear-gradient(180deg, #b65e34, #7c3524);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.goblin-contract-card button:disabled {
+  border-color: var(--gc-border);
+  background: var(--gc-panel-raised);
+  cursor: not-allowed;
+}
+
+.owned-random-goblin {
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  cursor: pointer;
+}
+
+.owned-random-goblin:focus-visible {
+  outline: 2px solid var(--gc-gold);
+  outline-offset: 2px;
+}
+
+.owned-random-goblin-avatar {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 50% 50% 44% 44%;
+  background: linear-gradient(180deg, #789f4b, #3f6f35);
+  color: rgb(255 255 255 / 92%);
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.owned-random-goblin.rare {
+  border-color: rgb(101 205 255 / 40%);
+}
+
+.owned-random-goblin.epic {
+  border-color: rgb(194 133 255 / 44%);
+}
+
+.owned-random-goblin.legendary {
+  border-color: rgb(255 202 82 / 52%);
+}
+
+.owned-random-goblin div {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.owned-random-goblin-level {
+  grid-column: 1 / -1;
+  padding: 4px;
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-gold);
+  background: rgb(255 198 91 / 8%);
+  font-size: 10px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.owned-random-goblin footer {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.owned-random-goblin footer span {
+  padding: 4px;
+  border-radius: var(--gc-radius-sm);
+  background: rgb(0 0 0 / 16%);
+  text-align: center;
+}
+
+.owned-random-goblin-action {
+  grid-column: 1 / -1;
+  min-height: 28px;
+  border: 1px solid #a86235;
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-text);
+  background: linear-gradient(180deg, #b65e34, #7c3524);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.owned-random-goblin-action:disabled {
+  border-color: var(--gc-border);
+  background: var(--gc-panel-raised);
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
 .section-title {
   display: flex;
   align-items: center;
@@ -2249,6 +2463,140 @@ body,
   background: var(--gc-panel-raised);
   cursor: not-allowed;
   opacity: 0.62;
+}
+
+.random-goblin-reveal {
+  width: min(390px, calc(100% - 24px));
+  background:
+    radial-gradient(circle at 50% 0, rgb(255 214 107 / 18%), transparent 42%),
+    linear-gradient(180deg, rgb(63 154 197 / 18%), rgb(0 0 0 / 22%)),
+    #201811;
+}
+
+.random-goblin-reveal.rare {
+  border-color: rgb(101 205 255 / 46%);
+}
+
+.random-goblin-reveal.epic {
+  border-color: rgb(194 133 255 / 50%);
+}
+
+.random-goblin-reveal.legendary {
+  border-color: rgb(255 202 82 / 58%);
+}
+
+.random-goblin-reveal-card {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  align-items: center;
+  gap: 13px;
+  padding: 12px;
+  border: 1px solid rgb(255 255 255 / 11%);
+  border-radius: var(--gc-radius-sm);
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 11%), rgb(0 0 0 / 16%)),
+    rgb(36 54 78 / 62%);
+}
+
+.random-goblin-reveal-card .goblin-portrait {
+  width: 76px;
+  height: 76px;
+}
+
+.random-goblin-reveal-card .goblin-portrait span {
+  inset: auto 12px 10px;
+  font-size: 25px;
+}
+
+.random-goblin-reveal-card div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.random-goblin-reveal-card span,
+.random-goblin-reveal-card p {
+  margin: 0;
+  color: var(--gc-muted);
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.random-goblin-reveal-card strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 19px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.random-goblin-reveal-card p {
+  line-height: 1.35;
+}
+
+.random-goblin-traits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.random-goblin-traits span {
+  padding: 5px 7px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 6%);
+  color: var(--gc-text);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.random-goblin-details {
+  width: min(410px, calc(100% - 24px));
+}
+
+.random-goblin-details.rare {
+  border-color: rgb(101 205 255 / 46%);
+}
+
+.random-goblin-details.epic {
+  border-color: rgb(194 133 255 / 50%);
+}
+
+.random-goblin-details.legendary {
+  border-color: rgb(255 202 82 / 58%);
+}
+
+.random-goblin-level-stats .goblin-stat-delta {
+  position: relative;
+}
+
+.goblin-stat-delta small {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  color: #8fe06c;
+  font-size: 10px;
+  font-weight: 950;
+}
+
+.random-goblin-equipment-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(86px, 1fr));
+  gap: 6px;
+}
+
+.random-goblin-equipment-slots span {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgb(255 255 255 / 16%);
+  border-radius: var(--gc-radius-sm);
+  color: var(--gc-muted);
+  background: rgb(0 0 0 / 16%);
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .roster-message {

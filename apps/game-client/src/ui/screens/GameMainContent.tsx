@@ -13,6 +13,7 @@ import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "../goblinHut
 import type { MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
 import type { MineRunProgressStatsView } from "../mineRunStats";
 import type { PlatformDropEvent } from "../useMiningLoop";
+import type { RandomGoblinReveal } from "../useGoblinRosterController";
 import type { GameSection } from "./BottomNav";
 import { BuiltMinesSection } from "./BuiltMinesSection";
 import { BaseSection, GoblinSection } from "./GoblinManagementScreens";
@@ -25,9 +26,11 @@ export interface GameMainContentActions {
   onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
   onHireGoblin: (goblin: GoblinConfig) => void;
+  onHireRandomGoblin: (archetypeId: string) => void;
   onOpenGoblins: () => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
+  onRandomGoblinRevealClose: () => void;
   onRoleTabChange: (roleTab: GoblinHutRoleTabId) => void;
   onStartNextMine: () => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
@@ -69,6 +72,7 @@ export interface GameMainContentView {
     completedMineTemplateIds: string[];
     hutLevel: number;
     hutLimit: number;
+    randomGoblinReveal: RandomGoblinReveal | null;
     roster: GoblinRosterState;
     rosterMessage: string | null;
   };
@@ -143,9 +147,12 @@ export function GameMainContent(props: {
         hutLimit={view.goblins.hutLimit}
         labels={common.labels}
         onHireGoblin={actions.onHireGoblin}
+        onHireRandomGoblin={actions.onHireRandomGoblin}
+        onRandomGoblinRevealClose={actions.onRandomGoblinRevealClose}
         onRoleTabChange={actions.onRoleTabChange}
         onUpgradeGoblin={actions.onUpgradeGoblin}
         resources={common.resources}
+        randomGoblinReveal={view.goblins.randomGoblinReveal}
         roster={view.goblins.roster}
         rosterMessage={view.goblins.rosterMessage}
       />

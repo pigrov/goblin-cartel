@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { Coins, Gem, Hammer, Mountain, Pickaxe, Sparkles, Users, Warehouse, X, Zap } from "lucide-react";
-import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { ContentBundle, GoblinConfig, GoblinGenerationArchetypeConfig } from "@goblin-cartel/content-schemas";
 import type { ElevatorProgressionState } from "../elevatorState";
 import {
   calculateCrewAutoDamagePerSecond,
+  calculateGoblinEffectiveBaseStats,
   isGoblinHired,
+  type GoblinRosterInstance,
   type GoblinRosterState
 } from "@goblin-cartel/game-core";
 import {
@@ -12,12 +14,14 @@ import {
   createGoblinHutRoleTabs,
   createGoblinIdentity,
   createGoblinRoleSummary,
+  createRandomGoblinContractPreview,
   createGoblinUpgradePreview,
   filterGoblinsByHutRole,
   isMiningGoblin,
   type GoblinHirePreview,
   type GoblinHutProgressionState,
   type GoblinHutRoleTabId,
+  type RandomGoblinContractPreview,
   type GoblinUpgradePreview
 } from "../goblinHutClientState";
 import {
@@ -25,6 +29,8 @@ import {
   getGoblinOfflineRelocationSlots,
   getGoblinOfflineRewardMultiplier
 } from "../useGoblinPlacement";
+import type { RandomGoblinReveal } from "../useGoblinRosterController";
+import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "../goblinRuntimeUnits";
 
 export function BaseSection(props: {
   elevatorProgression: ElevatorProgressionState;
@@ -198,8 +204,11 @@ export function GoblinSection(props: {
   hutLimit: number;
   labels: Record<string, string>;
   onHireGoblin: (goblin: GoblinConfig) => void;
+  onHireRandomGoblin: (archetypeId: string) => void;
+  onRandomGoblinRevealClose: () => void;
   onRoleTabChange: (role: GoblinHutRoleTabId) => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
+  randomGoblinReveal: RandomGoblinReveal | null;
   resources: Record<string, number>;
   roster: GoblinRosterState;
   rosterMessage: string | null;
@@ -208,8 +217,22 @@ export function GoblinSection(props: {
   const roleSummary = createGoblinRoleSummary(props.availableGoblins, props.roster);
   const roleTabs = createGoblinHutRoleTabs(props.availableGoblins, props.roster, props.content.goblinHut);
   const visibleGoblins = filterGoblinsByHutRole(props.availableGoblins, props.activeRoleTab);
-  const minerGoblins = props.availableGoblins.filter(isMiningGoblin);
+  const runtimeGoblins = createRuntimeGoblinConfigs(props.availableGoblins, props.roster);
+  const minerGoblins = runtimeGoblins.filter(isMiningGoblin);
   const selectedGoblin = selectedGoblinId ? props.availableGoblins.find((goblin) => goblin.id === selectedGoblinId) ?? null : null;
+  const generation = props.content.goblinGeneration;
+  const contractPreviews = [...generation.archetypes]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((archetype) =>
+      createRandomGoblinContractPreview({
+        archetype,
+        goblinHut: props.content.goblinHut,
+        goblins: props.availableGoblins,
+        resources: props.resources,
+        roster: props.roster
+      })
+    );
+  const rolledGoblins = runtimeGoblins.filter((goblin) => goblin.id.startsWith("rolled:"));
 
   return (
     <section className="goblin-roster management-screen" aria-label="Гоблины">
@@ -246,6 +269,25 @@ export function GoblinSection(props: {
         <span>Автосбор {roleSummary.totalAutoCollectSlots}</span>
         <span>Бригадиры {roleSummary.builderCount}</span>
       </div>
+
+      {contractPreviews.length > 0 ? (
+        <GoblinContractPanel
+          labels={props.labels}
+          onHireRandomGoblin={props.onHireRandomGoblin}
+          previews={contractPreviews}
+        />
+      ) : null}
+
+      {rolledGoblins.length > 0 ? (
+        <OwnedRandomGoblins
+          content={props.content}
+          goblins={rolledGoblins}
+          labels={props.labels}
+          onUpgradeGoblin={props.onUpgradeGoblin}
+          resources={props.resources}
+          roster={props.roster}
+        />
+      ) : null}
 
       <div className="goblin-list">
         {visibleGoblins.map((goblin) => {
@@ -310,6 +352,14 @@ export function GoblinSection(props: {
       </div>
 
       {props.rosterMessage ? <p className="roster-message">{props.rosterMessage}</p> : null}
+      {props.randomGoblinReveal ? (
+        <RandomGoblinRevealModal
+          content={props.content}
+          labels={props.labels}
+          onClose={props.onRandomGoblinRevealClose}
+          reveal={props.randomGoblinReveal}
+        />
+      ) : null}
       {selectedGoblin ? (
         <GoblinDetailsModal
           hirePreview={createGoblinHirePreview({
@@ -385,6 +435,322 @@ function SpecializationIcon(props: { goblin: GoblinConfig; size: number }) {
     default:
       return props.goblin.class === "builder" || props.goblin.class === "foreman" ? <Hammer size={props.size} /> : <Users size={props.size} />;
   }
+}
+
+function GoblinContractPanel(props: {
+  labels: Record<string, string>;
+  onHireRandomGoblin: (archetypeId: string) => void;
+  previews: RandomGoblinContractPreview[];
+}) {
+  return (
+    <section className="goblin-contract-panel" aria-label="Контракты гоблинов">
+      <header>
+        <div>
+          <span>Контракты</span>
+          <strong>Случайные гоблины</strong>
+        </div>
+        <small>имя и статы после найма</small>
+      </header>
+      <div className="goblin-contract-grid">
+        {props.previews.map((preview) => (
+          <article className={preview.canHire ? "goblin-contract-card" : "goblin-contract-card locked"} key={preview.archetype.id}>
+            <span className={`goblin-contract-icon ${preview.archetype.class}`}>{contractRoleIcon(preview.archetype.class)}</span>
+            <strong>{labelFromNameKey(preview.archetype.nameKey, preview.archetype.id, props.labels)}</strong>
+            <small>{goblinClassLabel(preview.archetype.class)}</small>
+            <div className="build-cost-list">
+              {preview.costRequirements.length > 0 ? (
+                preview.costRequirements.map((requirement) => (
+                  <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                    <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                    {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                  </span>
+                ))
+              ) : (
+                <span className="ok">бесплатно</span>
+              )}
+            </div>
+            <button disabled={!preview.canHire} onClick={() => props.onHireRandomGoblin(preview.archetype.id)} type="button">
+              {contractActionLabel(preview)}
+            </button>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function OwnedRandomGoblins(props: {
+  content: ContentBundle;
+  goblins: RuntimeGoblinConfig[];
+  labels: Record<string, string>;
+  onUpgradeGoblin: (goblin: GoblinConfig) => void;
+  resources: Record<string, number>;
+  roster: GoblinRosterState;
+}) {
+  const [selectedGoblinId, setSelectedGoblinId] = useState<string | null>(null);
+  const selectedGoblin = selectedGoblinId ? props.goblins.find((goblin) => goblin.id === selectedGoblinId) ?? null : null;
+
+  return (
+    <section className="owned-random-goblins" aria-label="Нанятые случайные гоблины">
+      <header>
+        <strong>Личные гоблины</strong>
+        <span>{props.goblins.length}</span>
+      </header>
+      <div className="owned-random-goblin-list">
+        {props.goblins.map((goblin) => {
+          const name = runtimeGoblinDisplayName(goblin, props.labels);
+          const preview = createGoblinUpgradePreview(goblin, props.roster, props.resources, props.content.goblinHut);
+          const template = goblin;
+          const instance = {
+            class: goblin.class,
+            id: goblin.id,
+            rarity: goblin.rarity,
+            rolledStats: goblin.baseStats,
+            templateId: goblin.templateGoblinId ?? goblin.id
+          } as GoblinRosterInstance;
+
+          return (
+            <article
+              className={`owned-random-goblin ${goblin.rarity}`}
+              key={goblin.id}
+              onClick={() => setSelectedGoblinId(goblin.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  setSelectedGoblinId(goblin.id);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
+              <span className="owned-random-goblin-avatar">{name.slice(0, 1)}</span>
+              <div>
+                <strong>{name}</strong>
+                <small>
+                  {rarityLabel(instance.rarity)} · {template ? goblinClassLabel(template.class) : goblinClassLabel(instance.class)}
+                </small>
+              </div>
+              <div className="owned-random-goblin-level">
+                Ур. {preview.levelNow}/{preview.maxLevel}
+              </div>
+              <footer>
+                <span>СИЛ {instance.rolledStats.strength}</span>
+                <span>СКР {instance.rolledStats.speed}</span>
+                <span>УДЧ {instance.rolledStats.luck}</span>
+              </footer>
+              <button
+                className="owned-random-goblin-action"
+                disabled={!preview.canUpgrade}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  props.onUpgradeGoblin(goblin);
+                }}
+                type="button"
+              >
+                {randomGoblinUpgradeActionLabel(preview)}
+              </button>
+            </article>
+          );
+        })}
+      </div>
+      {selectedGoblin ? (
+        <RandomGoblinDetailsModal
+          content={props.content}
+          goblin={selectedGoblin}
+          labels={props.labels}
+          onClose={() => setSelectedGoblinId(null)}
+          onUpgrade={() => props.onUpgradeGoblin(selectedGoblin)}
+          resources={props.resources}
+          roster={props.roster}
+        />
+      ) : null}
+    </section>
+  );
+}
+
+function RandomGoblinDetailsModal(props: {
+  content: ContentBundle;
+  goblin: RuntimeGoblinConfig;
+  labels: Record<string, string>;
+  onClose: () => void;
+  onUpgrade: () => void;
+  resources: Record<string, number>;
+  roster: GoblinRosterState;
+}) {
+  const identity = createGoblinIdentity(props.goblin, props.labels);
+  const name = runtimeGoblinDisplayName(props.goblin, props.labels);
+  const preview = createGoblinUpgradePreview(props.goblin, props.roster, props.resources, props.content.goblinHut);
+  const statsNow = calculateGoblinEffectiveBaseStats(props.goblin, preview.levelNow, props.goblin.baseStats);
+  const statsAfter = calculateGoblinEffectiveBaseStats(props.goblin, preview.levelAfter, props.goblin.baseStats);
+  const archetype =
+    props.content.goblinGeneration.archetypes.find(
+      (item) => item.templateGoblinId === (props.goblin.templateGoblinId ?? props.goblin.id) && item.class === props.goblin.class
+    ) ?? null;
+  const equipmentSlots = archetype?.equipmentSlots ?? ["tool"];
+  const traits = props.goblin.instanceTraits ?? [];
+
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section
+        className={`goblin-modal random-goblin-details ${props.goblin.rarity}`}
+        aria-label={name}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div className="goblin-modal-headline">
+            <GoblinPortrait goblin={props.goblin} identity={{ ...identity, name: props.goblin.instanceName ?? identity.name }} />
+            <div>
+              <p>{rarityLabel(props.goblin.rarity)} · {goblinClassLabel(props.goblin.class)}</p>
+              <strong>{name}</strong>
+              <span>{collectorSpecializationLabel(props.goblin)}</span>
+            </div>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <p className="goblin-modal-description">{identity.description}</p>
+
+        <div className="goblin-modal-stats random-goblin-level-stats">
+          <GoblinStatDelta after={statsAfter.strength} before={statsNow.strength} label="Сила" />
+          <GoblinStatDelta after={statsAfter.speed} before={statsNow.speed} label="Скорость" />
+          <GoblinStatDelta after={statsAfter.luck} before={statsNow.luck} label="Удача" />
+          <GoblinStatDelta after={statsAfter.loyalty} before={statsNow.loyalty} label="Лояльность" />
+        </div>
+
+        <section className="goblin-modal-block">
+          <header>
+            <strong>
+              Уровень {preview.levelNow}/{preview.maxLevel}
+            </strong>
+            <span>
+              урон {preview.damagePerSecondNow}/сек{preview.levelAfter !== preview.levelNow ? ` -> ${preview.damagePerSecondAfter}/сек` : ""}
+            </span>
+          </header>
+          <div className="build-cost-list">
+            {preview.costRequirements.length > 0 ? (
+              preview.costRequirements.map((requirement) => (
+                <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                  <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                  {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                </span>
+              ))
+            ) : (
+              <span className="ok">максимальный уровень</span>
+            )}
+          </div>
+        </section>
+
+        <section className="goblin-modal-block">
+          <header>
+            <strong>Особенности</strong>
+            <span>{traits.length}</span>
+          </header>
+          <div className="random-goblin-traits">
+            {traits.length > 0 ? traits.map((trait) => <span key={trait.id}>{traitLabel(trait.id, props.labels)}</span>) : <span>без особенностей</span>}
+          </div>
+        </section>
+
+        <section className="goblin-modal-block">
+          <header>
+            <strong>Предметы</strong>
+            <span>{equipmentSlots.length}</span>
+          </header>
+          <div className="random-goblin-equipment-slots">
+            {equipmentSlots.map((slot) => (
+              <span key={slot}>{equipmentSlotLabel(slot)}</span>
+            ))}
+          </div>
+        </section>
+
+        <footer>
+          <span>{randomGoblinUpgradeActionLabel(preview)}</span>
+          <button disabled={!preview.canUpgrade} onClick={props.onUpgrade} type="button">
+            Улучшить
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function GoblinStatDelta(props: { after: number; before: number; label: string }) {
+  return (
+    <div className="goblin-stat-delta">
+      <span>{props.label}</span>
+      <strong>{formatInteger(props.before)}</strong>
+      {props.after > props.before ? <small>+{formatInteger(props.after - props.before)}</small> : null}
+    </div>
+  );
+}
+
+function RandomGoblinRevealModal(props: {
+  content: ContentBundle;
+  labels: Record<string, string>;
+  onClose: () => void;
+  reveal: RandomGoblinReveal;
+}) {
+  const archetype = props.content.goblinGeneration.archetypes.find((item) => item.id === props.reveal.archetypeId) ?? null;
+  const identity = createGoblinIdentity(props.reveal.goblin, props.labels);
+  const name = randomGoblinDisplayName(props.reveal.instance, props.reveal.goblin, props.labels);
+
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section
+        className={`random-goblin-reveal goblin-modal ${props.reveal.instance.rarity}`}
+        aria-label={`Нанят ${name}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header>
+          <div>
+            <p>{archetype ? labelFromNameKey(archetype.nameKey, archetype.id, props.labels) : "Контракт"}</p>
+            <strong>Новый гоблин</strong>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="random-goblin-reveal-card">
+          <GoblinPortrait goblin={props.reveal.goblin} identity={{ ...identity, name: props.reveal.instance.name ?? identity.name }} />
+          <div>
+            <span>{rarityLabel(props.reveal.instance.rarity)} · {goblinClassLabel(props.reveal.instance.class)}</span>
+            <strong>{name}</strong>
+            <p>{identity.description}</p>
+          </div>
+        </div>
+
+        <div className="goblin-modal-stats">
+          <GoblinStat label="Сила" value={props.reveal.instance.rolledStats.strength} />
+          <GoblinStat label="Скорость" value={props.reveal.instance.rolledStats.speed} />
+          <GoblinStat label="Удача" value={props.reveal.instance.rolledStats.luck} />
+          <GoblinStat label="Лояльность" value={props.reveal.instance.rolledStats.loyalty} />
+        </div>
+
+        <section className="goblin-modal-block">
+          <header>
+            <strong>Особенности</strong>
+            <span>{props.reveal.instance.traits.length || 0}</span>
+          </header>
+          <div className="random-goblin-traits">
+            {props.reveal.instance.traits.length > 0 ? (
+              props.reveal.instance.traits.map((trait) => <span key={trait.id}>{traitLabel(trait.id, props.labels)}</span>)
+            ) : (
+              <span>без особенностей</span>
+            )}
+          </div>
+        </section>
+
+        <footer>
+          <span>Гоблин добавлен в Хижину</span>
+          <button onClick={props.onClose} type="button">
+            В бригаду
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
 }
 
 function GoblinDetailsModal(props: {
@@ -545,6 +911,86 @@ function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
       return "Бригадир";
     default:
       return "Шахтер";
+  }
+}
+
+function contractRoleIcon(goblinClass: GoblinGenerationArchetypeConfig["class"]) {
+  switch (goblinClass) {
+    case "builder":
+    case "foreman":
+      return <Hammer size={17} />;
+    case "collector":
+      return <Warehouse size={17} />;
+    default:
+      return <Pickaxe size={17} />;
+  }
+}
+
+function contractActionLabel(preview: RandomGoblinContractPreview): string {
+  switch (preview.failureReason) {
+    case null:
+      return "Нанять";
+    case "hut_limit":
+      return "Лимит";
+    case "missing_archetype":
+    case "missing_template":
+      return "Не настроен";
+    case "not_enough_resources":
+      return "Нет ресурсов";
+    case "role_locked":
+      return "Роль закрыта";
+    default:
+      return "Закрыто";
+  }
+}
+
+function randomGoblinDisplayName(instance: GoblinRosterInstance, template: GoblinConfig | null | undefined, labels: Record<string, string>): string {
+  const fallback = template ? createGoblinIdentity(template, labels).name : instance.templateId;
+  return [instance.name ?? fallback, instance.nickname].filter(Boolean).join(" ");
+}
+
+function runtimeGoblinDisplayName(goblin: RuntimeGoblinConfig, labels: Record<string, string>): string {
+  const identity = createGoblinIdentity(goblin, labels);
+  const name = goblin.instanceName?.trim() || identity.name;
+  const nickname = goblin.instanceNickname?.trim() || identity.nickname;
+  return nickname ? `${name} ${nickname}` : name;
+}
+
+function randomGoblinUpgradeActionLabel(preview: GoblinUpgradePreview): string {
+  if (preview.failureReason === "max_level") {
+    return "Макс.";
+  }
+
+  return preview.canUpgrade ? "Улучшить" : "Нет золота";
+}
+
+function rarityLabel(rarity: GoblinRosterInstance["rarity"]): string {
+  switch (rarity) {
+    case "rare":
+      return "Редкий";
+    case "epic":
+      return "Эпический";
+    case "legendary":
+      return "Легендарный";
+    default:
+      return "Обычный";
+  }
+}
+
+function traitLabel(traitId: string, labels: Record<string, string>): string {
+  return labels[`goblin_trait.${traitId}.name`] ?? traitId;
+}
+
+function equipmentSlotLabel(slot: string): string {
+  switch (slot) {
+    case "ledger":
+      return "книга";
+    case "tool":
+      return "инструмент";
+    case "whistle":
+      return "свисток";
+    default:
+      return slot;
   }
 }
 

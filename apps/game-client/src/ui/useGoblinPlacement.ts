@@ -10,12 +10,13 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import type { MinePixiGoblin } from "./MinePixiScene";
 import { createGoblinIdentity, isMiningGoblin } from "./goblinHutClientState";
+import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 
 export type GoblinPlacementMap = Record<string, number>;
 export type GoblinPlacementStatus = "idle" | "waiting" | "working";
 
 export interface GoblinWorkerAssignment {
-  goblin: GoblinConfig;
+  goblin: RuntimeGoblinConfig;
   targetCell: {
     row: number;
     col: number;
@@ -26,7 +27,7 @@ export interface GoblinWorkerAssignment {
 export function useGoblinPlacement(input: {
   currentPlatformRow: number;
   labels: Record<string, string>;
-  miningGoblins: GoblinConfig[];
+  miningGoblins: RuntimeGoblinConfig[];
   onActiveCellChange: (cell: { row: number; col: number }) => void;
   platformSlots: number;
   roster: GoblinRosterState;
@@ -130,7 +131,7 @@ export function useGoblinPlacement(input: {
 
 export function assignGoblinWorkers(
   session: MiningSession,
-  hiredGoblins: GoblinConfig[],
+  hiredGoblins: RuntimeGoblinConfig[],
   goblinPlacements: GoblinPlacementMap,
   platformRow: number,
   roster: GoblinRosterState
@@ -163,7 +164,7 @@ export function assignGoblinWorkers(
           goblins: [goblin],
           roster: {
             goblinLevels: {
-              [goblin.id]: getGoblinLevel(roster, goblin.id)
+              [goblin.id]: getRuntimeGoblinLevel(roster, goblin)
             },
             hiredGoblinIds: [goblin.id]
           }
@@ -229,7 +230,7 @@ export function getGoblinOfflineRewardMultiplier(goblin: GoblinConfig, level = 1
 
 export function relocateOfflineGoblinPlacements(
   session: MiningSession,
-  hiredGoblins: GoblinConfig[],
+  hiredGoblins: RuntimeGoblinConfig[],
   goblinPlacements: GoblinPlacementMap,
   platformRow: number,
   roster: GoblinRosterState,
@@ -263,7 +264,7 @@ export function relocateOfflineGoblinPlacements(
   let moves = 0;
   const miningGoblins = hiredGoblins.filter(isMiningGoblin);
   const sortedIdleGoblins = [...miningGoblins].sort(
-    (left, right) => getGoblinLevel(roster, right.id) - getGoblinLevel(roster, left.id) || left.sortOrder - right.sortOrder
+    (left, right) => getRuntimeGoblinLevel(roster, right) - getRuntimeGoblinLevel(roster, left) || left.sortOrder - right.sortOrder
   );
 
   for (const goblin of sortedIdleGoblins) {
@@ -311,7 +312,7 @@ export function findPlatformCells(session: MiningSession, platformRow: number): 
 
 export function createDefaultGoblinPlacements(
   session: MiningSession,
-  hiredGoblins: GoblinConfig[],
+  hiredGoblins: RuntimeGoblinConfig[],
   platformRow: number,
   maxPlacements = Number.POSITIVE_INFINITY
 ): GoblinPlacementMap {
@@ -323,7 +324,7 @@ export function createDefaultGoblinPlacements(
 
 export function normalizeGoblinPlacements(
   session: MiningSession,
-  hiredGoblins: GoblinConfig[],
+  hiredGoblins: RuntimeGoblinConfig[],
   placements: GoblinPlacementMap,
   options: { maxPlacements?: number; placeMissing: boolean; platformRow: number }
 ): GoblinPlacementMap {
@@ -436,6 +437,13 @@ function normalizePlatformSlots(value: number | undefined): number {
   return Math.max(0, Math.floor(value));
 }
 
-function goblinName(goblin: GoblinConfig, labels: Record<string, string>): string {
-  return createGoblinIdentity(goblin, labels).fullName;
+function getRuntimeGoblinLevel(roster: GoblinRosterState, goblin: RuntimeGoblinConfig): number {
+  return Math.max(1, Math.floor(goblin.instanceLevel ?? getGoblinLevel(roster, goblin.id)));
+}
+
+function goblinName(goblin: RuntimeGoblinConfig, labels: Record<string, string>): string {
+  const identity = createGoblinIdentity(goblin, labels);
+  const name = goblin.instanceName?.trim() || identity.name;
+  const nickname = goblin.instanceNickname?.trim() || identity.nickname;
+  return nickname ? `${name} ${nickname}` : name;
 }

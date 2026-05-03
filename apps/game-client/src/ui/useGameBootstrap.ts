@@ -5,6 +5,7 @@ import {
   createBossEnergyState,
   createInitialGoblinRoster,
   createMiningSession,
+  ensureGoblinRosterInstances,
   findPlatformRow,
   generateMine,
   getGoblinLevel,
@@ -44,6 +45,7 @@ import {
   relocateOfflineGoblinPlacements,
   type GoblinPlacementMap
 } from "./useGoblinPlacement";
+import { createRuntimeGoblinConfigs } from "./goblinRuntimeUnits";
 import { findExposedCellForPreferred } from "./useMiningLoop";
 
 const mineSeed = "local-player-001";
@@ -243,7 +245,7 @@ function createRestoredMiningState(
   const storedSave = loadStoredMiningSession(localStorage, contentVersion);
   const hiredGoblins = createHiredGoblins(content, roster);
   const hiredCollectorGoblins = hiredGoblins.filter((goblin) => getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)) > 0);
-  const miningGoblins = hiredGoblins.filter(isMiningGoblin);
+  const miningGoblins = createRuntimeGoblinConfigs(createAvailableGoblins(content), roster).filter(isMiningGoblin);
   const now = Date.now();
   const storedMineTemplateId = storedSave?.save.mineTemplateId;
   const session = createSession(content, storedMineTemplateId);
@@ -359,7 +361,7 @@ function applyOfflineMining(
   const elevatorLevelConfig = getElevatorLevelConfig(content.elevator, elevatorLevel);
   const platformSlots = elevatorLevelConfig.platformSlots;
   const availableGoblins = createAvailableGoblins(content);
-  const miningGoblins = availableGoblins.filter((goblin) => isGoblinHired(roster, goblin.id) && isMiningGoblin(goblin));
+  const miningGoblins = createRuntimeGoblinConfigs(availableGoblins, roster).filter(isMiningGoblin);
   const normalizedPlacements = normalizeGoblinPlacements(session, miningGoblins, goblinPlacements, {
     maxPlacements: platformSlots,
     placeMissing: false,
@@ -637,10 +639,10 @@ function createRestoredGoblinRoster(content: ContentBundle, contentVersion: stri
   const storedRoster = loadStoredGoblinRoster(localStorage, contentVersion);
 
   if (!storedRoster) {
-    return createInitialGoblinRoster(goblins);
+    return ensureGoblinRosterInstances(createInitialGoblinRoster(goblins), goblins);
   }
 
-  return normalizeGoblinRoster(storedRoster.roster, goblins, content.goblinHut);
+  return ensureGoblinRosterInstances(normalizeGoblinRoster(storedRoster.roster, goblins, content.goblinHut), goblins);
 }
 
 function findFirstPlayableCell(session: MiningSession): { row: number; col: number } {

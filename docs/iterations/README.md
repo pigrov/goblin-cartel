@@ -83,3 +83,9 @@
 - `0078_foreman_tower_elevator` - added foreman tower assignments, offline foreman bonuses, platform goblin statuses, and the first upgradeable elevator with platform slot limits.
 - `0079_mine_depth_rewards_deploy` - added content-driven rewards for platform depth progress, row-clear event UI, elevator descent polish, and release checks before production push.
 - `0080_mine_run_stats_progress` - added persisted mine-run statistics, completion reward breakdown, and an in-mine progress modal with depth and vein details.
+- `0081_goblin_instance_foundation` - added template-backed goblin instances to prepare random hiring, rolled stats, equipment, traits, and future market mechanics.
+- `0082_goblin_generation_rules` - added content/admin rules for random goblin contracts and a deterministic game-core roll function for unique goblin instances.
+- `0083_random_goblin_contract_hire` - connected random goblin contracts to the Hut purchase flow with resource spend, reveal UI, saved rolled instances, and contract preview tests.
+- `0084_random_goblin_runtime_mining` - connected rolled miner instances to mine runtime placement, Pixi names, offline mining, and damage calculation from rolled stats.
+- `0085_random_goblin_instance_upgrades` - added upgrade support for a concrete rolled goblin instance without leveling its template goblin.
+- `0086_random_goblin_details_modal` - added a details modal for concrete random goblins with stat growth, traits, upgrade cost, and future equipment slots.

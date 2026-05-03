@@ -1,4 +1,4 @@
-import type { ContentBundle, GoblinConfig, MineTemplateConfig } from "@goblin-cartel/content-schemas";
+import type { ContentBundle, MineTemplateConfig } from "@goblin-cartel/content-schemas";
 import {
   findPlatformRow,
   type BossCardDefinition,
@@ -20,6 +20,7 @@ import { createMineRunStats, type MineRunStats } from "./mineRunStats";
 import { createSession, type OfflineMiningSummary } from "./useGameBootstrap";
 import { saveMiningSession } from "./useGamePersistence";
 import type { ForemanAssignments } from "./foremanTowerState";
+import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 import { createDefaultGoblinPlacements, type GoblinPlacementMap } from "./useGoblinPlacement";
 import { useRewardChestFlow } from "./useRewardChestFlow";
 
@@ -36,7 +37,7 @@ export function useMineProgressionController(input: {
   foremanAssignments: ForemanAssignments;
   labels: Record<string, string>;
   mineCompletionNoticeSeenIds: string[];
-  miningGoblins: GoblinConfig[];
+  miningGoblins: RuntimeGoblinConfig[];
   platformSlots: number;
   session: MiningSession;
   setActiveCell: Dispatch<SetStateAction<{ row: number; col: number }>>;

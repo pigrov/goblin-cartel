@@ -3,6 +3,7 @@ import {
   blockTypeSchema,
   bossCardSchema,
   elevatorSchema,
+  goblinGenerationSchema,
   goblinSchema,
   rewardChestTypeSchema,
   starterContentBundle,
@@ -79,6 +80,11 @@ describe("content schemas", () => {
       [2, 3, ["miner", "builder"]],
       [3, 5, ["miner", "builder", "collector"]],
       [4, 8, ["miner", "builder", "collector", "foreman"]]
+    ]);
+    expect(starterContentBundle.goblinGeneration.archetypes.map((archetype) => [archetype.id, archetype.class, archetype.templateGoblinId])).toEqual([
+      ["random_miner_contract", "miner", "gryzz_crooked_tooth"],
+      ["random_collector_contract", "collector", "pip_dry_book"],
+      ["random_foreman_contract", "foreman", "krakk_iron_turnip"]
     ]);
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.upgradeCost])).toEqual([
       [1, []],
@@ -179,6 +185,12 @@ describe("content schemas", () => {
     expect(collector?.specialization).toBe("warehouse_keeper");
     expect(collector?.leveling.autoCollectSlotsPerLevel).toBe(0.5);
     expect(goblinSchema.safeParse(collector).success).toBe(true);
+  });
+
+  it("accepts a valid goblin generation config", () => {
+    const result = goblinGenerationSchema.safeParse(starterContentBundle.goblinGeneration);
+
+    expect(result.success).toBe(true);
   });
 
   it("accepts a valid reward chest config", () => {
@@ -498,6 +510,31 @@ describe("content schemas", () => {
 
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("goblins.nokk_copper_quill.ability.effects references missing resource missing_resource");
+  });
+
+  it("rejects broken goblin generation references", () => {
+    const broken = structuredClone(starterContentBundle);
+    const archetype = broken.goblinGeneration.archetypes[0];
+
+    if (archetype) {
+      archetype.templateGoblinId = "missing_goblin";
+      archetype.hireCost = [{ resourceId: "missing_resource", amount: 10 }];
+      archetype.rarityWeights.push({ rarity: "common", statMultiplier: 1, weight: 1 });
+      archetype.traitPool.push({ id: "stone_focus", nameKey: "missing.trait.name", weight: 1 });
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain(
+      "goblinGeneration.archetypes.random_miner_contract references missing template goblin missing_goblin"
+    );
+    expect(result.errors).toContain(
+      "goblinGeneration.archetypes.random_miner_contract.hireCost references missing resource missing_resource"
+    );
+    expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.rarityWeights has duplicate rarity common");
+    expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.traitPool has duplicate trait stone_focus");
+    expect(result.errors).toContain("localization.ru is missing key missing.trait.name");
   });
 });
 

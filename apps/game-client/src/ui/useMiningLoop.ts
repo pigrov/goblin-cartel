@@ -1,4 +1,4 @@
-import type { BlockTypeConfig, ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { BlockTypeConfig, ContentBundle } from "@goblin-cartel/content-schemas";
 import {
   findPlatformRow,
   hitMineBlock,
@@ -10,6 +10,7 @@ import {
 } from "@goblin-cartel/game-core";
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import { assignGoblinWorkers, type GoblinPlacementMap } from "./useGoblinPlacement";
+import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 
 const autoMiningTickMs = 1000;
 const offlineFinalHitDelayMs = 900;
@@ -69,7 +70,7 @@ export function useMiningLoop(input: {
   exposedCellKeys: ReadonlySet<string>;
   goblinPlacements: GoblinPlacementMap;
   labels: Record<string, string>;
-  miningGoblins: GoblinConfig[];
+  miningGoblins: RuntimeGoblinConfig[];
   onBlockDestroyed: (mineTemplateId: string, rewards: Record<string, number>, destroyedBlockCount: number) => void;
   onDepthProgressRewards: (mineTemplateId: string, rewards: Record<string, number>) => void;
   onFoundVein: (vein: MiningFoundVein | null) => void;

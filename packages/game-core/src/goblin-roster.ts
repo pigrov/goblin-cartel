@@ -1,4 +1,5 @@
 export type GoblinRosterClass = "miner" | "builder" | "collector" | "foreman";
+export type GoblinRosterRarity = "common" | "rare" | "epic" | "legendary";
 
 export interface GoblinRosterResourceAmount {
   resourceId: string;
@@ -114,12 +115,88 @@ export interface GoblinRosterAbility {
 export interface GoblinRosterGoblin {
   id: string;
   class: GoblinRosterClass;
+  rarity?: GoblinRosterRarity;
   baseStats: GoblinRosterBaseStats;
   ability: GoblinRosterAbility;
   hireCost: GoblinRosterResourceAmount[];
   leveling?: GoblinRosterLevelingConfig;
   unlockRequirements: GoblinRosterUnlockRequirement[];
   sortOrder: number;
+}
+
+export interface GoblinRosterInstanceTrait {
+  id: string;
+}
+
+export interface GoblinRosterInstanceEquipment {
+  itemId: string;
+  slot: string;
+}
+
+export interface GoblinRosterInstanceLifetimeStats {
+  blocksDestroyed?: number;
+  minesCompleted?: number;
+  resourcesCollected?: Record<string, number>;
+}
+
+export interface GoblinRosterInstance {
+  id: string;
+  class: GoblinRosterClass;
+  equipment: GoblinRosterInstanceEquipment[];
+  level: number;
+  lifetimeStats: GoblinRosterInstanceLifetimeStats;
+  name?: string;
+  nickname?: string;
+  rarity: GoblinRosterRarity;
+  rolledStats: GoblinRosterBaseStats;
+  templateId: string;
+  traits: GoblinRosterInstanceTrait[];
+}
+
+export interface GoblinGenerationNamePool {
+  names: string[];
+  nicknames: string[];
+}
+
+export interface GoblinGenerationStatRange {
+  max: number;
+  min: number;
+}
+
+export interface GoblinGenerationStatRanges {
+  loyalty: GoblinGenerationStatRange;
+  luck: GoblinGenerationStatRange;
+  speed: GoblinGenerationStatRange;
+  strength: GoblinGenerationStatRange;
+}
+
+export interface GoblinGenerationRarityWeight {
+  rarity: GoblinRosterRarity;
+  statMultiplier?: number;
+  weight: number;
+}
+
+export interface GoblinGenerationTraitConfig {
+  id: string;
+  weight: number;
+}
+
+export interface GoblinGenerationArchetypeConfig {
+  class: GoblinRosterClass;
+  hireCost?: GoblinRosterResourceAmount[];
+  id: string;
+  rarityWeights: GoblinGenerationRarityWeight[];
+  statRanges: GoblinGenerationStatRanges;
+  templateGoblinId: string;
+  traitPool?: GoblinGenerationTraitConfig[];
+}
+
+export interface RollGoblinInstanceInput {
+  archetype: GoblinGenerationArchetypeConfig;
+  namePool: GoblinGenerationNamePool;
+  seed: string;
+  sequence?: number;
+  template: GoblinRosterGoblin;
 }
 
 export interface GoblinHutLevelConfig {
@@ -140,6 +217,7 @@ export interface GoblinRosterState {
   goblinLevels?: Record<string, number>;
   hutLevel?: number;
   hiredGoblinIds: string[];
+  instances?: GoblinRosterInstance[];
 }
 
 export interface GoblinRosterProgress {
@@ -153,6 +231,12 @@ export type HireGoblinFailureReason =
   | "already_hired"
   | "hut_limit"
   | "locked"
+  | "not_enough_resources"
+  | "role_locked";
+export type HireRandomGoblinFailureReason =
+  | "missing_archetype"
+  | "missing_template"
+  | "hut_limit"
   | "not_enough_resources"
   | "role_locked";
 export type UpgradeGoblinFailureReason = "missing_goblin" | "not_hired" | "max_level" | "not_enough_resources";
@@ -177,6 +261,32 @@ export interface HireGoblinInput {
   resources: Record<string, number>;
   builtMinesCount?: number;
   completedMineTemplateIds?: string[];
+}
+
+export type HireRandomGoblinResult =
+  | {
+      goblin: GoblinRosterGoblin;
+      instance: GoblinRosterInstance;
+      ok: true;
+      resources: Record<string, number>;
+      roster: GoblinRosterState;
+    }
+  | {
+      cost: GoblinRosterResourceAmount[];
+      ok: false;
+      reason: HireRandomGoblinFailureReason;
+    };
+
+export interface HireRandomGoblinInput {
+  archetypeId: string;
+  archetypes: GoblinGenerationArchetypeConfig[];
+  goblinHut?: GoblinHutConfig;
+  goblins: GoblinRosterGoblin[];
+  namePool: GoblinGenerationNamePool;
+  resources: Record<string, number>;
+  roster: GoblinRosterState;
+  seed: string;
+  sequence?: number;
 }
 
 export type UpgradeGoblinResult =
@@ -235,6 +345,11 @@ export interface CrewAutoDamageInput {
   roster: GoblinRosterState;
 }
 
+interface ResolvedHiredGoblin {
+  goblin: GoblinRosterGoblin;
+  instance: GoblinRosterInstance | undefined;
+}
+
 export function createInitialGoblinRoster(goblins: GoblinRosterGoblin[]): GoblinRosterState {
   const firstFreeGoblin = [...goblins]
     .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -252,7 +367,14 @@ export function normalizeGoblinRoster(
 ): GoblinRosterState {
   const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
   const knownGoblinIds = new Set(goblinById.keys());
-  const hiredGoblinIds = roster.hiredGoblinIds.filter((id, index, ids) => knownGoblinIds.has(id) && ids.indexOf(id) === index);
+  const instanceIds = new Set(
+    (roster.instances ?? [])
+      .filter((instance) => knownGoblinIds.has(instance.templateId))
+      .map((instance) => instance.id)
+  );
+  const hiredGoblinIds = roster.hiredGoblinIds.filter(
+    (id, index, ids) => (knownGoblinIds.has(id) || instanceIds.has(id)) && ids.indexOf(id) === index
+  );
   const goblinLevels: Record<string, number> = {};
   const hutLevel = normalizeGoblinHutLevel(roster.hutLevel ?? 1, goblinHut);
 
@@ -274,19 +396,86 @@ export function normalizeGoblinRoster(
     }
   }
 
-  return {
+  const normalizedRoster = {
     ...(Object.keys(goblinLevels).length > 0 ? { goblinLevels } : {}),
     ...(hutLevel > 1 ? { hutLevel } : {}),
     hiredGoblinIds
   };
+
+  return roster.instances
+    ? {
+        ...normalizedRoster,
+        instances: normalizeGoblinInstances(roster.instances, normalizedRoster, goblins)
+      }
+    : normalizedRoster;
 }
 
 export function isGoblinHired(roster: GoblinRosterState, goblinId: string): boolean {
   return roster.hiredGoblinIds.includes(goblinId);
 }
 
+export function getHiredGoblinCount(roster: GoblinRosterState): number {
+  return roster.instances?.length ?? roster.hiredGoblinIds.length;
+}
+
 export function getGoblinLevel(roster: GoblinRosterState, goblinId: string): number {
-  return Math.max(1, Math.floor(roster.goblinLevels?.[goblinId] ?? 1));
+  const exactInstanceLevel = roster.instances?.find((instance) => instance.id === goblinId)?.level;
+  const templateInstanceLevel = roster.instances?.find((instance) => instance.templateId === goblinId && !instance.id.startsWith("rolled:"))?.level;
+  const instanceLevel = exactInstanceLevel ?? templateInstanceLevel;
+  return Math.max(1, Math.floor(Math.max(instanceLevel ?? 1, roster.goblinLevels?.[goblinId] ?? 1)));
+}
+
+export function ensureGoblinRosterInstances(roster: GoblinRosterState, goblins: GoblinRosterGoblin[]): GoblinRosterState {
+  return {
+    ...roster,
+    instances: normalizeGoblinInstances(roster.instances ?? [], roster, goblins)
+  };
+}
+
+export function createGoblinTemplateInstance(
+  goblin: GoblinRosterGoblin,
+  level = 1,
+  instanceId = createTemplateInstanceId(goblin.id)
+): GoblinRosterInstance {
+  return {
+    class: goblin.class,
+    equipment: [],
+    id: instanceId,
+    level: normalizeGoblinLevel(level, calculateGoblinMaxLevel(goblin)),
+    lifetimeStats: {},
+    rarity: goblin.rarity ?? "common",
+    rolledStats: { ...goblin.baseStats },
+    templateId: goblin.id,
+    traits: []
+  };
+}
+
+export function rollGoblinInstance(input: RollGoblinInstanceInput): GoblinRosterInstance {
+  const sequence = Math.max(0, Math.floor(input.sequence ?? 0));
+  const random = createSeededRandom(`${input.seed}:${input.archetype.id}:${sequence}`);
+  const rarityWeight = pickWeighted(input.archetype.rarityWeights, random);
+  const rarity = normalizeGoblinRarity(rarityWeight?.rarity);
+  const statMultiplier = Math.max(0.01, rarityWeight?.statMultiplier ?? 1);
+  const trait = pickWeighted(input.archetype.traitPool ?? [], random);
+
+  return {
+    class: input.archetype.class,
+    equipment: [],
+    id: createRolledInstanceId(input.archetype.id, input.seed, sequence),
+    level: 1,
+    lifetimeStats: {},
+    name: pickString(input.namePool.names, random),
+    nickname: pickString(input.namePool.nicknames, random),
+    rarity,
+    rolledStats: {
+      loyalty: rollStat(input.archetype.statRanges.loyalty, statMultiplier, random),
+      luck: rollStat(input.archetype.statRanges.luck, statMultiplier, random),
+      speed: rollStat(input.archetype.statRanges.speed, statMultiplier, random),
+      strength: rollStat(input.archetype.statRanges.strength, statMultiplier, random)
+    },
+    templateId: input.template.id,
+    traits: trait ? [{ id: trait.id }] : []
+  };
 }
 
 export function getGoblinHutLevel(roster: GoblinRosterState): number {
@@ -430,7 +619,8 @@ export function hireGoblin(input: HireGoblinInput): HireGoblinResult {
     roster: {
       ...(roster.goblinLevels ? { goblinLevels: { ...roster.goblinLevels, [input.goblinId]: 1 } } : {}),
       ...(roster.hutLevel ? { hutLevel: roster.hutLevel } : {}),
-      hiredGoblinIds: [...roster.hiredGoblinIds, input.goblinId]
+      hiredGoblinIds: [...roster.hiredGoblinIds, input.goblinId],
+      ...(roster.instances ? { instances: addGoblinInstance(roster.instances, goblin, 1) } : {})
     },
     resources: deductResources(input.resources, hireCost)
   };
@@ -438,6 +628,55 @@ export function hireGoblin(input: HireGoblinInput): HireGoblinResult {
 
 export function calculateGoblinMaxLevel(goblin: GoblinRosterGoblin): number {
   return Math.max(1, Math.floor(goblin.leveling?.maxLevel ?? 1));
+}
+
+export function hireRandomGoblin(input: HireRandomGoblinInput): HireRandomGoblinResult {
+  const archetype = input.archetypes.find((item) => item.id === input.archetypeId);
+
+  if (!archetype) {
+    return { cost: [], ok: false, reason: "missing_archetype" };
+  }
+
+  const template = input.goblins.find((item) => item.id === archetype.templateGoblinId);
+  const roster = ensureGoblinRosterInstances(normalizeGoblinRoster(input.roster, input.goblins, input.goblinHut), input.goblins);
+  const cost = calculateGoblinGenerationHireCost(archetype, roster, input.goblinHut);
+
+  if (!template || template.class !== archetype.class) {
+    return { cost, ok: false, reason: "missing_template" };
+  }
+
+  if (!isGoblinClassUnlockedByHut(archetype.class, roster, input.goblinHut)) {
+    return { cost, ok: false, reason: "role_locked" };
+  }
+
+  if (getHiredGoblinCount(roster) >= calculateGoblinHutMaxHired(roster, input.goblinHut)) {
+    return { cost, ok: false, reason: "hut_limit" };
+  }
+
+  if (!hasEnoughResources(input.resources, cost)) {
+    return { cost, ok: false, reason: "not_enough_resources" };
+  }
+
+  const sequence = input.sequence ?? countRolledGoblinInstances(roster.instances ?? []);
+  const instance = rollGoblinInstance({
+    archetype,
+    namePool: input.namePool,
+    seed: input.seed,
+    sequence,
+    template
+  });
+
+  return {
+    goblin: template,
+    instance,
+    ok: true,
+    resources: deductResources(input.resources, cost),
+    roster: {
+      ...roster,
+      hiredGoblinIds: [...roster.hiredGoblinIds, instance.id],
+      instances: [...(roster.instances ?? []), instance]
+    }
+  };
 }
 
 export function calculateGoblinHireCost(
@@ -449,6 +688,21 @@ export function calculateGoblinHireCost(
 
   return normalizeResourceCost(
     goblin.hireCost.map((cost) => ({
+      amount: Math.ceil(cost.amount * multiplier),
+      resourceId: cost.resourceId
+    }))
+  );
+}
+
+export function calculateGoblinGenerationHireCost(
+  archetype: GoblinGenerationArchetypeConfig,
+  roster: GoblinRosterState,
+  goblinHut?: GoblinHutConfig
+): GoblinRosterResourceAmount[] {
+  const multiplier = getCurrentGoblinHutLevelConfig(roster, goblinHut).hireCostMultiplier ?? 1;
+
+  return normalizeResourceCost(
+    (archetype.hireCost ?? []).map((cost) => ({
       amount: Math.ceil(cost.amount * multiplier),
       resourceId: cost.resourceId
     }))
@@ -477,16 +731,20 @@ export function calculateGoblinUpgradeCost(
   );
 }
 
-export function calculateGoblinEffectiveBaseStats(goblin: GoblinRosterGoblin, level = 1): GoblinRosterBaseStats {
+export function calculateGoblinEffectiveBaseStats(
+  goblin: GoblinRosterGoblin,
+  level = 1,
+  baseStats: GoblinRosterBaseStats = goblin.baseStats
+): GoblinRosterBaseStats {
   const effectiveLevel = normalizeGoblinLevel(level, calculateGoblinMaxLevel(goblin));
   const levelDelta = Math.max(0, effectiveLevel - 1);
   const growth = goblin.leveling?.statGrowthPerLevel ?? {};
 
   return {
-    loyalty: Math.max(0, Math.floor(goblin.baseStats.loyalty + (growth.loyalty ?? 0) * levelDelta)),
-    luck: Math.max(0, Math.floor(goblin.baseStats.luck + (growth.luck ?? 0) * levelDelta)),
-    speed: Math.max(0, Math.floor(goblin.baseStats.speed + (growth.speed ?? 0) * levelDelta)),
-    strength: Math.max(0, Math.floor(goblin.baseStats.strength + (growth.strength ?? 0) * levelDelta))
+    loyalty: Math.max(0, Math.floor(baseStats.loyalty + (growth.loyalty ?? 0) * levelDelta)),
+    luck: Math.max(0, Math.floor(baseStats.luck + (growth.luck ?? 0) * levelDelta)),
+    speed: Math.max(0, Math.floor(baseStats.speed + (growth.speed ?? 0) * levelDelta)),
+    strength: Math.max(0, Math.floor(baseStats.strength + (growth.strength ?? 0) * levelDelta))
   };
 }
 
@@ -551,19 +809,20 @@ export function calculateGoblinEffectiveAbilityEffects(
 }
 
 export function upgradeGoblin(input: UpgradeGoblinInput): UpgradeGoblinResult {
-  const goblin = input.goblins.find((item) => item.id === input.goblinId);
+  const roster = normalizeGoblinRoster(input.roster, input.goblins, input.goblinHut);
+  const instance = roster.instances?.find((item) => item.id === input.goblinId);
+  const templateId = instance?.templateId ?? input.goblinId;
+  const goblin = input.goblins.find((item) => item.id === templateId);
 
   if (!goblin) {
     return { ok: false, cost: [], reason: "missing_goblin" };
   }
 
-  const roster = normalizeGoblinRoster(input.roster, input.goblins, input.goblinHut);
-
   if (!isGoblinHired(roster, input.goblinId)) {
     return { ok: false, cost: [], reason: "not_hired" };
   }
 
-  const currentLevel = getGoblinLevel(roster, input.goblinId);
+  const currentLevel = instance?.level ?? getGoblinLevel(roster, input.goblinId);
   const maxLevel = calculateGoblinMaxLevel(goblin);
   const cost = calculateGoblinUpgradeCost(goblin, currentLevel, input.goblinHut, getGoblinHutLevel(roster));
 
@@ -583,10 +842,15 @@ export function upgradeGoblin(input: UpgradeGoblinInput): UpgradeGoblinResult {
     resources: deductResources(input.resources, cost),
     roster: {
       ...roster,
-      goblinLevels: {
-        ...(roster.goblinLevels ?? {}),
-        [input.goblinId]: nextLevel
-      }
+      ...(instance
+        ? {}
+        : {
+            goblinLevels: {
+              ...(roster.goblinLevels ?? {}),
+              [input.goblinId]: nextLevel
+            }
+          }),
+      ...(roster.instances ? { instances: updateGoblinInstanceLevel(roster.instances, input.goblinId, nextLevel) } : {})
     }
   };
 }
@@ -656,8 +920,13 @@ export function upgradeGoblinHut(input: UpgradeGoblinHutInput): UpgradeGoblinHut
   };
 }
 
-export function calculateGoblinHitDamage(goblin: GoblinRosterGoblin, blockTags: string[] = [], level = 1): number {
-  const effectiveStats = calculateGoblinEffectiveBaseStats(goblin, level);
+export function calculateGoblinHitDamage(
+  goblin: GoblinRosterGoblin,
+  blockTags: string[] = [],
+  level = 1,
+  baseStats: GoblinRosterBaseStats = goblin.baseStats
+): number {
+  const effectiveStats = calculateGoblinEffectiveBaseStats(goblin, level, baseStats);
   const baseDamage = effectiveStats.strength + effectiveStats.speed / 2;
   let flatBonus = 0;
   let multiplierBonus = 0;
@@ -678,8 +947,15 @@ export function calculateGoblinHitDamage(goblin: GoblinRosterGoblin, blockTags: 
 
 export function calculateCrewHitDamage(input: CrewHitDamageInput): number {
   const baseDamage = input.baseDamage ?? 0;
-  const crewDamage = resolveHiredGoblins(input.goblins, input.roster).reduce(
-    (total, goblin) => total + calculateGoblinHitDamage(goblin, input.blockTags ?? [], getGoblinLevel(input.roster, goblin.id)),
+  const crewDamage = resolveHiredGoblinEntries(input.goblins, input.roster).reduce(
+    (total, entry) =>
+      total +
+      calculateGoblinHitDamage(
+        entry.goblin,
+        input.blockTags ?? [],
+        entry.instance?.level ?? getGoblinLevel(input.roster, entry.goblin.id),
+        entry.instance?.rolledStats ?? entry.goblin.baseStats
+      ),
     0
   );
 
@@ -751,8 +1027,281 @@ function normalizeGoblinHutLevel(level: number, goblinHut?: GoblinHutConfig): nu
 }
 
 function resolveHiredGoblins(goblins: GoblinRosterGoblin[], roster: GoblinRosterState): GoblinRosterGoblin[] {
+  return resolveHiredGoblinEntries(goblins, roster).map((entry) => entry.goblin);
+}
+
+function resolveHiredGoblinEntries(goblins: GoblinRosterGoblin[], roster: GoblinRosterState): ResolvedHiredGoblin[] {
   const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
-  return roster.hiredGoblinIds.map((id) => goblinById.get(id)).filter((goblin): goblin is GoblinRosterGoblin => Boolean(goblin));
+  const instanceById = new Map((roster.instances ?? []).map((instance) => [instance.id, instance]));
+  const templateInstanceByTemplateId = new Map(
+    (roster.instances ?? [])
+      .filter((instance) => !instance.id.startsWith("rolled:"))
+      .map((instance) => [instance.templateId, instance])
+  );
+
+  return roster.hiredGoblinIds
+    .map((id) => {
+      const templateGoblin = goblinById.get(id);
+
+      if (templateGoblin) {
+        return {
+          goblin: templateGoblin,
+          instance: instanceById.get(id) ?? templateInstanceByTemplateId.get(id)
+        };
+      }
+
+      const instance = instanceById.get(id);
+      const goblin = instance ? goblinById.get(instance.templateId) : undefined;
+      return goblin && instance ? { goblin, instance } : undefined;
+    })
+    .filter((entry): entry is ResolvedHiredGoblin => Boolean(entry));
+}
+
+function normalizeGoblinInstances(
+  instances: readonly GoblinRosterInstance[],
+  roster: GoblinRosterState,
+  goblins: GoblinRosterGoblin[]
+): GoblinRosterInstance[] {
+  const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
+  const instanceById = new Map(instances.map((instance) => [instance.id, instance]));
+  const templateInstanceByTemplateId = new Map(
+    instances
+      .filter((instance) => !instance.id.startsWith("rolled:"))
+      .map((instance) => [instance.templateId, instance])
+  );
+  const anyInstanceByTemplateId = new Map(instances.map((instance) => [instance.templateId, instance]));
+
+  return roster.hiredGoblinIds.flatMap((hiredId) => {
+    const instance = instanceById.get(hiredId);
+    const templateId = instance?.templateId ?? hiredId;
+    const goblin = goblinById.get(templateId);
+
+    if (!goblin) {
+      return [];
+    }
+
+    const sourceInstance = instance ?? templateInstanceByTemplateId.get(hiredId) ?? anyInstanceByTemplateId.get(hiredId);
+    const level = getGoblinLevel(
+      {
+        goblinLevels: roster.goblinLevels,
+        hiredGoblinIds: roster.hiredGoblinIds
+      },
+      templateId
+    );
+
+    return [normalizeGoblinInstance(sourceInstance, goblin, level)];
+  });
+}
+
+function normalizeGoblinInstance(
+  instance: GoblinRosterInstance | undefined,
+  goblin: GoblinRosterGoblin,
+  level: number
+): GoblinRosterInstance {
+  const maxLevel = calculateGoblinMaxLevel(goblin);
+  const normalizedLevel = normalizeGoblinLevel(Math.max(instance?.level ?? 1, level), maxLevel);
+
+  return {
+    class: goblin.class,
+    equipment: normalizeGoblinEquipment(instance?.equipment),
+    id: typeof instance?.id === "string" && instance.id.length > 0 ? instance.id : createTemplateInstanceId(goblin.id),
+    level: normalizedLevel,
+    lifetimeStats: normalizeGoblinLifetimeStats(instance?.lifetimeStats),
+    ...(typeof instance?.name === "string" && instance.name.trim() ? { name: instance.name.trim() } : {}),
+    ...(typeof instance?.nickname === "string" && instance.nickname.trim() ? { nickname: instance.nickname.trim() } : {}),
+    rarity: normalizeGoblinRarity(instance?.rarity ?? goblin.rarity),
+    rolledStats: normalizeGoblinBaseStats(instance?.rolledStats, goblin.baseStats),
+    templateId: goblin.id,
+    traits: normalizeGoblinTraits(instance?.traits)
+  };
+}
+
+function addGoblinInstance(
+  instances: readonly GoblinRosterInstance[],
+  goblin: GoblinRosterGoblin,
+  level: number
+): GoblinRosterInstance[] {
+  if (instances.some((instance) => instance.templateId === goblin.id)) {
+    return [...instances];
+  }
+
+  return [...instances, createGoblinTemplateInstance(goblin, level)];
+}
+
+function countRolledGoblinInstances(instances: readonly GoblinRosterInstance[]): number {
+  return instances.filter((instance) => instance.id.startsWith("rolled:")).length;
+}
+
+function updateGoblinInstanceLevel(
+  instances: readonly GoblinRosterInstance[],
+  goblinId: string,
+  level: number
+): GoblinRosterInstance[] {
+  return instances.map((instance) => {
+    const matchesExactInstance = instance.id === goblinId;
+    const matchesTemplateInstance = !goblinId.startsWith("rolled:") && instance.templateId === goblinId && !instance.id.startsWith("rolled:");
+    return matchesExactInstance || matchesTemplateInstance ? { ...instance, level } : instance;
+  });
+}
+
+function createTemplateInstanceId(goblinId: string): string {
+  return `template:${goblinId}`;
+}
+
+function createRolledInstanceId(archetypeId: string, seed: string, sequence: number): string {
+  return `rolled:${sanitizeInstanceIdPart(archetypeId)}:${hashSeedText(`${seed}:${sequence}`).toString(36)}`;
+}
+
+function sanitizeInstanceIdPart(value: string): string {
+  const sanitized = value.replace(/[^a-zA-Z0-9._-]+/gu, "_").replace(/^_+|_+$/gu, "");
+  return sanitized || "goblin";
+}
+
+function createSeededRandom(seed: string): () => number {
+  let state = hashSeedText(seed);
+
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashSeedText(seed: string): number {
+  let state = 2166136261;
+
+  for (let index = 0; index < seed.length; index += 1) {
+    state = Math.imul(state ^ seed.charCodeAt(index), 16777619);
+  }
+
+  return state >>> 0;
+}
+
+function pickWeighted<T extends { weight: number }>(items: readonly T[], random: () => number): T | undefined {
+  const weightedItems = items.filter((item) => Number.isFinite(item.weight) && item.weight > 0);
+  const totalWeight = weightedItems.reduce((total, item) => total + item.weight, 0);
+
+  if (weightedItems.length === 0 || totalWeight <= 0) {
+    return undefined;
+  }
+
+  let cursor = random() * totalWeight;
+
+  for (const item of weightedItems) {
+    cursor -= item.weight;
+
+    if (cursor <= 0) {
+      return item;
+    }
+  }
+
+  return weightedItems[weightedItems.length - 1];
+}
+
+function pickString(items: readonly string[], random: () => number): string | undefined {
+  const availableItems = items.map((item) => item.trim()).filter(Boolean);
+
+  if (availableItems.length === 0) {
+    return undefined;
+  }
+
+  return availableItems[Math.floor(random() * availableItems.length) % availableItems.length];
+}
+
+function rollStat(range: GoblinGenerationStatRange, multiplier: number, random: () => number): number {
+  const min = normalizeStat(range.min, 0);
+  const max = normalizeStat(range.max, min);
+  const low = Math.min(min, max);
+  const high = Math.max(min, max);
+  const rolled = low + Math.floor(random() * (high - low + 1));
+
+  return Math.max(0, Math.floor(rolled * multiplier));
+}
+
+function normalizeGoblinRarity(value: unknown): GoblinRosterRarity {
+  return value === "rare" || value === "epic" || value === "legendary" ? value : "common";
+}
+
+function normalizeGoblinBaseStats(
+  value: GoblinRosterBaseStats | undefined,
+  fallback: GoblinRosterBaseStats
+): GoblinRosterBaseStats {
+  return {
+    loyalty: normalizeStat(value?.loyalty, fallback.loyalty),
+    luck: normalizeStat(value?.luck, fallback.luck),
+    speed: normalizeStat(value?.speed, fallback.speed),
+    strength: normalizeStat(value?.strength, fallback.strength)
+  };
+}
+
+function normalizeStat(value: unknown, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : fallback;
+}
+
+function normalizeGoblinTraits(value: unknown): GoblinRosterInstanceTrait[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const seenIds = new Set<string>();
+  const traits: GoblinRosterInstanceTrait[] = [];
+
+  for (const item of value) {
+    if (!isRecord(item) || typeof item.id !== "string" || item.id.length === 0 || seenIds.has(item.id)) {
+      continue;
+    }
+
+    seenIds.add(item.id);
+    traits.push({ id: item.id });
+  }
+
+  return traits;
+}
+
+function normalizeGoblinEquipment(value: unknown): GoblinRosterInstanceEquipment[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value.flatMap((item) =>
+    isRecord(item) && typeof item.itemId === "string" && item.itemId.length > 0 && typeof item.slot === "string" && item.slot.length > 0
+      ? [{ itemId: item.itemId, slot: item.slot }]
+      : []
+  );
+}
+
+function normalizeGoblinLifetimeStats(value: unknown): GoblinRosterInstanceLifetimeStats {
+  if (!isRecord(value)) {
+    return {};
+  }
+
+  return {
+    ...(typeof value.blocksDestroyed === "number" && Number.isFinite(value.blocksDestroyed)
+      ? { blocksDestroyed: Math.max(0, Math.floor(value.blocksDestroyed)) }
+      : {}),
+    ...(typeof value.minesCompleted === "number" && Number.isFinite(value.minesCompleted)
+      ? { minesCompleted: Math.max(0, Math.floor(value.minesCompleted)) }
+      : {}),
+    ...(isRecord(value.resourcesCollected) ? { resourcesCollected: normalizeResourceAmounts(value.resourcesCollected) } : {})
+  };
+}
+
+function normalizeResourceAmounts(value: Record<string, unknown>): Record<string, number> {
+  const result: Record<string, number> = {};
+
+  for (const [resourceId, amount] of Object.entries(value)) {
+    if (typeof amount === "number" && Number.isFinite(amount) && amount > 0) {
+      result[resourceId] = Math.floor(amount);
+    }
+  }
+
+  return result;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 function hasEnoughResources(resources: Record<string, number>, cost: GoblinRosterResourceAmount[]): boolean {

@@ -64,6 +64,7 @@ class MemoryContentStore implements ContentStore {
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
       ...content.goblins.map((goblin) => this.createEntity(contentVersionId, "goblin", goblin.id, goblin)),
+      this.createEntity(contentVersionId, "goblinGeneration", "default", content.goblinGeneration),
       this.createEntity(contentVersionId, "goblinHut", "default", content.goblinHut),
       this.createEntity(contentVersionId, "elevator", "default", content.elevator),
       ...Object.entries(content.localization).map(([locale, messages]) =>

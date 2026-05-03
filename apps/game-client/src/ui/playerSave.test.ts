@@ -134,4 +134,38 @@ describe("player save", () => {
       }
     });
   });
+
+  it("keeps goblin instances in the stable roster save", () => {
+    const roster: StoredGoblinRoster = {
+      contentVersion: "0.0.15",
+      roster: {
+        hiredGoblinIds: ["miner_1"],
+        instances: [
+          {
+            class: "miner",
+            equipment: [],
+            id: "template:miner_1",
+            level: 2,
+            lifetimeStats: {
+              blocksDestroyed: 12
+            },
+            rarity: "rare",
+            rolledStats: {
+              loyalty: 5,
+              luck: 4,
+              speed: 6,
+              strength: 8
+            },
+            templateId: "miner_1",
+            traits: []
+          }
+        ]
+      }
+    };
+    const storage = createMemoryStorage();
+
+    saveStoredGoblinRoster(roster, storage);
+
+    expect(loadStoredGoblinRoster(storage, "0.0.15")).toEqual(roster);
+  });
 });

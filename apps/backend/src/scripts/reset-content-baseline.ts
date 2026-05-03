@@ -105,6 +105,12 @@ function contentRows(contentVersionId: string, content: ContentBundle): ContentE
     })),
     {
       contentVersionId,
+      entityType: "goblinGeneration",
+      entityId: "default",
+      data: content.goblinGeneration
+    },
+    {
+      contentVersionId,
       entityType: "goblinHut",
       entityId: "default",
       data: content.goblinHut

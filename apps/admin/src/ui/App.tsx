@@ -49,6 +49,7 @@ type ContentEntityKind =
   | "bossCards"
   | "builtMineTypes"
   | "elevator"
+  | "goblinGeneration"
   | "goblins"
   | "goblinHut"
   | "mineTemplates"
@@ -59,6 +60,7 @@ type ContentEntityApiKind =
   | "builtMineType"
   | "elevator"
   | "goblin"
+  | "goblinGeneration"
   | "goblinHut"
   | "mineTemplate"
   | "rewardChestType";
@@ -86,6 +88,7 @@ interface ContentBundle {
   bossCards?: ContentRecord[];
   mineTemplates: ContentRecord[];
   goblins: ContentRecord[];
+  goblinGeneration?: ContentRecord;
   goblinHut: ContentRecord;
   elevator: ContentRecord;
   localization?: Record<string, Record<string, string>>;
@@ -148,6 +151,7 @@ const credentialEnvironments: Array<{ value: CredentialEnvironment; label: strin
 const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind }> = [
   { value: "blockTypes", label: "Блоки" },
   { value: "goblins", label: "Гоблины" },
+  { value: "goblinGeneration", label: "Генерация" },
   { value: "goblinHut", label: "Хижина" },
   { value: "elevator", label: "Подъемник" },
   { value: "mineTemplates", label: "Рудники" },
@@ -1194,6 +1198,7 @@ function ContentSection(props: {
             <ContentEntityKpi label="Рудники" value={contentEntityCount(contentPreview, "mineTemplates")} />
             <ContentEntityKpi label="Гоблины" value={contentEntityCount(contentPreview, "goblins")} />
             <ContentEntityKpi label="Карты" value={contentEntityCount(contentPreview, "bossCards")} />
+            <ContentEntityKpi label="Генерация" value={contentPreview?.goblinGeneration ? 1 : 0} />
             <ContentEntityKpi label="Хижина" value={contentPreview?.goblinHut ? 1 : 0} />
             <ContentEntityKpi label="Подъемник" value={contentPreview?.elevator ? 1 : 0} />
           </div>
@@ -1462,6 +1467,33 @@ function renderEntityFields(
         <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
         <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
         <ContentGoblinHutLevelRows content={content} formState={formState} updateField={updateField} updateFields={updateFields} />
+      </>
+    );
+  }
+
+  if (kind === "goblinGeneration") {
+    return (
+      <>
+        <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
+        <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
+        <ContentTextAreaField
+          label="Имена, по одному на строку"
+          name="namePoolNames"
+          onChange={updateField}
+          value={formState.namePoolNames}
+        />
+        <ContentTextAreaField
+          label="Прозвища, по одному на строку"
+          name="namePoolNicknames"
+          onChange={updateField}
+          value={formState.namePoolNicknames}
+        />
+        <ContentTextAreaField
+          label="Архетипы найма JSON"
+          name="archetypesJson"
+          onChange={updateField}
+          value={formState.archetypesJson}
+        />
       </>
     );
   }
@@ -3008,6 +3040,15 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
       return content.builtMineTypes ?? [];
     case "elevator":
       return [content.elevator ?? { id: "default", nameKey: "elevator.name", levels: [] }];
+    case "goblinGeneration":
+      return [
+        content.goblinGeneration ?? {
+          archetypes: [],
+          id: "default",
+          nameKey: "goblin_generation.name",
+          namePool: { names: [], nicknames: [] }
+        }
+      ];
     case "goblinHut":
       return [content.goblinHut ?? { id: "default", nameKey: "goblin_hut.name", levels: [] }];
     case "mineTemplates":
@@ -3030,6 +3071,10 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
 
   if (kind === "goblins") {
     return createGoblinFormState(entity, content);
+  }
+
+  if (kind === "goblinGeneration") {
+    return createGoblinGenerationFormState(entity, content);
   }
 
   if (kind === "goblinHut") {
@@ -3109,6 +3154,18 @@ function createGoblinFormState(entity: ContentRecord, content: ContentBundle): E
     title: localizationValue(content, stringField(entity, "nameKey")),
     ...createGoblinLevelCostFormState("levelCost", arrayField(leveling, "cost"), content),
     ...createResourceAmountFormState("hireCost", hireCost, content, "gold")
+  };
+}
+
+function createGoblinGenerationFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const namePool = recordField(entity, "namePool");
+
+  return {
+    archetypesJson: JSON.stringify(arrayField(entity, "archetypes"), null, 2),
+    id: stringField(entity, "id") || "default",
+    namePoolNames: arrayStringField(namePool, "names").join("\n"),
+    namePoolNicknames: arrayStringField(namePool, "nicknames").join("\n"),
+    title: localizationValue(content, stringField(entity, "nameKey"))
   };
 }
 
@@ -3421,6 +3478,8 @@ function validateEntityForm(
     validateBossCardForm(state, content, errors);
   } else if (kind === "goblins") {
     validateGoblinForm(state, content, errors);
+  } else if (kind === "goblinGeneration") {
+    validateGoblinGenerationForm(state, content, errors);
   } else if (kind === "goblinHut") {
     validateGoblinHutForm(state, content, errors);
   } else if (kind === "elevator") {
@@ -3509,6 +3568,52 @@ function validateGoblinForm(state: EntityFormState, content: ContentBundle, erro
 
   if (productionBonusResourceId && !resourceIdSet(content).has(productionBonusResourceId)) {
     errors.push("Ресурс бонуса добычи не найден.");
+  }
+}
+
+function validateGoblinGenerationForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  const names = parseLineList(formValue(state, "namePoolNames"));
+  const nicknames = parseLineList(formValue(state, "namePoolNicknames"));
+  const archetypes = parseJsonRecordArray(formValue(state, "archetypesJson"));
+  const goblinsById = new Map(content.goblins.map((goblin) => [stringField(goblin, "id"), goblin]));
+  const resources = resourceIdSet(content);
+
+  if (names.length === 0) {
+    errors.push("Пул имен должен содержать хотя бы одно имя.");
+  }
+
+  if (nicknames.length === 0) {
+    errors.push("Пул прозвищ должен содержать хотя бы одно прозвище.");
+  }
+
+  if (!archetypes.ok) {
+    errors.push("Архетипы найма должны быть валидным JSON-массивом.");
+    return;
+  }
+
+  for (const archetype of archetypes.value) {
+    const id = stringField(archetype, "id");
+    const templateGoblinId = stringField(archetype, "templateGoblinId");
+    const goblinClass = stringField(archetype, "class");
+    const template = goblinsById.get(templateGoblinId);
+
+    if (!id) {
+      errors.push("У каждого архетипа должен быть id.");
+    }
+
+    if (!template) {
+      errors.push(`Архетип ${id || "без id"}: шаблонный гоблин не найден.`);
+    } else if (goblinClass && stringField(template, "class") !== goblinClass) {
+      errors.push(`Архетип ${id || "без id"}: класс не совпадает с шаблонным гоблином.`);
+    }
+
+    for (const cost of arrayField(archetype, "hireCost")) {
+      const resourceId = stringField(cost, "resourceId");
+
+      if (resourceId && !resources.has(resourceId)) {
+        errors.push(`Архетип ${id || "без id"}: ресурс найма ${resourceId} не найден.`);
+      }
+    }
   }
 }
 
@@ -3881,6 +3986,10 @@ function applyEntityForm(
     return applyGoblinForm(content, selectedId, state);
   }
 
+  if (kind === "goblinGeneration") {
+    return applyGoblinGenerationForm(content, selectedId, state);
+  }
+
   if (kind === "goblinHut") {
     return applyGoblinHutForm(content, selectedId, state);
   }
@@ -4012,6 +4121,35 @@ function applyGoblinForm(content: ContentBundle, selectedId: string, state: Enti
       [nicknameKey]: formValue(state, "nickname").trim()
     },
     message: `Гоблин ${id} сохранен как draft.`
+  };
+}
+
+function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const current = content.goblinGeneration ?? {};
+  const id = formValue(state, "id") || "default";
+  const nameKey = stringField(current, "nameKey") || "goblin_generation.name";
+  const archetypes = parseJsonRecordArray(formValue(state, "archetypesJson"));
+
+  if (!archetypes.ok) {
+    throw new Error("Архетипы найма должны быть валидным JSON-массивом.");
+  }
+
+  return {
+    entity: {
+      id,
+      nameKey,
+      namePool: {
+        names: parseLineList(formValue(state, "namePoolNames")),
+        nicknames: parseLineList(formValue(state, "namePoolNicknames"))
+      },
+      archetypes: archetypes.value
+    },
+    entityId: selectedId,
+    entityType: "goblinGeneration",
+    localization: {
+      [nameKey]: formValue(state, "title").trim()
+    },
+    message: `Генерация гоблинов ${id} сохранена как draft.`
   };
 }
 
@@ -4801,6 +4939,27 @@ function parsePositiveIntegerList(value: string): number[] {
     .split(",")
     .map((item) => Number(item.trim()))
     .filter((item) => Number.isInteger(item) && item > 0);
+}
+
+function parseLineList(value: string): string[] {
+  return value
+    .split(/\r?\n/gu)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseJsonRecordArray(value: string): { ok: true; value: ContentRecord[] } | { ok: false } {
+  try {
+    const parsed: unknown = JSON.parse(value);
+
+    if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) {
+      return { ok: false };
+    }
+
+    return { ok: true, value: parsed };
+  } catch {
+    return { ok: false };
+  }
 }
 
 function toNumber(value: string | undefined): number {

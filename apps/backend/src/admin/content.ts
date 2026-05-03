@@ -16,6 +16,7 @@ export type ContentEntityType =
   | "bossCard"
   | "mineTemplate"
   | "goblin"
+  | "goblinGeneration"
   | "goblinHut"
   | "elevator"
   | "localization";
@@ -24,6 +25,7 @@ export type EditableContentEntityType =
   | "bossCard"
   | "builtMineType"
   | "goblin"
+  | "goblinGeneration"
   | "goblinHut"
   | "elevator"
   | "mineTemplate"
@@ -432,6 +434,9 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   );
   const goblinHutEntity = entities.find((entity) => entity.entityType === "goblinHut" && entity.entityId === "default");
   const goblinHut = goblinHutEntity?.data as ContentBundle["goblinHut"];
+  const goblinGenerationEntity = entities.find((entity) => entity.entityType === "goblinGeneration" && entity.entityId === "default");
+  const goblinGeneration =
+    (goblinGenerationEntity?.data as ContentBundle["goblinGeneration"] | undefined) ?? starterContentBundle.goblinGeneration;
   const elevatorEntity = entities.find((entity) => entity.entityType === "elevator" && entity.entityId === "default");
   const elevator = (elevatorEntity?.data as ContentBundle["elevator"] | undefined) ?? starterContentBundle.elevator;
 
@@ -444,6 +449,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
+    goblinGeneration,
     goblinHut,
     elevator,
     localization
@@ -482,6 +488,14 @@ function upsertEditableContentEntity(
     };
   }
 
+  if (input.entityType === "goblinGeneration") {
+    return {
+      ...content,
+      goblinGeneration: normalizedEntity as ContentBundle["goblinGeneration"],
+      localization: nextLocalization
+    };
+  }
+
   if (input.entityType === "elevator") {
     return {
       ...content,
@@ -515,6 +529,7 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
       return content.rewardChestTypes;
     case "elevator":
     case "goblinHut":
+    case "goblinGeneration":
       return [];
     default:
       return content.goblins;
@@ -522,7 +537,7 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
 }
 
 function collectionNameForEntityType(
-  entityType: EditableContentEntityType
+  entityType: Exclude<EditableContentEntityType, "elevator" | "goblinGeneration" | "goblinHut">
 ): "blockTypes" | "bossCards" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes" {
   switch (entityType) {
     case "blockType":

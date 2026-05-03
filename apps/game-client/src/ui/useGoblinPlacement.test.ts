@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
 import type { MiningSession } from "@goblin-cartel/game-core";
 import {
+  assignGoblinWorkers,
   createDefaultGoblinPlacements,
   findPlatformCells,
   getGoblinOfflineAutoDamageMultiplier,
@@ -12,6 +13,7 @@ import {
   placeGoblinInFirstFreeColumn,
   relocateOfflineGoblinPlacements
 } from "./useGoblinPlacement";
+import { createRuntimeGoblinConfigs } from "./goblinRuntimeUnits";
 
 function createSession(): MiningSession {
   return {
@@ -130,6 +132,63 @@ describe("goblin placement", () => {
     expect(getGoblinPlacementStatus(session, 1, 0, true)).toBe("working");
     expect(getGoblinPlacementStatus(session, 1, 0, false)).toBe("idle");
     expect(getGoblinPlacementStatus(session, 0, 0, false)).toBe("waiting");
+  });
+
+  it("uses rolled miner instance id and stats for worker damage", () => {
+    const session = createSession();
+    const template = createGoblin("miner_template");
+    const roster = {
+      hiredGoblinIds: ["rolled:miner_contract:1"],
+      instances: [
+        {
+          class: "miner" as const,
+          equipment: [],
+          id: "rolled:miner_contract:1",
+          level: 1,
+          lifetimeStats: {},
+          name: "Krikk",
+          nickname: "Sharp Pick",
+          rarity: "rare" as const,
+          rolledStats: {
+            loyalty: 4,
+            luck: 3,
+            speed: 10,
+            strength: 20
+          },
+          templateId: "miner_template",
+          traits: []
+        }
+      ]
+    };
+    const runtimeGoblins = createRuntimeGoblinConfigs([template], roster);
+
+    expect(runtimeGoblins[0]).toMatchObject({
+      id: "rolled:miner_contract:1",
+      instanceName: "Krikk",
+      templateGoblinId: "miner_template"
+    });
+    expect(
+      assignGoblinWorkers(
+        session,
+        runtimeGoblins,
+        {
+          "rolled:miner_contract:1": 1
+        },
+        0,
+        roster
+      )
+    ).toMatchObject([
+      {
+        damagePerSecond: 8,
+        goblin: {
+          id: "rolled:miner_contract:1"
+        },
+        targetCell: {
+          col: 1,
+          row: 0
+        }
+      }
+    ]);
   });
 
   it("counts foreman offline relocation slots with level growth", () => {

@@ -20,6 +20,7 @@ import type { GameSection } from "./screens/BottomNav";
 import type { GameMainContentActions, GameMainContentView } from "./screens/GameMainContent";
 import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverlays";
 import type { ContentState } from "./useGameBootstrap";
+import type { RandomGoblinReveal } from "./useGoblinRosterController";
 import type { FoundVeinView } from "./useMineUiController";
 import type { PlatformDropEvent } from "./useMiningLoop";
 import type { ChestRewardFlyout, PendingRewardChest, RewardChestStage } from "./useRewardChestFlow";
@@ -66,6 +67,7 @@ export interface CreateGameViewModelsInput {
   handleDismissMineCompletionNotice: () => void;
   handleAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   handleHireGoblin: (goblin: GoblinConfig) => void;
+  handleHireRandomGoblin: (archetypeId: string) => void;
   handleOpenRewardChest: () => void;
   handlePlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   handleStartNextMine: () => void;
@@ -92,6 +94,7 @@ export interface CreateGameViewModelsInput {
   platformDropAnimating: boolean;
   platformDropEvent: PlatformDropEvent | null;
   resources: Record<string, number>;
+  randomGoblinReveal: RandomGoblinReveal | null;
   rewardChestStage: RewardChestStage;
   roster: GoblinRosterState;
   rosterMessage: string | null;
@@ -103,6 +106,7 @@ export interface CreateGameViewModelsInput {
   setCollectorPickerMineId: (builtMineId: string | null) => void;
   setFoundVeinNotice: (notice: MiningFoundVein | null) => void;
   setGoblinRoleTab: (roleTab: GoblinHutRoleTabId) => void;
+  setRandomGoblinReveal: (reveal: RandomGoblinReveal | null) => void;
   setPixiDevOverlayEnabled: (enabled: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   settingsOpen: boolean;
@@ -159,6 +163,7 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       hutLevel: input.goblinHutProgression.levelNow,
       hutLimit: input.goblinHutProgression.maxHiredGoblins,
       roster: input.roster,
+      randomGoblinReveal: input.randomGoblinReveal,
       rosterMessage: input.rosterMessage
     },
     mine: {
@@ -205,6 +210,7 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
     onCollectMine: input.handleCollectBuiltMine,
     onAssignForemanSlot: input.handleAssignForemanSlot,
     onHireGoblin: input.handleHireGoblin,
+    onHireRandomGoblin: input.handleHireRandomGoblin,
     onOpenGoblins: () => {
       input.setGoblinRoleTab("builders");
       input.setActiveSection("goblins");
@@ -212,6 +218,7 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
     onOpenCollectorPicker: input.setCollectorPickerMineId,
     onPlaceGoblin: input.handlePlaceGoblin,
     onRoleTabChange: input.setGoblinRoleTab,
+    onRandomGoblinRevealClose: () => input.setRandomGoblinReveal(null),
     onStartNextMine: input.handleStartNextMine,
     onUpgradeGoblin: input.handleUpgradeGoblin,
     onUpgradeGoblinHut: input.handleUpgradeGoblinHut,

@@ -31,6 +31,72 @@ export const goblinBaseStatsSchema = z.object({
   loyalty: z.number().int().nonnegative()
 });
 
+export const goblinGenerationStatRangeSchema = z
+  .object({
+    min: z.number().int().nonnegative(),
+    max: z.number().int().nonnegative()
+  })
+  .refine((range) => range.min <= range.max, {
+    message: "min must be lower than or equal to max",
+    path: ["min"]
+  });
+
+export const goblinGenerationStatRangesSchema = z
+  .object({
+    strength: goblinGenerationStatRangeSchema,
+    speed: goblinGenerationStatRangeSchema,
+    luck: goblinGenerationStatRangeSchema,
+    loyalty: goblinGenerationStatRangeSchema
+  })
+  .strict();
+
+export const goblinGenerationRarityWeightSchema = z
+  .object({
+    rarity: z.enum(["common", "rare", "epic", "legendary"]),
+    weight: z.number().positive(),
+    statMultiplier: z.number().positive().default(1)
+  })
+  .strict();
+
+export const goblinGenerationTraitSchema = z
+  .object({
+    id: z.string().min(1),
+    nameKey: z.string().min(1).optional(),
+    weight: z.number().positive()
+  })
+  .strict();
+
+export const goblinGenerationNamePoolSchema = z
+  .object({
+    names: z.array(z.string().min(1)).min(1),
+    nicknames: z.array(z.string().min(1)).min(1)
+  })
+  .strict();
+
+export const goblinGenerationArchetypeSchema = z
+  .object({
+    id: z.string().min(1),
+    nameKey: z.string().min(1),
+    class: goblinClassSchema,
+    templateGoblinId: z.string().min(1),
+    rarityWeights: z.array(goblinGenerationRarityWeightSchema).min(1),
+    statRanges: goblinGenerationStatRangesSchema,
+    traitPool: z.array(goblinGenerationTraitSchema).default([]),
+    equipmentSlots: z.array(z.string().min(1)).default(["tool"]),
+    hireCost: z.array(resourceAmountSchema).default([]),
+    sortOrder: z.number().int().default(0)
+  })
+  .strict();
+
+export const goblinGenerationSchema = z
+  .object({
+    id: z.literal("default").default("default"),
+    nameKey: z.string().min(1),
+    namePool: goblinGenerationNamePoolSchema,
+    archetypes: z.array(goblinGenerationArchetypeSchema).default([])
+  })
+  .strict();
+
 export const goblinStatGrowthSchema = z.object({
   strength: z.number().nonnegative().default(0),
   speed: z.number().nonnegative().default(0),
@@ -382,6 +448,15 @@ export const contentBundleSchema = z
     bossCards: z.array(bossCardSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     goblins: z.array(goblinSchema).default([]),
+    goblinGeneration: goblinGenerationSchema.default({
+      id: "default",
+      nameKey: "goblin_generation.name",
+      namePool: {
+        names: ["Крикк"],
+        nicknames: ["Ржавое Ухо"]
+      },
+      archetypes: []
+    }),
     goblinHut: goblinHutSchema,
     elevator: elevatorSchema,
     localization: localizationSchema
@@ -397,6 +472,8 @@ export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
+export type GoblinGenerationConfig = z.infer<typeof goblinGenerationSchema>;
+export type GoblinGenerationArchetypeConfig = z.infer<typeof goblinGenerationArchetypeSchema>;
 export type GoblinHutConfig = z.infer<typeof goblinHutSchema>;
 export type GoblinHutLevelConfig = z.infer<typeof goblinHutLevelSchema>;
 export type ElevatorConfig = z.infer<typeof elevatorSchema>;
@@ -1269,6 +1346,109 @@ export const starterContentBundle: ContentBundle = {
       sortOrder: 80
     }
   ],
+  goblinGeneration: {
+    id: "default",
+    nameKey: "goblin_generation.name",
+    namePool: {
+      names: ["Крикк", "Грызз", "Шмык", "Бырк", "Румм", "Тикк", "Нокк", "Скрэпп"],
+      nicknames: [
+        "Ржавое Ухо",
+        "Кривой Шлем",
+        "Медный Нос",
+        "Тяжелая Лапа",
+        "Сухая Книга",
+        "Железная Репа",
+        "Гулкая Кирка",
+        "Хитрый Болт"
+      ]
+    },
+    archetypes: [
+      {
+        id: "random_miner_contract",
+        nameKey: "goblin_generation.random_miner_contract.name",
+        class: "miner",
+        templateGoblinId: "gryzz_crooked_tooth",
+        rarityWeights: [
+          { rarity: "common", weight: 78, statMultiplier: 1 },
+          { rarity: "rare", weight: 18, statMultiplier: 1.15 },
+          { rarity: "epic", weight: 3.5, statMultiplier: 1.35 },
+          { rarity: "legendary", weight: 0.5, statMultiplier: 1.6 }
+        ],
+        statRanges: {
+          strength: { min: 5, max: 12 },
+          speed: { min: 3, max: 7 },
+          luck: { min: 1, max: 5 },
+          loyalty: { min: 3, max: 8 }
+        },
+        traitPool: [
+          { id: "stone_focus", nameKey: "goblin_trait.stone_focus.name", weight: 45 },
+          { id: "ore_eye", nameKey: "goblin_trait.ore_eye.name", weight: 30 },
+          { id: "steady_hands", nameKey: "goblin_trait.steady_hands.name", weight: 25 }
+        ],
+        equipmentSlots: ["tool"],
+        hireCost: [{ resourceId: "gold", amount: 220 }],
+        sortOrder: 10
+      },
+      {
+        id: "random_collector_contract",
+        nameKey: "goblin_generation.random_collector_contract.name",
+        class: "collector",
+        templateGoblinId: "pip_dry_book",
+        rarityWeights: [
+          { rarity: "common", weight: 70, statMultiplier: 1 },
+          { rarity: "rare", weight: 24, statMultiplier: 1.15 },
+          { rarity: "epic", weight: 5, statMultiplier: 1.35 },
+          { rarity: "legendary", weight: 1, statMultiplier: 1.6 }
+        ],
+        statRanges: {
+          strength: { min: 1, max: 4 },
+          speed: { min: 3, max: 8 },
+          luck: { min: 5, max: 11 },
+          loyalty: { min: 5, max: 10 }
+        },
+        traitPool: [
+          { id: "careful_pockets", nameKey: "goblin_trait.careful_pockets.name", weight: 45 },
+          { id: "long_list", nameKey: "goblin_trait.long_list.name", weight: 35 },
+          { id: "quiet_count", nameKey: "goblin_trait.quiet_count.name", weight: 20 }
+        ],
+        equipmentSlots: ["ledger"],
+        hireCost: [
+          { resourceId: "gold", amount: 900 },
+          { resourceId: "stone", amount: 80 }
+        ],
+        sortOrder: 20
+      },
+      {
+        id: "random_foreman_contract",
+        nameKey: "goblin_generation.random_foreman_contract.name",
+        class: "foreman",
+        templateGoblinId: "krakk_iron_turnip",
+        rarityWeights: [
+          { rarity: "common", weight: 62, statMultiplier: 1 },
+          { rarity: "rare", weight: 30, statMultiplier: 1.15 },
+          { rarity: "epic", weight: 7, statMultiplier: 1.35 },
+          { rarity: "legendary", weight: 1, statMultiplier: 1.6 }
+        ],
+        statRanges: {
+          strength: { min: 4, max: 8 },
+          speed: { min: 4, max: 8 },
+          luck: { min: 2, max: 6 },
+          loyalty: { min: 6, max: 11 }
+        },
+        traitPool: [
+          { id: "sharp_whistle", nameKey: "goblin_trait.sharp_whistle.name", weight: 40 },
+          { id: "night_orders", nameKey: "goblin_trait.night_orders.name", weight: 35 },
+          { id: "strict_shift", nameKey: "goblin_trait.strict_shift.name", weight: 25 }
+        ],
+        equipmentSlots: ["whistle"],
+        hireCost: [
+          { resourceId: "gold", amount: 2400 },
+          { resourceId: "copper_ore", amount: 120 }
+        ],
+        sortOrder: 30
+      }
+    ]
+  },
   goblinHut: {
     id: "default",
     nameKey: "goblin_hut.name",
@@ -1458,6 +1638,19 @@ export const starterContentBundle: ContentBundle = {
       "goblin.krakk.name": "Кракк",
       "goblin.krakk.nickname": "Железная Репа",
       "goblin.krakk.description": "Держит смену в движении одним тяжелым взглядом.",
+      "goblin_generation.name": "Случайный найм гоблинов",
+      "goblin_generation.random_miner_contract.name": "Контракт шахтера",
+      "goblin_generation.random_collector_contract.name": "Контракт сборщика",
+      "goblin_generation.random_foreman_contract.name": "Контракт бригадира",
+      "goblin_trait.stone_focus.name": "Каменный фокус",
+      "goblin_trait.ore_eye.name": "Рудный глаз",
+      "goblin_trait.steady_hands.name": "Твердые руки",
+      "goblin_trait.careful_pockets.name": "Осторожные карманы",
+      "goblin_trait.long_list.name": "Длинная ведомость",
+      "goblin_trait.quiet_count.name": "Тихий счет",
+      "goblin_trait.sharp_whistle.name": "Резкий свисток",
+      "goblin_trait.night_orders.name": "Ночные приказы",
+      "goblin_trait.strict_shift.name": "Строгая смена",
       "goblin_hut.name": "Хижина гоблинов",
       "goblin_hut.level.1.name": "Шалаш кирок",
       "goblin_hut.level.2.name": "Навес бригады",
@@ -1518,12 +1711,14 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   collectDuplicateIds("bossCards", parsed.data.bossCards, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
   collectDuplicateIds("goblins", parsed.data.goblins, errors);
+  collectDuplicateIds("goblinGeneration.archetypes", parsed.data.goblinGeneration.archetypes, errors);
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
   const blockTypeIds = new Set(parsed.data.blockTypes.map((blockType) => blockType.id));
   const veinTypeIds = new Set(parsed.data.veinTypes.map((veinType) => veinType.id));
   const rewardChestTypeIds = new Set(parsed.data.rewardChestTypes.map((rewardChestType) => rewardChestType.id));
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
+  const goblinById = new Map(parsed.data.goblins.map((goblin) => [goblin.id, goblin]));
   const ruLocalization = parsed.data.localization.ru;
 
   validateLocalizationText(parsed.data.localization, errors);
@@ -1633,6 +1828,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   validateGoblinHut(parsed.data.goblinHut, resourceIds, mineTemplateIds, ruLocalization, errors);
   validateLocalizationKey(parsed.data.elevator.nameKey, "ru", ruLocalization, errors);
   validateElevator(parsed.data.elevator, resourceIds, ruLocalization, errors);
+  validateGoblinGeneration(parsed.data.goblinGeneration, goblinById, resourceIds, ruLocalization, errors);
 
   for (const goblin of parsed.data.goblins) {
     validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
@@ -1762,6 +1958,51 @@ function validateElevator(
     if (sortedLevels[index] !== index + 1) {
       errors.push("elevator.levels must start at 1 and be sequential");
       break;
+    }
+  }
+}
+
+function validateGoblinGeneration(
+  goblinGeneration: GoblinGenerationConfig,
+  goblinById: Map<string, GoblinConfig>,
+  resourceIds: Set<string>,
+  ruLocalization: Record<string, string> | undefined,
+  errors: string[]
+) {
+  validateLocalizationKey(goblinGeneration.nameKey, "ru", ruLocalization, errors);
+
+  for (const archetype of goblinGeneration.archetypes) {
+    const template = goblinById.get(archetype.templateGoblinId);
+    const seenRarities = new Set<string>();
+    const seenTraits = new Set<string>();
+
+    validateLocalizationKey(archetype.nameKey, "ru", ruLocalization, errors);
+    validateResourceAmounts(`goblinGeneration.archetypes.${archetype.id}.hireCost`, archetype.hireCost, resourceIds, errors);
+
+    if (!template) {
+      errors.push(`goblinGeneration.archetypes.${archetype.id} references missing template goblin ${archetype.templateGoblinId}`);
+    } else if (template.class !== archetype.class) {
+      errors.push(
+        `goblinGeneration.archetypes.${archetype.id} class ${archetype.class} does not match template ${archetype.templateGoblinId} class ${template.class}`
+      );
+    }
+
+    for (const rarityWeight of archetype.rarityWeights) {
+      if (seenRarities.has(rarityWeight.rarity)) {
+        errors.push(`goblinGeneration.archetypes.${archetype.id}.rarityWeights has duplicate rarity ${rarityWeight.rarity}`);
+      }
+      seenRarities.add(rarityWeight.rarity);
+    }
+
+    for (const trait of archetype.traitPool) {
+      if (seenTraits.has(trait.id)) {
+        errors.push(`goblinGeneration.archetypes.${archetype.id}.traitPool has duplicate trait ${trait.id}`);
+      }
+      seenTraits.add(trait.id);
+
+      if (trait.nameKey) {
+        validateLocalizationKey(trait.nameKey, "ru", ruLocalization, errors);
+      }
     }
   }
 }
