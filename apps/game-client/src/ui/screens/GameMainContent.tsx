@@ -11,6 +11,7 @@ import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "../goblinHutClientState";
 import type { MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import type { MineRunProgressStatsView } from "../mineRunStats";
 import type { PlatformDropEvent } from "../useMiningLoop";
 import type { GameSection } from "./BottomNav";
 import { BuiltMinesSection } from "./BuiltMinesSection";
@@ -93,6 +94,7 @@ export interface GameMainContentView {
     goblins: MinePixiGoblin[];
     hitEffects: MinePixiHitEffect[];
     loading: boolean;
+    progressStats: MineRunProgressStatsView;
     platformCellKeys: ReadonlySet<string>;
     platformDropAnimating: boolean;
     platformDropEvent: PlatformDropEvent | null;
@@ -193,6 +195,7 @@ export function GameMainContent(props: {
       hitEffects={view.mine.hitEffects}
       labels={common.labels}
       loading={view.mine.loading}
+      progressStats={view.mine.progressStats}
       onBlockHit={actions.onBlockHit}
       onAssignForemanSlot={actions.onAssignForemanSlot}
       onOpenGoblins={actions.onOpenGoblins}

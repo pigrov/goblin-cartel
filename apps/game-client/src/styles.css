@@ -421,6 +421,38 @@ body,
   color: var(--gc-text);
 }
 
+.mine-progress-button {
+  position: absolute;
+  top: 144px;
+  right: 10px;
+  z-index: 16;
+  width: 52px;
+  height: 48px;
+  display: grid;
+  grid-template-columns: 1fr;
+  place-items: center;
+  gap: 1px;
+  padding: 4px;
+  border: 1px solid rgb(147 208 255 / 58%);
+  border-radius: var(--gc-radius-sm);
+  color: #d9ecff;
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(31 86 143 / 34%)),
+    rgb(11 35 75 / 76%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 20%),
+    0 10px 24px rgb(0 0 0 / 28%);
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.mine-progress-button strong,
+.mine-progress-button span {
+  color: var(--gc-text);
+}
+
 .mine-elevator-button {
   position: absolute;
   top: 92px;
@@ -564,6 +596,162 @@ body,
   border-radius: inherit;
   background: linear-gradient(90deg, #87f57a, #fff08a);
   box-shadow: 0 0 10px rgb(255 240 138 / 54%);
+}
+
+.mine-progress-modal {
+  display: grid;
+  gap: 12px;
+  padding: 10px;
+}
+
+.mine-progress-modal-hero {
+  display: grid;
+  grid-template-columns: 108px repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 8px;
+}
+
+.mine-progress-ring {
+  min-height: 108px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 3px;
+  border: 2px solid rgb(255 241 190 / 44%);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, #123f82 0 48%, transparent 49%),
+    conic-gradient(#8cf573 var(--progress), rgb(255 255 255 / 14%) 0);
+  box-shadow:
+    inset 0 2px 0 rgb(255 255 255 / 22%),
+    0 12px 22px rgb(0 0 0 / 24%);
+  text-align: center;
+}
+
+.mine-progress-ring strong {
+  color: #fff8df;
+  font-size: 24px;
+  line-height: 1;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 34%);
+}
+
+.mine-progress-ring span {
+  color: #cfe7ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mine-progress-modal-hero > div:not(.mine-progress-ring),
+.mine-progress-modal-stats > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+  align-content: center;
+  padding: 9px;
+  border: 1px solid rgb(219 233 255 / 28%);
+  border-radius: 14px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 18%) 0 10%, transparent 11%),
+    rgb(11 42 82 / 54%);
+}
+
+.mine-progress-modal-hero span,
+.mine-progress-modal-stats span {
+  color: #bcd8ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mine-progress-modal-hero strong,
+.mine-progress-modal-stats strong {
+  min-width: 0;
+  overflow: hidden;
+  color: #fff8df;
+  font-size: 13px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+}
+
+.mine-progress-modal-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mine-progress-modal-rewards {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgb(219 233 255 / 26%);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 16% 0, rgb(255 237 151 / 16%), transparent 42%),
+    rgb(7 34 75 / 62%);
+}
+
+.mine-progress-modal-rewards > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff4bd;
+  font-size: 12px;
+  font-weight: 950;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 26%);
+}
+
+.mine-progress-modal-reward-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mine-progress-modal-reward {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 7px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 9%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%);
+}
+
+.mine-progress-modal-reward strong {
+  color: #fff;
+  font-size: 12px;
+}
+
+.mine-progress-modal-reward em {
+  color: #d7e8ff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.mine-progress-modal-reward.gold {
+  background: linear-gradient(180deg, rgb(255 225 94 / 24%), rgb(191 117 25 / 18%));
+}
+
+.mine-progress-modal-reward.copper {
+  background: linear-gradient(180deg, rgb(255 160 100 / 22%), rgb(113 58 34 / 18%));
+}
+
+.mine-progress-modal-reward.iron {
+  background: linear-gradient(180deg, rgb(196 215 231 / 22%), rgb(67 87 107 / 20%));
+}
+
+.mine-progress-modal-reward.elixir {
+  background: linear-gradient(180deg, rgb(105 255 174 / 20%), rgb(37 134 99 / 18%));
+}
+
+.mine-progress-modal-empty {
+  margin: 0;
+  color: #cfe2ff;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 @keyframes elevator-button-upgraded {
@@ -5026,6 +5214,38 @@ body,
   gap: 8px;
 }
 
+.mine-complete-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mine-complete-stats > div {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, rgb(255 255 255 / 14%) 0 12%, transparent 13%),
+    rgb(5 28 64 / 46%);
+  text-align: center;
+}
+
+.mine-complete-stats span {
+  color: #cfe7ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mine-complete-stats strong {
+  color: #fff4bd;
+  font-size: 18px;
+  line-height: 1;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 28%);
+}
+
 .mine-complete-summary > div {
   min-width: 0;
   display: grid;
@@ -5054,10 +5274,114 @@ body,
   font-size: 13px;
 }
 
+.mine-complete-rewards {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid rgb(219 233 255 / 26%);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 16% 0, rgb(255 237 151 / 16%), transparent 42%),
+    rgb(7 34 75 / 62%);
+}
+
+.mine-complete-rewards > header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #fff4bd;
+  font-size: 12px;
+  font-weight: 950;
+  text-shadow: 0 2px 0 rgb(0 0 0 / 26%);
+}
+
+.mine-complete-reward-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mine-complete-reward-pills.compact {
+  gap: 4px;
+}
+
+.mine-complete-reward-pill {
+  min-width: 0;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 7px;
+  border: 1px solid rgb(255 255 255 / 16%);
+  border-radius: 11px;
+  background: rgb(255 255 255 / 9%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 16%);
+}
+
+.mine-complete-reward-pill strong {
+  color: #fff;
+  font-size: 12px;
+}
+
+.mine-complete-reward-pill em {
+  color: #d7e8ff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.mine-complete-reward-pill.gold {
+  background: linear-gradient(180deg, rgb(255 225 94 / 24%), rgb(191 117 25 / 18%));
+}
+
+.mine-complete-reward-pill.copper {
+  background: linear-gradient(180deg, rgb(255 160 100 / 22%), rgb(113 58 34 / 18%));
+}
+
+.mine-complete-reward-pill.iron {
+  background: linear-gradient(180deg, rgb(196 215 231 / 22%), rgb(67 87 107 / 20%));
+}
+
+.mine-complete-reward-pill.elixir {
+  background: linear-gradient(180deg, rgb(105 255 174 / 20%), rgb(37 134 99 / 18%));
+}
+
+.mine-complete-reward-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.mine-complete-reward-breakdown section {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.mine-complete-reward-breakdown section > span {
+  color: #bcd8ff;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.mine-complete-reward-empty {
+  margin: 0;
+  color: #cfe2ff;
+  font-size: 11px;
+  font-weight: 800;
+}
+
 .mine-complete-actions {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
+}
+
+.mine-complete-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .boss-stat-grid {
@@ -5628,7 +5952,7 @@ body,
   height: clamp(52px, 17vw, 66px);
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) {
   width: min(390px, 100%);
   max-width: 100%;
   max-height: min(680px, calc(100dvh - 24px));
@@ -5646,13 +5970,13 @@ body,
   scrollbar-width: none;
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal)::-webkit-scrollbar {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal)::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header {
   min-height: 56px;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 42px;
@@ -5669,9 +5993,9 @@ body,
     0 5px 0 rgb(0 0 0 / 22%);
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p,
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong,
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header span {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p,
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong,
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header span {
   min-width: 0;
   overflow: hidden;
   color: #fff8df;
@@ -5679,19 +6003,19 @@ body,
   text-shadow: 0 2px 0 rgb(89 43 0 / 64%);
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header p {
   font-size: 10px;
   font-weight: 900;
   line-height: 1;
   text-transform: uppercase;
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header strong {
   font-size: 18px;
   line-height: 1.05;
 }
 
-.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header .icon-button {
+.modal-backdrop > :where(.settings-modal, .vein-modal, .mine-complete-modal, .mine-progress-modal, .collector-modal, .foreman-modal, .goblin-modal, .elevator-modal) > header .icon-button {
   width: 42px;
   height: 42px;
   border: 2px solid rgb(255 240 218 / 68%);

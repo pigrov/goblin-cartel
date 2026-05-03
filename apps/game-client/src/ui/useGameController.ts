@@ -17,6 +17,7 @@ import {
 import { createElevatorProgressionState, upgradeElevator } from "./elevatorState";
 import { createGameViewModels } from "./gameViewModels";
 import { type GoblinHutRoleTabId } from "./goblinHutClientState";
+import { addMineRunBlockRewards, addMineRunDepthRewards, createMineRunStats } from "./mineRunStats";
 import { type GameSection } from "./screens/BottomNav";
 import { useBossCardsController } from "./useBossCardsController";
 import { useBossEnergy } from "./useBossEnergy";
@@ -63,6 +64,9 @@ export function useGameController() {
   const [foundVeinNotice, setFoundVeinNotice] = useState<MiningFoundVein | null>(null);
   const [mineCompletionNoticeOpen, setMineCompletionNoticeOpen] = useState(false);
   const [mineCompletionNoticeSeenIds, setMineCompletionNoticeSeenIds] = useState<string[]>([]);
+  const [mineRunStats, setMineRunStats] = useState(() =>
+    createMineRunStats(initialContentBundle.mineTemplates[0]?.id ?? "initial")
+  );
   const {
     displayedResources,
     flashingResourceIds,
@@ -226,6 +230,7 @@ export function useGameController() {
     setGoblinPlacements,
     setMineCompletionNoticeOpen,
     setMineCompletionNoticeSeenIds,
+    setMineRunStats,
     setOfflineSummary,
     setPendingOfflineFinalHit,
     setPlatformRow,
@@ -253,6 +258,7 @@ export function useGameController() {
     setLoadingContent,
     setMineCompletionNoticeOpen,
     setMineCompletionNoticeSeenIds,
+    setMineRunStats,
     setOfflineSummary,
     setPendingOfflineFinalHit,
     setPlatformRow,
@@ -272,6 +278,7 @@ export function useGameController() {
     foremanAssignments,
     goblinPlacements,
     mineCompletionNoticeSeenIds,
+    mineRunStats,
     platformRow,
     roster,
     session,
@@ -355,6 +362,12 @@ export function useGameController() {
     labels,
     miningGoblins,
     onFoundVein: notifyFoundVein,
+    onBlockDestroyed: (mineTemplateId, rewards, destroyedBlockCount) => {
+      setMineRunStats((current) => addMineRunBlockRewards(current, mineTemplateId, rewards, destroyedBlockCount));
+    },
+    onDepthProgressRewards: (mineTemplateId, rewards) => {
+      setMineRunStats((current) => addMineRunDepthRewards(current, mineTemplateId, rewards));
+    },
     onRewardChestBlock: queueCellRewardChest,
     pendingOfflineFinalHit,
     platformDropDurationMs: elevatorProgression.dropDurationMs,
@@ -430,6 +443,7 @@ export function useGameController() {
     loading: loadingContent || !sessionReady,
     mineCompletionNextMineLabel,
     mineCompletionNoticeOpen,
+    mineRunStats,
     nextMineTemplate,
     nextMineTitle,
     pendingRewardChest,

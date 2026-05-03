@@ -16,6 +16,7 @@ import {
   findNextMineTemplate,
   markMineCompletionNoticeSeen
 } from "./mineProgressionClientState";
+import { createMineRunStats, type MineRunStats } from "./mineRunStats";
 import { createSession, type OfflineMiningSummary } from "./useGameBootstrap";
 import { saveMiningSession } from "./useGamePersistence";
 import type { ForemanAssignments } from "./foremanTowerState";
@@ -48,6 +49,7 @@ export function useMineProgressionController(input: {
   setGoblinPlacements: Dispatch<SetStateAction<GoblinPlacementMap>>;
   setMineCompletionNoticeOpen: Dispatch<SetStateAction<boolean>>;
   setMineCompletionNoticeSeenIds: Dispatch<SetStateAction<string[]>>;
+  setMineRunStats: Dispatch<SetStateAction<MineRunStats>>;
   setOfflineSummary: Dispatch<SetStateAction<OfflineMiningSummary | null>>;
   setPendingOfflineFinalHit: Dispatch<SetStateAction<{ row: number; col: number } | null>>;
   setPlatformRow: Dispatch<SetStateAction<number>>;
@@ -120,6 +122,7 @@ export function useMineProgressionController(input: {
       input.platformSlots
     );
     const nextBossEnergy = input.createBossEnergyStateForNow(resetAt);
+    const nextMineRunStats = createMineRunStats(nextSession.mine.templateId, nextSession.destroyedBlocks);
 
     input.setSession(nextSession);
     input.setActiveCell(nextActiveCell);
@@ -131,6 +134,7 @@ export function useMineProgressionController(input: {
     input.setFoundVeinNotice(null);
     input.setMineCompletionNoticeOpen(false);
     input.setMineCompletionNoticeSeenIds([]);
+    input.setMineRunStats(nextMineRunStats);
     resetRewardChest();
     input.syncVisibleResourceAmounts(nextSession.resources);
     input.setClockNow(resetAt);
@@ -147,6 +151,7 @@ export function useMineProgressionController(input: {
       nextBossEnergy,
       [],
       [],
+      nextMineRunStats,
       input.bossCardDefinitions
     );
   }
@@ -187,6 +192,7 @@ export function useMineProgressionController(input: {
       input.platformSlots
     );
     const nextSeenNoticeIds = markMineCompletionNoticeSeen(input.mineCompletionNoticeSeenIds, input.session.mine.templateId);
+    const nextMineRunStats = createMineRunStats(nextSession.mine.templateId, nextSession.destroyedBlocks);
 
     input.setSession(nextSession);
     input.setActiveCell(nextActiveCell);
@@ -195,6 +201,7 @@ export function useMineProgressionController(input: {
     input.setFoundVeinNotice(null);
     input.setMineCompletionNoticeOpen(false);
     input.setMineCompletionNoticeSeenIds(nextSeenNoticeIds);
+    input.setMineRunStats(nextMineRunStats);
     input.setPendingOfflineFinalHit(null);
     input.setOfflineSummary(null);
     input.setActiveSection("mine");
@@ -210,6 +217,7 @@ export function useMineProgressionController(input: {
       input.bossEnergy,
       input.builtMines,
       nextSeenNoticeIds,
+      nextMineRunStats,
       input.bossCardDefinitions
     );
   }

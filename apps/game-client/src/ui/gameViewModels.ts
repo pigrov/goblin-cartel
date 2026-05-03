@@ -14,6 +14,7 @@ import type { BuiltMineUpgradePreview, ConstructionSupportState } from "./builtM
 import type { ElevatorProgressionState } from "./elevatorState";
 import { getAssignedForemen, type ForemanAssignments } from "./foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "./goblinHutClientState";
+import { createMineRunCompletionStatsView, createMineRunProgressStatsView, type MineRunStats } from "./mineRunStats";
 import type { MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
 import type { GameSection } from "./screens/BottomNav";
 import type { GameMainContentActions, GameMainContentView } from "./screens/GameMainContent";
@@ -79,6 +80,7 @@ export interface CreateGameViewModelsInput {
   loading: boolean;
   mineCompletionNextMineLabel: string;
   mineCompletionNoticeOpen: boolean;
+  mineRunStats: MineRunStats;
   nextMineTemplate: GameMainContentView["builtMines"]["nextMineTemplate"];
   nextMineTitle: string | null;
   pendingRewardChest: PendingRewardChest | null;
@@ -180,6 +182,13 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       goblins: input.pixiGoblins,
       hitEffects: input.hitEffects,
       loading: input.loading,
+      progressStats: createMineRunProgressStatsView(
+        input.mineRunStats,
+        input.session,
+        input.contentState.content,
+        input.labels,
+        input.currentPlatformRow
+      ),
       platformCellKeys: input.platformCellKeys,
       platformDropAnimating: input.platformDropAnimating,
       platformDropEvent: input.platformDropEvent,
@@ -244,7 +253,8 @@ function createOverlaysView(input: CreateGameViewModelsInput): GameOverlaysView 
     mineCompletion: {
       nextMineLabel: input.mineCompletionNextMineLabel,
       nextMineVisible: Boolean(input.nextMineTemplate),
-      open: input.mineCompletionNoticeOpen
+      open: input.mineCompletionNoticeOpen,
+      stats: createMineRunCompletionStatsView(input.mineRunStats, input.session, input.contentState.content, input.labels)
     },
     rewardChest: {
       chestType: input.pendingRewardChestType,

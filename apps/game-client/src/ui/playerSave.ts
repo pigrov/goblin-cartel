@@ -7,6 +7,7 @@ import {
   type GoblinRosterState,
   type MiningSessionSave
 } from "@goblin-cartel/game-core";
+import type { MineRunStats } from "./mineRunStats";
 
 export const playerSaveStorageKey = "goblin-cartel.player.save.v1";
 
@@ -23,6 +24,7 @@ export interface StoredMineSave {
   bossEnergy?: BossEnergyState;
   builtMines?: BuiltMineState[];
   elevatorLevel?: number;
+  mineRunStats?: MineRunStats;
   mineCompletionNoticeSeenIds?: string[];
   savedAt?: number;
 }

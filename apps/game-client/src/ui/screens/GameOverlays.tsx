@@ -7,6 +7,7 @@ import type {
   BuiltMineState,
   MiningFoundVein
 } from "@goblin-cartel/game-core";
+import type { MineRunCompletionStatsView } from "../mineRunStats";
 import { type FoundVeinView } from "../useMineUiController";
 import { type ChestRewardFlyout, type PendingRewardChest, type RewardChestStage } from "../useRewardChestFlow";
 import { BossCardsModal } from "./BossCardsModal";
@@ -68,6 +69,7 @@ export interface GameOverlaysView {
     nextMineLabel: string;
     nextMineVisible: boolean;
     open: boolean;
+    stats: MineRunCompletionStatsView;
   };
   rewardChest: {
     chestType: RewardChestTypeConfig | null;
@@ -136,6 +138,7 @@ export function GameOverlays(props: {
           nextMineLabel={view.mineCompletion.nextMineLabel}
           onDismiss={actions.onDismissMineCompletionNotice}
           onStartNextMine={actions.onStartNextMine}
+          stats={view.mineCompletion.stats}
         />
       ) : null}
 

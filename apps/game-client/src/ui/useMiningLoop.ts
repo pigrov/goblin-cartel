@@ -70,6 +70,8 @@ export function useMiningLoop(input: {
   goblinPlacements: GoblinPlacementMap;
   labels: Record<string, string>;
   miningGoblins: GoblinConfig[];
+  onBlockDestroyed: (mineTemplateId: string, rewards: Record<string, number>, destroyedBlockCount: number) => void;
+  onDepthProgressRewards: (mineTemplateId: string, rewards: Record<string, number>) => void;
   onFoundVein: (vein: MiningFoundVein | null) => void;
   onRewardChestBlock: (block: MiningBlockState | undefined, session: MiningSession) => void;
   pendingOfflineFinalHit: { row: number; col: number } | null;
@@ -92,6 +94,8 @@ export function useMiningLoop(input: {
   const blockTypesRef = useRef(input.blockTypes);
   const goblinPlacementsRef = useRef(input.goblinPlacements);
   const miningGoblinsRef = useRef(input.miningGoblins);
+  const onBlockDestroyedRef = useRef(input.onBlockDestroyed);
+  const onDepthProgressRewardsRef = useRef(input.onDepthProgressRewards);
   const onFoundVeinRef = useRef(input.onFoundVein);
   const onRewardChestBlockRef = useRef(input.onRewardChestBlock);
   const pendingOfflineFinalHitRef = useRef(input.pendingOfflineFinalHit);
@@ -122,6 +126,8 @@ export function useMiningLoop(input: {
     blockTypesRef.current = input.blockTypes;
     goblinPlacementsRef.current = input.goblinPlacements;
     miningGoblinsRef.current = input.miningGoblins;
+    onBlockDestroyedRef.current = input.onBlockDestroyed;
+    onDepthProgressRewardsRef.current = input.onDepthProgressRewards;
     onFoundVeinRef.current = input.onFoundVein;
     onRewardChestBlockRef.current = input.onRewardChestBlock;
     pendingOfflineFinalHitRef.current = input.pendingOfflineFinalHit;
@@ -155,6 +161,7 @@ export function useMiningLoop(input: {
     setPlatformDropEvent(event);
 
     if (Object.keys(rewards).length > 0) {
+      onDepthProgressRewardsRef.current(sessionRef.current.mine.templateId, rewards);
       input.setSession((current) => ({
         ...current,
         lastRewards: rewards,
@@ -228,6 +235,9 @@ export function useMiningLoop(input: {
           const destroyedBlock = targetDestroyed ? next.blocks[target.row]?.[target.col] : undefined;
 
           spawnHitEffectRef.current(worker.targetCell, "goblin", worker.damagePerSecond, targetDestroyed ? next.lastRewards : undefined);
+          if (targetDestroyed) {
+            onBlockDestroyedRef.current(next.mine.templateId, next.lastRewards, 1);
+          }
           onFoundVeinRef.current(next.lastFoundVein);
           onRewardChestBlockRef.current(destroyedBlock, next);
 
@@ -268,6 +278,7 @@ export function useMiningLoop(input: {
         });
 
         spawnHitEffect(input.pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
+        onBlockDestroyedRef.current(next.mine.templateId, next.lastRewards, 1);
         input.onFoundVein(next.lastFoundVein);
         input.onRewardChestBlock(next.blocks[target.row]?.[target.col], next);
 
@@ -327,6 +338,9 @@ export function useMiningLoop(input: {
       const targetDestroyed = next.blocks[block.row]?.[block.col]?.destroyed;
       const destroyedBlock = targetDestroyed ? next.blocks[block.row]?.[block.col] : undefined;
       spawnHitEffect(targetCell, attack.critical ? "critical" : "boss", attack.damage, targetDestroyed ? next.lastRewards : undefined);
+      if (targetDestroyed) {
+        input.onBlockDestroyed(next.mine.templateId, next.lastRewards, 1);
+      }
       input.onFoundVein(next.lastFoundVein);
       input.onRewardChestBlock(destroyedBlock, next);
       input.setActiveCell(targetDestroyed ? findNextExposedCell(next, targetCell) : targetCell);

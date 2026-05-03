@@ -82,3 +82,4 @@
 - `0077_client_app_refactor` - split the game client App shell into screen components, controller hooks, and view-model builders before production deploy.
 - `0078_foreman_tower_elevator` - added foreman tower assignments, offline foreman bonuses, platform goblin statuses, and the first upgradeable elevator with platform slot limits.
 - `0079_mine_depth_rewards_deploy` - added content-driven rewards for platform depth progress, row-clear event UI, elevator descent polish, and release checks before production push.
+- `0080_mine_run_stats_progress` - added persisted mine-run statistics, completion reward breakdown, and an in-mine progress modal with depth and vein details.

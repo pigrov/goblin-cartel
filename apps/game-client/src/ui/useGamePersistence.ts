@@ -17,6 +17,7 @@ import {
   type StoredMineSave
 } from "./playerSave";
 import type { ForemanAssignments } from "./foremanTowerState";
+import type { MineRunStats } from "./mineRunStats";
 import type { GoblinPlacementMap } from "./useGoblinPlacement";
 
 export function useGamePersistence(input: {
@@ -29,6 +30,7 @@ export function useGamePersistence(input: {
   elevatorLevel: number;
   foremanAssignments: ForemanAssignments;
   goblinPlacements: GoblinPlacementMap;
+  mineRunStats: MineRunStats;
   mineCompletionNoticeSeenIds: string[];
   platformRow: number;
   roster: GoblinRosterState;
@@ -51,6 +53,7 @@ export function useGamePersistence(input: {
       input.bossEnergy,
       input.builtMines,
       input.mineCompletionNoticeSeenIds,
+      input.mineRunStats,
       input.bossCardDefinitions
     );
   }, [
@@ -63,6 +66,7 @@ export function useGamePersistence(input: {
     input.foremanAssignments,
     input.goblinPlacements,
     input.mineCompletionNoticeSeenIds,
+    input.mineRunStats,
     input.platformRow,
     input.session,
     input.sessionReady
@@ -96,6 +100,7 @@ export function saveMiningSession(
   bossEnergy: BossEnergyState,
   builtMines: BuiltMineState[],
   mineCompletionNoticeSeenIds: string[],
+  mineRunStats: MineRunStats,
   bossCardDefinitions: BossCardDefinition[]
 ): void {
   const payload: StoredMineSave = {
@@ -107,6 +112,7 @@ export function saveMiningSession(
     foremanAssignments,
     goblinPlacements,
     mineCompletionNoticeSeenIds,
+    mineRunStats,
     platformRow: findPlatformRow(session, platformRow),
     save: exportMiningSessionSave(session),
     savedAt: Date.now()

@@ -31,6 +31,7 @@ import {
 } from "./foremanTowerState";
 import { getElevatorLevelConfig, normalizeElevatorLevel } from "./elevatorState";
 import { isMiningGoblin } from "./goblinHutClientState";
+import { addMineRunBlockRewards, createMineRunStats, restoreMineRunStats, type MineRunStats } from "./mineRunStats";
 import { loadStoredBossCards, loadStoredGoblinRoster, loadStoredMiningSession } from "./playerSave";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import {
@@ -82,6 +83,7 @@ interface RestoredMiningState {
   builtMines: BuiltMineState[];
   foremanAssignments: ForemanAssignments;
   mineCompletionNoticeSeenIds: string[];
+  mineRunStats: MineRunStats;
 }
 
 export function useGameBootstrap(input: {
@@ -103,6 +105,7 @@ export function useGameBootstrap(input: {
   setLoadingContent: Dispatch<SetStateAction<boolean>>;
   setMineCompletionNoticeOpen: Dispatch<SetStateAction<boolean>>;
   setMineCompletionNoticeSeenIds: Dispatch<SetStateAction<string[]>>;
+  setMineRunStats: Dispatch<SetStateAction<MineRunStats>>;
   setOfflineSummary: Dispatch<SetStateAction<OfflineMiningSummary | null>>;
   setPendingOfflineFinalHit: Dispatch<SetStateAction<{ row: number; col: number } | null>>;
   setPlatformRow: Dispatch<SetStateAction<number>>;
@@ -164,6 +167,7 @@ export function useGameBootstrap(input: {
           input.setBossEnergy(restoredMining.bossEnergy);
           input.setBuiltMines(restoredMining.builtMines);
           input.setMineCompletionNoticeSeenIds(restoredMining.mineCompletionNoticeSeenIds);
+          input.setMineRunStats(restoredMining.mineRunStats);
           input.setMineCompletionNoticeOpen(false);
           input.resetRewardChest();
           input.setBossCardsOpen(false);
@@ -184,6 +188,7 @@ export function useGameBootstrap(input: {
           input.setSessionReady(false);
           input.setMineCompletionNoticeOpen(false);
           input.setElevatorLevel(1);
+          input.setMineRunStats(createMineRunStats(initialContentBundle.mineTemplates[0]?.id ?? "initial"));
           input.resetRewardChest();
           input.setBuiltMineMessage(null);
           input.setFoundVeinNotice(null);
@@ -259,7 +264,8 @@ function createRestoredMiningState(
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
       foremanAssignments: createEmptyForemanAssignments(),
-      mineCompletionNoticeSeenIds: []
+      mineCompletionNoticeSeenIds: [],
+      mineRunStats: createMineRunStats(session.mine.templateId, session.destroyedBlocks)
     };
   }
 
@@ -291,6 +297,11 @@ function createRestoredMiningState(
       resources: automatedMineIncome.resources
     };
     const restoredMineCompletionNoticeSeenIds = normalizeIdList(storedSave.mineCompletionNoticeSeenIds ?? []);
+    const restoredMineRunStats = restoreMineRunStats(
+      storedSave.mineRunStats,
+      restoredSessionWithAutomatedIncome.mine.templateId,
+      restoredSessionWithAutomatedIncome.destroyedBlocks
+    );
 
     return applyOfflineMining(
       content,
@@ -304,6 +315,7 @@ function createRestoredMiningState(
       restoredForemanAssignments,
       restoredElevatorLevel,
       restoredMineCompletionNoticeSeenIds,
+      restoredMineRunStats,
       storedSave.savedAt
     );
   } catch {
@@ -322,7 +334,8 @@ function createRestoredMiningState(
       bossEnergy: createBossEnergyState(bossEnergyConfig, now),
       builtMines: [],
       foremanAssignments: createEmptyForemanAssignments(),
-      mineCompletionNoticeSeenIds: []
+      mineCompletionNoticeSeenIds: [],
+      mineRunStats: createMineRunStats(session.mine.templateId, session.destroyedBlocks)
     };
   }
 }
@@ -339,6 +352,7 @@ function applyOfflineMining(
   foremanAssignments: ForemanAssignments,
   elevatorLevel: number,
   mineCompletionNoticeSeenIds: string[],
+  mineRunStats: MineRunStats,
   savedAt: number | undefined
 ): RestoredMiningState {
   const activePlatformRow = findPlatformRow(session, platformRow);
@@ -364,7 +378,8 @@ function applyOfflineMining(
       bossEnergy,
       builtMines,
       foremanAssignments,
-      mineCompletionNoticeSeenIds
+      mineCompletionNoticeSeenIds,
+      mineRunStats
     };
   }
 
@@ -382,7 +397,8 @@ function applyOfflineMining(
       bossEnergy,
       builtMines,
       foremanAssignments,
-      mineCompletionNoticeSeenIds
+      mineCompletionNoticeSeenIds,
+      mineRunStats
     };
   }
 
@@ -428,7 +444,8 @@ function applyOfflineMining(
       bossEnergy,
       builtMines,
       foremanAssignments,
-      mineCompletionNoticeSeenIds
+      mineCompletionNoticeSeenIds,
+      mineRunStats
     };
   }
 
@@ -534,18 +551,19 @@ function applyOfflineMining(
   }
 
   const hasOfflineProgress = destroyedBlocks > 0 || Boolean(pendingFinalHit);
+  const offlineSummary = hasOfflineProgress
+    ? {
+        seconds: offlineSeconds,
+        destroyedBlocks,
+        rewards,
+        pendingFinalHit: Boolean(pendingFinalHit)
+      }
+    : null;
 
   return {
     session: nextSession,
     activeCell: pendingFinalHit ?? findExposedCellForPreferred(nextSession, nextActiveCell),
-    offlineSummary: hasOfflineProgress
-      ? {
-          seconds: offlineSeconds,
-          destroyedBlocks,
-          rewards,
-          pendingFinalHit: Boolean(pendingFinalHit)
-        }
-      : null,
+    offlineSummary,
     pendingOfflineFinalHit: pendingFinalHit,
     platformRow: pendingFinalHit ? pendingFinalHit.row : nextPlatformRow,
     goblinPlacements: normalizeGoblinPlacements(nextSession, miningGoblins, nextPlacements, {
@@ -557,7 +575,10 @@ function applyOfflineMining(
     bossEnergy,
     builtMines,
     foremanAssignments,
-    mineCompletionNoticeSeenIds
+    mineCompletionNoticeSeenIds,
+    mineRunStats: offlineSummary
+      ? addMineRunBlockRewards(mineRunStats, nextSession.mine.templateId, offlineSummary.rewards, offlineSummary.destroyedBlocks)
+      : mineRunStats
   };
 }
 

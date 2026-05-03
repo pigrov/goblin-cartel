@@ -1,10 +1,11 @@
 import type { BlockTypeConfig, GoblinConfig } from "@goblin-cartel/content-schemas";
 import { getGoblinLevel, type MiningBlockState, type MiningSession } from "@goblin-cartel/game-core";
-import { ArrowDownUp, Coins, Gem, Gauge, Hammer, Mountain, Pickaxe, Plus, ShieldCheck, X, Zap } from "lucide-react";
+import { ArrowDownUp, BarChart3, Coins, Gem, Gauge, Hammer, Mountain, Pickaxe, Plus, ShieldCheck, X, Zap } from "lucide-react";
 import { lazy, type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import { createGoblinIdentity } from "../goblinHutClientState";
+import type { MineRunProgressStatsView, MineRunRewardSummary } from "../mineRunStats";
 import type { MinePixiForemanSlot, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
 import type { PlatformDropEvent } from "../useMiningLoop";
 import {
@@ -41,6 +42,7 @@ export function MineScreen(props: {
   hitEffects: MinePixiHitEffect[];
   labels: Record<string, string>;
   loading: boolean;
+  progressStats: MineRunProgressStatsView;
   onBlockHit: (block: MiningBlockState) => void;
   onAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   onOpenGoblins: () => void;
@@ -53,6 +55,7 @@ export function MineScreen(props: {
 }) {
   const [foremanPickerOpen, setForemanPickerOpen] = useState(false);
   const [elevatorOpen, setElevatorOpen] = useState(false);
+  const [progressOpen, setProgressOpen] = useState(false);
   const [elevatorUpgradePulse, setElevatorUpgradePulse] = useState(false);
   const previousElevatorLevelRef = useRef(props.elevatorProgression.levelNow);
   const pixiForemen = useMemo<MinePixiForemanSlot[]>(() => {
@@ -125,6 +128,7 @@ export function MineScreen(props: {
         assignedCount={props.foremanTower.assignedForemen.length}
         onOpen={() => setForemanPickerOpen(true)}
       />
+      <MineProgressButton stats={props.progressStats} onOpen={() => setProgressOpen(true)} />
       {elevatorOpen ? (
         <ElevatorModal
           labels={props.labels}
@@ -146,6 +150,7 @@ export function MineScreen(props: {
           }}
         />
       ) : null}
+      {progressOpen ? <MineProgressModal stats={props.progressStats} onClose={() => setProgressOpen(false)} /> : null}
     </section>
   );
 }
@@ -178,6 +183,97 @@ function MineDepthEventToast(props: { event: PlatformDropEvent }) {
       <strong>+{props.event.metersGained} м</strong>
       <small>{rewardLabel}</small>
       <i aria-hidden="true" />
+    </div>
+  );
+}
+
+function MineProgressButton(props: { onOpen: () => void; stats: MineRunProgressStatsView }) {
+  return (
+    <button className="mine-progress-button" onClick={props.onOpen} type="button" aria-label="Прогресс рудника">
+      <BarChart3 size={17} />
+      <span>{props.stats.progressPercent}%</span>
+      <strong>
+        {props.stats.currentDepthMeters}/{props.stats.depthMeters}м
+      </strong>
+    </button>
+  );
+}
+
+function MineProgressModal(props: { onClose: () => void; stats: MineRunProgressStatsView }) {
+  const progressStyle = { "--progress": `${props.stats.progressPercent}%` } as CSSProperties;
+
+  return (
+    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
+      <section className="mine-progress-modal" aria-label="Прогресс рудника" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div>
+            <p>Рудник</p>
+            <strong>Прогресс</strong>
+            <span>
+              {props.stats.currentDepthMeters}/{props.stats.depthMeters} м
+            </span>
+          </div>
+          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="mine-progress-modal-hero">
+          <div className="mine-progress-ring" style={progressStyle}>
+            <strong>{props.stats.progressPercent}%</strong>
+            <span>очищено</span>
+          </div>
+          <div>
+            <span>Камни</span>
+            <strong>
+              {props.stats.destroyedBlocks}/{props.stats.totalBlocks}
+            </strong>
+          </div>
+          <div>
+            <span>Жила</span>
+            <strong>{props.stats.completionVeinName ?? "Не указана"}</strong>
+          </div>
+        </div>
+
+        <div className="mine-progress-modal-stats">
+          <MineProgressStat label="Глубина" value={`${props.stats.currentDepthMeters}/${props.stats.depthMeters} м`} />
+          <MineProgressStat label="Бонус глубины" value={props.stats.depthRewardLabel ?? "Нет"} />
+        </div>
+
+        <section className="mine-progress-modal-rewards">
+          <header>
+            <Gem size={16} />
+            <span>Добыто сейчас</span>
+          </header>
+          <MineProgressRewardPills rewards={props.stats.totalRewards} />
+        </section>
+      </section>
+    </div>
+  );
+}
+
+function MineProgressStat(props: { label: string; value: string }) {
+  return (
+    <div>
+      <span>{props.label}</span>
+      <strong>{props.value}</strong>
+    </div>
+  );
+}
+
+function MineProgressRewardPills(props: { rewards: MineRunRewardSummary[] }) {
+  if (props.rewards.length === 0) {
+    return <p className="mine-progress-modal-empty">Пока нет добычи</p>;
+  }
+
+  return (
+    <div className="mine-progress-modal-reward-pills">
+      {props.rewards.map((reward) => (
+        <span className={`mine-progress-modal-reward ${resourceClassName(reward.resourceId)}`} key={reward.resourceId}>
+          <strong>+{formatInteger(reward.amount)}</strong>
+          <em>{reward.label}</em>
+        </span>
+      ))}
     </div>
   );
 }
@@ -415,6 +511,26 @@ function formatSeconds(value: number): string {
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
   return labels[nameKey] ?? fallback;
+}
+
+function resourceClassName(resourceId: string): string {
+  if (resourceId.includes("elixir")) {
+    return "elixir";
+  }
+
+  if (resourceId.includes("gold")) {
+    return "gold";
+  }
+
+  if (resourceId.includes("copper")) {
+    return "copper";
+  }
+
+  if (resourceId.includes("iron")) {
+    return "iron";
+  }
+
+  return "stone";
 }
 
 function elevatorUpgradeActionLabel(state: ElevatorProgressionState): string {
