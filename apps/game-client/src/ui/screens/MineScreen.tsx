@@ -115,20 +115,24 @@ export function MineScreen(props: {
           session={props.session}
         />
       </Suspense>
-      <ElevatorMineButton
-        lowering={props.platformDropAnimating}
-        upgraded={elevatorUpgradePulse}
-        level={props.elevatorProgression.levelNow}
-        slots={props.elevatorProgression.platformSlots}
-        onOpen={() => setElevatorOpen(true)}
-      />
-      {elevatorUpgradePulse ? <div className="mine-elevator-upgrade-toast">LV {props.elevatorProgression.levelNow}</div> : null}
+      <div className="mine-side-actions" aria-label="Управление рудником">
+        <div className="mine-elevator-action">
+          <ElevatorMineButton
+            lowering={props.platformDropAnimating}
+            upgraded={elevatorUpgradePulse}
+            level={props.elevatorProgression.levelNow}
+            slots={props.elevatorProgression.platformSlots}
+            onOpen={() => setElevatorOpen(true)}
+          />
+          {elevatorUpgradePulse ? <div className="mine-elevator-upgrade-toast">LV {props.elevatorProgression.levelNow}</div> : null}
+        </div>
+        <ForemanTowerButton
+          assignedCount={props.foremanTower.assignedForemen.length}
+          onOpen={() => setForemanPickerOpen(true)}
+        />
+        <MineProgressButton stats={props.progressStats} onOpen={() => setProgressOpen(true)} />
+      </div>
       {props.platformDropEvent ? <MineDepthEventToast event={props.platformDropEvent} key={props.platformDropEvent.id} /> : null}
-      <ForemanTowerButton
-        assignedCount={props.foremanTower.assignedForemen.length}
-        onOpen={() => setForemanPickerOpen(true)}
-      />
-      <MineProgressButton stats={props.progressStats} onOpen={() => setProgressOpen(true)} />
       {elevatorOpen ? (
         <ElevatorModal
           labels={props.labels}

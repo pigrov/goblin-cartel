@@ -322,12 +322,43 @@ body,
   min-height: 0;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
+  isolation: isolate;
   position: relative;
   overflow: hidden;
+  background:
+    radial-gradient(circle at 84% 16%, rgb(255 223 112 / 18%), transparent 18%),
+    radial-gradient(circle at 18% 72%, rgb(104 198 200 / 8%), transparent 30%),
+    linear-gradient(180deg, #87cdea 0 118px, #5b9d4e 118px 184px, #5d3f25 184px 200px, #22170f 200px 100%);
+}
+
+.mine-screen-stage::before {
+  position: absolute;
+  inset: 200px 0 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(172deg, rgb(255 255 255 / 4%) 0 2px, transparent 2px 39px),
+    radial-gradient(circle at 24% 18%, rgb(242 184 75 / 10%), transparent 22%),
+    radial-gradient(circle at 78% 58%, rgb(0 0 0 / 24%), transparent 34%),
+    linear-gradient(180deg, rgb(54 34 21 / 78%), rgb(20 13 9 / 92%));
+}
+
+.mine-screen-stage::after {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  content: "";
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 34%), transparent 14%, transparent 86%, rgb(0 0 0 / 28%)),
+    linear-gradient(180deg, transparent 0 58%, rgb(0 0 0 / 22%) 100%);
 }
 
 .mine-screen-stage > .pixi-playfield {
   min-height: 0;
+  z-index: 1;
+  background: transparent;
 }
 
 .mine-pixi-canvas {
@@ -388,6 +419,27 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.mine-side-actions {
+  position: absolute;
+  left: 8px;
+  top: 364px;
+  z-index: 19;
+  width: 42px;
+  display: grid;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.mine-side-actions > * {
+  pointer-events: auto;
+}
+
+.mine-elevator-action {
+  position: relative;
+  width: 42px;
+  height: 42px;
 }
 
 .foreman-tower-button {
@@ -493,6 +545,18 @@ body,
   animation: elevator-button-lowering 720ms ease-in-out infinite;
 }
 
+.mine-side-actions .mine-elevator-button,
+.mine-side-actions .foreman-tower-button,
+.mine-side-actions .mine-progress-button {
+  position: static;
+  width: 42px;
+  height: 42px;
+  min-height: 42px;
+  gap: 1px;
+  padding: 4px;
+  font-size: 9px;
+}
+
 .mine-elevator-upgrade-toast {
   position: absolute;
   left: 8px;
@@ -516,6 +580,14 @@ body,
   text-align: center;
   text-shadow: 0 1px 0 rgb(70 37 6 / 60%);
   animation: elevator-upgrade-toast 1300ms ease-out forwards;
+}
+
+.mine-side-actions .mine-elevator-upgrade-toast {
+  left: 0;
+  top: 30px;
+  min-width: 42px;
+  padding: 4px 5px;
+  font-size: 11px;
 }
 
 .mine-depth-event-toast {

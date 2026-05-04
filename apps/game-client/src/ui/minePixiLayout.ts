@@ -44,7 +44,7 @@ export interface MinePixiVisibleRowRange {
 }
 
 export const minePixiLayoutConfig = {
-  depthWidth: 28,
+  depthWidth: 0,
   gap: 4,
   minePaddingBottom: 16,
   minePaddingTop: 12,

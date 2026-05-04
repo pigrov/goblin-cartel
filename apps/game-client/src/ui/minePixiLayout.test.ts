@@ -24,6 +24,7 @@ describe("minePixiLayout", () => {
     expect(layout.mineHeight).toBe(12);
     expect(layout.cellSize).toBeGreaterThanOrEqual(28);
     expect(layout.gridWidth).toBe(7 * layout.cellSize + 6 * layout.gap);
+    expect(layout.depthWidth).toBe(0);
     expect(layout.gridX).toBe(4 + minePixiLayoutConfig.depthWidth + minePixiLayoutConfig.gap + minePixiLayoutConfig.sideControlsWidth);
     expect(layout.platformY).toBe(layout.gridY + 3 * layout.rowStep - layout.platformHeight - minePixiLayoutConfig.platformGap);
   });

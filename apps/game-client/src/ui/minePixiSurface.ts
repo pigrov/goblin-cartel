@@ -13,7 +13,7 @@ export type MinePixiForemanSlot = MinePixiForeman | null;
 export function drawSurface(
   root: Container,
   layout: MinePixiLayout,
-  platformRow: number,
+  _platformRow: number,
   foremen: readonly MinePixiForemanSlot[] = [],
   elevatorLevel = 1,
   elevatorVisualStage: 1 | 2 | 3 | 4 | 5 = 1
@@ -43,24 +43,6 @@ export function drawSurface(
   drawGrassClumps(surface, layout);
   drawSurfaceLift(surface, layout, elevatorLevel, elevatorVisualStage);
   drawForemanTower(surface, layout, foremen);
-
-  const depthText = createText({
-    color: 0xf2b84b,
-    fontSize: 14,
-    fontWeight: "800",
-    text: `${platformRow + 1}`
-  });
-  depthText.position.set(12, 22);
-  surface.addChild(depthText);
-
-  const labelText = createText({
-    color: 0x38586a,
-    fontSize: 10,
-    fontWeight: "800",
-    text: "DEPTH"
-  });
-  labelText.position.set(12, 9);
-  surface.addChild(labelText);
 
   root.addChild(surface);
 }

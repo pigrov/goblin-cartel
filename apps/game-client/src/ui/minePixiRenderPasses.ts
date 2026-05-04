@@ -3,7 +3,6 @@ import type { BlockTypeConfig } from "@goblin-cartel/content-schemas";
 import type { MiningSession } from "@goblin-cartel/game-core";
 import { drawSceneBackground, type MinePixiLiftRail } from "./minePixiBackground";
 import { reconcileMineBlocks } from "./minePixiBlockReconciliation";
-import { reconcileDepthMarkers } from "./minePixiDepthMarkers";
 import type { AnimatedHitEffect, MinePixiHitEffect } from "./minePixiEffects";
 import { reconcileHitEffects, type MinePixiAnimatedBlockImpact } from "./minePixiHitEffectReconciliation";
 import { clearMinePixiLayer, type MinePixiSceneLayers } from "./minePixiApp";
@@ -85,14 +84,10 @@ export function renderMinePixiMineAndDepth(input: {
     sessionBlocks: input.sessionBlocks,
     visibleRowRange: input.visibleRowRange
   });
-  reconcileDepthMarkers({
-    currentPlatformRow: input.currentPlatformRow,
-    depthMarkerLabel: input.depthMarkerLabel,
-    layout: input.layout,
-    renderedMarkers: input.depthMarkerNodes,
-    root: input.layers.markers,
-    visibleRowRange: input.visibleRowRange
-  });
+  if (input.depthMarkerNodes.size > 0) {
+    clearMinePixiLayer(input.layers.markers);
+    input.depthMarkerNodes.clear();
+  }
 }
 
 export function renderMinePixiHitEffects(input: {
