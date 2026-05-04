@@ -7,7 +7,7 @@ import * as schema from "../db/schema.js";
 
 type ContentEntityInsert = typeof contentEntities.$inferInsert;
 
-const version = process.argv[2] ?? "0.0.15";
+const version = process.argv[2] ?? "0.1.0";
 const env = loadEnv();
 const client = postgres(env.databaseUrl, { max: 1 });
 const db = drizzle(client, { schema });

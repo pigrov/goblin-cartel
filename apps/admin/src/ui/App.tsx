@@ -14,7 +14,7 @@ import {
   ShieldCheck,
   UserPlus
 } from "lucide-react";
-import { type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ChangeEvent, type CSSProperties, type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 
 const sessionStorageKey = "goblin-cartel.admin.session-token";
 
@@ -28,6 +28,17 @@ interface AdminUser {
 interface AuthResponse {
   token: string;
   user: AdminUser;
+}
+
+interface AssetUploadResponse {
+  asset: {
+    assetId: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+    updatedAt: string;
+    url: string;
+  };
 }
 
 interface CredentialItem {
@@ -891,6 +902,7 @@ export function App() {
             onSelectContentVersion={handleSelectContentVersion}
             onValidateContent={handleValidateContent}
             selectedContentVersion={selectedContentVersion}
+            sessionToken={sessionToken}
           />
         ) : activeSection === "credentials" ? (
           <CredentialsSection
@@ -945,6 +957,7 @@ function ContentSection(props: {
   onSelectContentVersion: (id: string) => void;
   onValidateContent: () => void;
   selectedContentVersion: ContentVersion | null;
+  sessionToken: string | null;
 }) {
   const [draftToolMessage, setDraftToolMessage] = useState<string | null>(null);
   const [entityEditorKind, setEntityEditorKind] = useState<ContentEntityKind>("goblins");
@@ -1213,6 +1226,7 @@ function ContentSection(props: {
               onKindChange={setEntityEditorKind}
               onSelectedIdChange={setSelectedEntityId}
               selectedId={selectedEntityId}
+              sessionToken={props.sessionToken}
             />
           ) : null}
 
@@ -1254,6 +1268,7 @@ function ContentEntityEditor(props: {
   onKindChange: (kind: ContentEntityKind) => void;
   onSelectedIdChange: (id: string) => void;
   selectedId: string;
+  sessionToken: string | null;
 }) {
   const items = getContentEntityItems(props.content, props.kind);
   const selectedEntity = items.find((item) => stringField(item, "id") === props.selectedId) ?? items[0] ?? null;
@@ -1331,7 +1346,7 @@ function ContentEntityEditor(props: {
 
         <form className="content-entity-form" onSubmit={handleSubmit}>
           {selectedEntity ? (
-            renderEntityFields(props.kind, formState, props.content, updateField, updateFields)
+            renderEntityFields(props.kind, formState, props.content, updateField, updateFields, props.sessionToken)
           ) : (
             <p className="content-tool-message">Выбери или создай сущность.</p>
           )}
@@ -1359,7 +1374,8 @@ function renderEntityFields(
   formState: EntityFormState,
   content: ContentBundle,
   updateField: (field: string, value: string) => void,
-  updateFields: (values: EntityFormState) => void
+  updateFields: (values: EntityFormState) => void,
+  sessionToken: string | null
 ) {
   if (kind === "blockTypes") {
     return (
@@ -1407,6 +1423,12 @@ function renderEntityFields(
           <ContentTextField label="Sort order" name="sortOrder" onChange={updateField} type="number" value={formState.sortOrder} />
         </div>
         <ContentTextField label="Asset ID" name="assetId" onChange={updateField} value={formState.assetId} />
+        <ContentAssetUploadField
+          assetId={formState.assetId}
+          label="Рендер гоблина"
+          onAssetIdChange={(assetId) => updateField("assetId", assetId)}
+          token={sessionToken}
+        />
         <div className="content-form-grid">
           <ContentTextField label="Сила" name="strength" onChange={updateField} type="number" value={formState.strength} />
           <ContentTextField label="Скорость" name="speed" onChange={updateField} type="number" value={formState.speed} />
@@ -1487,6 +1509,11 @@ function renderEntityFields(
           name="namePoolNicknames"
           onChange={updateField}
           value={formState.namePoolNicknames}
+        />
+        <ContentGoblinGenerationArchetypeRows
+          content={content}
+          formState={formState}
+          updateFields={updateFields}
         />
         <ContentTextAreaField
           label="Архетипы найма JSON"
@@ -1691,6 +1718,124 @@ function ContentTextField(props: {
       />
     </label>
   );
+}
+
+function ContentAssetUploadField(props: {
+  assetId?: string;
+  label: string;
+  onAssetIdChange: (assetId: string) => void;
+  token: string | null;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [previewVersion, setPreviewVersion] = useState("");
+  const assetId = props.assetId?.trim() ?? "";
+  const previewUrl = assetId
+    ? `/api/assets/${encodeURIComponent(assetId)}${previewVersion ? `?v=${encodeURIComponent(previewVersion)}` : ""}`
+    : "";
+
+  async function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+
+    if (!file) {
+      return;
+    }
+
+    if (!props.token) {
+      setMessage("Нужна активная админ-сессия.");
+      return;
+    }
+
+    if (!["image/png", "image/webp", "image/jpeg"].includes(file.type)) {
+      setMessage("Поддерживаются PNG, WebP и JPG.");
+      return;
+    }
+
+    const targetAssetId = assetId || assetIdFromFileName(file.name);
+
+    if (!targetAssetId) {
+      setMessage("Заполни Asset ID или загрузи файл с латинским именем.");
+      return;
+    }
+
+    props.onAssetIdChange(targetAssetId);
+    setBusy(true);
+    setMessage(null);
+
+    try {
+      const response = await apiRequest<AssetUploadResponse>("/admin/assets/goblin-renders", {
+        body: {
+          assetId: targetAssetId,
+          dataBase64: await readFileAsDataUrl(file),
+          fileName: file.name,
+          mimeType: file.type
+        },
+        method: "POST",
+        token: props.token
+      });
+
+      setPreviewVersion(String(Date.now()));
+      setMessage(`Загружено: ${response.asset.fileName}, ${formatFileSize(response.asset.size)}.`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Не удалось загрузить рендер.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="content-asset-upload">
+      <header>
+        <div>
+          <strong>{props.label}</strong>
+          <span>PNG/WebP до 5 MB, прозрачный фон предпочтителен.</span>
+        </div>
+        {previewUrl ? (
+          <a href={previewUrl} rel="noreferrer" target="_blank">
+            открыть
+          </a>
+        ) : null}
+      </header>
+      <div className="content-asset-upload-body">
+        <div className="content-asset-preview">
+          {previewUrl ? <img alt="" src={previewUrl} /> : <span>нет assetId</span>}
+        </div>
+        <label className="content-asset-file">
+          <input accept="image/png,image/webp,image/jpeg" disabled={busy || !props.token} onChange={(event) => void handleFileChange(event)} type="file" />
+          <span>{busy ? "Загружаем..." : "Загрузить рендер"}</span>
+        </label>
+      </div>
+      {message ? <p>{message}</p> : null}
+    </section>
+  );
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("error", () => reject(new Error("Не удалось прочитать файл.")));
+    reader.addEventListener("load", () => resolve(String(reader.result ?? "")));
+    reader.readAsDataURL(file);
+  });
+}
+
+function assetIdFromFileName(fileName: string): string {
+  const baseName = fileName.replace(/\.[^.]+$/u, "");
+  return baseName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/gu, "_")
+    .replace(/^[._-]+/u, "")
+    .slice(0, 96);
+}
+
+function formatFileSize(size: number): string {
+  if (size >= 1024 * 1024) {
+    return `${(size / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  return `${Math.ceil(size / 1024)} KB`;
 }
 
 function ContentTextAreaField(props: {
@@ -1942,6 +2087,262 @@ function ContentGoblinLevelCostRows(props: {
           </button>
         </div>
       ))}
+    </ContentNestedSection>
+  );
+}
+
+function ContentGoblinGenerationArchetypeRows(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const parsed = parseJsonRecordArray(formValue(props.formState, "archetypesJson"));
+  const archetypes = parsed.ok ? parsed.value : [];
+  const resourceOptions = resourceSelectOptions(props.content);
+  const goblinOptions = goblinTemplateSelectOptions(props.content);
+
+  function writeArchetypes(next: ContentRecord[]) {
+    props.updateFields({
+      archetypesJson: JSON.stringify(next, null, 2)
+    });
+  }
+
+  function updateArchetype(index: number, patch: ContentRecord) {
+    const next = [...archetypes];
+    next[index] = {
+      ...(next[index] ?? {}),
+      ...patch
+    };
+    writeArchetypes(next);
+  }
+
+  function updateStat(index: number, stat: string, edge: "max" | "min", value: string) {
+    const archetype = archetypes[index] ?? {};
+    const statRanges = recordField(archetype, "statRanges");
+    const currentRange = recordField(statRanges, stat);
+    updateArchetype(index, {
+      statRanges: {
+        ...statRanges,
+        [stat]: {
+          ...currentRange,
+          [edge]: toInteger(value)
+        }
+      }
+    });
+  }
+
+  function updateRarity(index: number, rarity: string, field: "statMultiplier" | "weight", value: string) {
+    const weights = [...arrayField(archetypes[index] ?? {}, "rarityWeights")];
+    const rowIndex = weights.findIndex((row) => stringField(row, "rarity") === rarity);
+    const row = rowIndex >= 0 ? weights[rowIndex] ?? {} : { rarity };
+    const nextRow = {
+      ...row,
+      rarity,
+      [field]: toNumber(value)
+    };
+
+    if (rowIndex >= 0) {
+      weights[rowIndex] = nextRow;
+    } else {
+      weights.push(nextRow);
+    }
+
+    updateArchetype(index, { rarityWeights: weights });
+  }
+
+  function updateHireCost(index: number, costIndex: number, field: "amount" | "resourceId", value: string) {
+    const costs = [...arrayField(archetypes[index] ?? {}, "hireCost")];
+    const row = costs[costIndex] ?? {};
+    costs[costIndex] = {
+      ...row,
+      [field]: field === "amount" ? toInteger(value) : value
+    };
+    updateArchetype(index, { hireCost: costs });
+  }
+
+  function addHireCost(index: number) {
+    const costs = [...arrayField(archetypes[index] ?? {}, "hireCost")];
+    costs.push({
+      amount: 100,
+      resourceId: resourceOptions[0]?.value ?? "gold"
+    });
+    updateArchetype(index, { hireCost: costs });
+  }
+
+  function removeHireCost(index: number, costIndex: number) {
+    const costs = arrayField(archetypes[index] ?? {}, "hireCost").filter((_, itemIndex) => itemIndex !== costIndex);
+    updateArchetype(index, { hireCost: costs });
+  }
+
+  function addArchetype() {
+    const template = props.content.goblins[0] ?? {};
+    const goblinClass = stringField(template, "class") || "miner";
+    const id = uniqueContentId(`random_${goblinClass}_contract`, archetypes);
+    writeArchetypes([
+      ...archetypes,
+      {
+        class: goblinClass,
+        equipmentSlots: defaultGoblinGenerationEquipmentSlots(goblinClass),
+        hireCost: [{ amount: 100, resourceId: resourceOptions[0]?.value ?? "gold" }],
+        id,
+        nameKey: `goblin_generation.${id}.name`,
+        rarityWeights: defaultGoblinGenerationRarityWeights(),
+        sortOrder: nextSortOrder(archetypes),
+        statRanges: defaultGoblinGenerationStatRanges(),
+        templateGoblinId: stringField(template, "id"),
+        traitPool: []
+      }
+    ]);
+  }
+
+  if (!parsed.ok) {
+    return (
+      <ContentNestedSection addLabel="Добавить контракт" onAdd={addArchetype} title="Контракты случайных гоблинов">
+        <p className="content-form-note">JSON архетипов сейчас невалидный. Исправь JSON ниже или добавь новый контракт.</p>
+      </ContentNestedSection>
+    );
+  }
+
+  return (
+    <ContentNestedSection addLabel="Добавить контракт" onAdd={addArchetype} title="Контракты случайных гоблинов">
+      {archetypes.map((archetype, index) => {
+        const hireCosts = arrayField(archetype, "hireCost");
+        const rarityWeights = normalizedGoblinGenerationRarityWeights(archetype);
+        const statRanges = recordField(archetype, "statRanges");
+
+        return (
+          <div className="content-list-row content-list-row-wide content-generation-archetype" key={`${stringField(archetype, "id") || "archetype"}-${index}`}>
+            <div className="content-form-grid">
+              <ContentTextField
+                label="ID"
+                name={`goblinGenerationArchetypeId_${index}`}
+                onChange={(_, value) => updateArchetype(index, { id: value })}
+                value={stringField(archetype, "id")}
+              />
+              <ContentSelectField
+                label="Класс"
+                name={`goblinGenerationArchetypeClass_${index}`}
+                onChange={(_, value) => updateArchetype(index, { class: value, equipmentSlots: defaultGoblinGenerationEquipmentSlots(value) })}
+                options={goblinClassOptions}
+                value={stringField(archetype, "class") || "miner"}
+              />
+              <ContentSelectField
+                label="Шаблон"
+                name={`goblinGenerationArchetypeTemplate_${index}`}
+                onChange={(_, value) => updateArchetype(index, { templateGoblinId: value })}
+                options={goblinOptions}
+                value={stringField(archetype, "templateGoblinId")}
+              />
+              <ContentTextField
+                label="Порядок"
+                name={`goblinGenerationArchetypeSort_${index}`}
+                onChange={(_, value) => updateArchetype(index, { sortOrder: toInteger(value) })}
+                type="number"
+                value={numberString(numberField(archetype, "sortOrder", 0))}
+              />
+            </div>
+
+            <div className="content-form-grid">
+              {["strength", "speed", "luck", "loyalty"].map((stat) => {
+                const range = recordField(statRanges, stat);
+
+                return (
+                  <div className="content-generation-stat" key={stat}>
+                    <strong>{statLabel(stat)}</strong>
+                    <ContentTextField
+                      label="От"
+                      name={`goblinGeneration${stat}Min_${index}`}
+                      onChange={(_, value) => updateStat(index, stat, "min", value)}
+                      type="number"
+                      value={numberString(numberField(range, "min", 1))}
+                    />
+                    <ContentTextField
+                      label="До"
+                      name={`goblinGeneration${stat}Max_${index}`}
+                      onChange={(_, value) => updateStat(index, stat, "max", value)}
+                      type="number"
+                      value={numberString(numberField(range, "max", 1))}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="content-form-grid">
+              {rarityWeights.map((rarity) => (
+                <div className="content-generation-rarity" key={stringField(rarity, "rarity")}>
+                  <strong>{stringField(rarity, "rarity")}</strong>
+                  <ContentTextField
+                    label="Вес"
+                    name={`goblinGenerationRarityWeight_${index}_${stringField(rarity, "rarity")}`}
+                    onChange={(_, value) => updateRarity(index, stringField(rarity, "rarity"), "weight", value)}
+                    type="number"
+                    value={numberString(numberField(rarity, "weight", 0))}
+                  />
+                  <ContentTextField
+                    label="Множитель статов"
+                    name={`goblinGenerationRarityMultiplier_${index}_${stringField(rarity, "rarity")}`}
+                    onChange={(_, value) => updateRarity(index, stringField(rarity, "rarity"), "statMultiplier", value)}
+                    type="number"
+                    value={numberString(numberField(rarity, "statMultiplier", 1))}
+                  />
+                </div>
+              ))}
+            </div>
+
+            <ContentNestedSection addLabel="Добавить цену" onAdd={() => addHireCost(index)} title="Стоимость контракта">
+              {hireCosts.length > 0 ? (
+                hireCosts.map((cost, costIndex) => (
+                  <div className="content-list-row" key={`${index}-hire-cost-${costIndex}`}>
+                    <ContentSelectField
+                      label="Ресурс"
+                      name={`goblinGenerationHireCostResource_${index}_${costIndex}`}
+                      onChange={(_, value) => updateHireCost(index, costIndex, "resourceId", value)}
+                      options={resourceOptions}
+                      value={stringField(cost, "resourceId")}
+                    />
+                    <ContentTextField
+                      label="Кол-во"
+                      name={`goblinGenerationHireCostAmount_${index}_${costIndex}`}
+                      onChange={(_, value) => updateHireCost(index, costIndex, "amount", value)}
+                      type="number"
+                      value={numberString(numberField(cost, "amount", 0))}
+                    />
+                    <button onClick={() => removeHireCost(index, costIndex)} type="button">
+                      Убрать
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <p className="content-form-note">Первый найм нового игрока все равно будет бесплатным.</p>
+              )}
+            </ContentNestedSection>
+
+            <ContentTextField
+              label="Слоты предметов через запятую"
+              name={`goblinGenerationEquipmentSlots_${index}`}
+              onChange={(_, value) =>
+                updateArchetype(index, {
+                  equipmentSlots: value
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                })
+              }
+              value={arrayStringField(archetype, "equipmentSlots").join(", ")}
+            />
+            <ContentTextAreaField
+              label="Черты, формат id:weight:nameKey"
+              name={`goblinGenerationTraits_${index}`}
+              onChange={(_, value) => updateArchetype(index, { traitPool: parseGoblinGenerationTraitLines(value) })}
+              value={goblinGenerationTraitLines(arrayField(archetype, "traitPool"))}
+            />
+            <button onClick={() => writeArchetypes(archetypes.filter((_, itemIndex) => itemIndex !== index))} type="button">
+              Удалить контракт
+            </button>
+          </div>
+        );
+      })}
     </ContentNestedSection>
   );
 }
@@ -4689,6 +5090,81 @@ function createCellMapFromForm(state: EntityFormState, content: ContentBundle): 
   return cells;
 }
 
+function goblinTemplateSelectOptions(content: ContentBundle): Array<{ label: string; value: string }> {
+  const localization = content.localization?.ru ?? {};
+
+  return content.goblins.map((goblin) => ({
+    label: `${contentEntityTitle(goblin, localization)} · ${stringField(goblin, "class")}`,
+    value: stringField(goblin, "id")
+  }));
+}
+
+function defaultGoblinGenerationEquipmentSlots(goblinClass: string): string[] {
+  if (goblinClass === "collector") {
+    return ["ledger"];
+  }
+
+  if (goblinClass === "builder" || goblinClass === "foreman") {
+    return ["whistle"];
+  }
+
+  return ["tool"];
+}
+
+function defaultGoblinGenerationRarityWeights(): ContentRecord[] {
+  return [
+    { rarity: "common", statMultiplier: 1, weight: 78 },
+    { rarity: "rare", statMultiplier: 1.15, weight: 18 },
+    { rarity: "epic", statMultiplier: 1.35, weight: 3.5 },
+    { rarity: "legendary", statMultiplier: 1.6, weight: 0.5 }
+  ];
+}
+
+function defaultGoblinGenerationStatRanges(): ContentRecord {
+  return {
+    loyalty: { max: 6, min: 3 },
+    luck: { max: 4, min: 1 },
+    speed: { max: 6, min: 3 },
+    strength: { max: 8, min: 4 }
+  };
+}
+
+function normalizedGoblinGenerationRarityWeights(archetype: ContentRecord): ContentRecord[] {
+  const rows = arrayField(archetype, "rarityWeights");
+
+  return rarityOptions.map((option) => {
+    const existing = rows.find((row) => stringField(row, "rarity") === option.value);
+
+    return existing ?? { rarity: option.value, statMultiplier: 1, weight: 0 };
+  });
+}
+
+function goblinGenerationTraitLines(traits: ContentRecord[]): string {
+  return traits
+    .map((trait) => [stringField(trait, "id"), numberString(numberField(trait, "weight", 1)), stringField(trait, "nameKey")].filter(Boolean).join(":"))
+    .join("\n");
+}
+
+function parseGoblinGenerationTraitLines(value: string): ContentRecord[] {
+  return value
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [id = "", weight = "1", nameKey = ""] = line.split(":").map((part) => part.trim());
+      const trait: ContentRecord = {
+        id,
+        weight: toNumber(weight) || 1
+      };
+
+      if (nameKey) {
+        trait.nameKey = nameKey;
+      }
+
+      return trait;
+    });
+}
+
 function setOptionalField(record: ContentRecord, key: string, value: string) {
   if (value) {
     record[key] = value;
@@ -5208,6 +5684,12 @@ function messageForApiError(error?: string): string {
       return "Email или пароль не подошли.";
     case "invalid_payload":
       return "Проверь email и пароль.";
+    case "invalid_asset_payload":
+      return "Проверь Asset ID и формат файла.";
+    case "invalid_asset_file":
+      return "Файл рендера не подходит или больше 5 MB.";
+    case "asset_not_found":
+      return "Ассет не найден.";
     case "invalid_session":
       return "Сессия истекла. Войди заново.";
     case "password_setup_required":

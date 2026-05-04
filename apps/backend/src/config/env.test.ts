@@ -13,6 +13,7 @@ describe("loadEnv", () => {
     });
 
     expect(env.port).toBe(3001);
+    expect(env.assetStorageDir).toBe("storage/assets");
     expect(env.bootstrapAdminEmails).toEqual(["admin@example.com", "second@example.com"]);
   });
 });

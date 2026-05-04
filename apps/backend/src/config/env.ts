@@ -7,6 +7,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
   BASE_URL: z.string().url(),
   DATABASE_URL: z.string().min(1),
+  APP_ASSET_STORAGE_DIR: z.string().min(1).default("storage/assets"),
   APP_CREDENTIALS_MASTER_KEY: z.string().min(32),
   APP_BOOTSTRAP_ADMIN_EMAILS: z.string().min(1)
 });
@@ -16,6 +17,7 @@ export interface AppEnv {
   port: number;
   baseUrl: string;
   databaseUrl: string;
+  assetStorageDir: string;
   credentialsMasterKey: string;
   bootstrapAdminEmails: string[];
 }
@@ -32,6 +34,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     port: parsed.data.PORT,
     baseUrl: parsed.data.BASE_URL,
     databaseUrl: parsed.data.DATABASE_URL,
+    assetStorageDir: parsed.data.APP_ASSET_STORAGE_DIR,
     credentialsMasterKey: parsed.data.APP_CREDENTIALS_MASTER_KEY,
     bootstrapAdminEmails: parseBootstrapEmails(parsed.data.APP_BOOTSTRAP_ADMIN_EMAILS)
   };

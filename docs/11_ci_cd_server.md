@@ -25,9 +25,12 @@ POSTGRES_DB=goblin_cartel
 POSTGRES_USER=goblin_cartel
 POSTGRES_PASSWORD=...
 DATABASE_URL=postgres://goblin_cartel:...@postgres:5432/goblin_cartel
+APP_ASSET_STORAGE_DIR=/app/storage/assets
 APP_CREDENTIALS_MASTER_KEY=...
 APP_BOOTSTRAP_ADMIN_EMAILS=...
 ```
+
+Загруженные через админку рендеры ассетов хранятся в backend-контейнере в `APP_ASSET_STORAGE_DIR` и сохраняются в Docker volume `asset_data`. Публичная выдача идет через `https://goblin-cartel.murph.ru/api/assets/{assetId}`.
 
 ## GitHub secrets
 

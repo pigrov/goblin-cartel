@@ -1,7 +1,6 @@
 import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
   getGoblinLevel,
-  hireGoblin,
   hireRandomGoblin,
   isGoblinHired,
   upgradeGoblin,
@@ -73,39 +72,6 @@ export function useGoblinRosterController(input: {
     roster: input.roster,
     session: input.session
   });
-
-  function handleHireGoblin(goblin: GoblinConfig) {
-    const result = hireGoblin({
-      builtMinesCount: input.visibleBuiltMinesCount,
-      completedMineTemplateIds: input.completedMineTemplateIds,
-      goblinId: goblin.id,
-      goblinHut: input.content.goblinHut,
-      goblins: availableGoblins,
-      roster: input.roster,
-      resources: input.resources
-    });
-
-    if (!result.ok) {
-      setRosterMessage(messageForHireFailure(result.reason));
-      return;
-    }
-
-    input.setRoster(result.roster);
-    if (isMiningGoblin(goblin)) {
-      setGoblinPlacements((current) =>
-        placeGoblinInFirstFreeColumn(input.session, current, goblin.id, input.currentPlatformRow, {
-          maxPlacements: input.platformSlots
-        })
-      );
-    }
-    input.syncVisibleResourceAmounts(result.resources);
-    input.setSession((current) => ({
-      ...current,
-      resources: result.resources,
-      lastRewards: {}
-    }));
-    setRosterMessage(`${goblinName(goblin, input.labels)} нанят.`);
-  }
 
   function handleUpgradeGoblin(goblin: GoblinConfig) {
     const result = upgradeGoblin({
@@ -214,7 +180,6 @@ export function useGoblinRosterController(input: {
     goblinHutProgression,
     goblinLevels,
     goblinPlacements,
-    handleHireGoblin,
     handleHireRandomGoblin,
     handlePlaceGoblin,
     handleUpgradeGoblin,
@@ -253,23 +218,6 @@ function randomGoblinName(instance: GoblinRosterInstance, goblin: GoblinConfig, 
   const nickname = instance.nickname?.trim() || identity.nickname;
 
   return nickname ? `${name} ${nickname}` : name;
-}
-
-function messageForHireFailure(reason: string): string {
-  switch (reason) {
-    case "already_hired":
-      return "Этот гоблин уже в бригаде.";
-    case "hut_limit":
-      return "Лимит Хижины заполнен. Улучши Хижину, чтобы нанять больше.";
-    case "locked":
-      return "Условия найма еще не выполнены.";
-    case "not_enough_resources":
-      return "Не хватает ресурсов для найма.";
-    case "role_locked":
-      return "Эта роль еще не открыта уровнем Хижины.";
-    default:
-      return "Найм не прошел.";
-  }
 }
 
 function messageForGoblinHutUpgradeFailure(reason: string): string {

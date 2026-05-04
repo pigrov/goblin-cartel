@@ -8,6 +8,7 @@ describe("server", () => {
       port: 3000,
       baseUrl: "https://goblin-cartel.murph.ru",
       databaseUrl: "postgres://example",
+      assetStorageDir: "storage/assets",
       credentialsMasterKey: "local-test-master-key-32-characters",
       bootstrapAdminEmails: ["admin@example.com"]
     });
@@ -31,6 +32,7 @@ describe("server", () => {
         port: 3000,
         baseUrl: "https://goblin-cartel.murph.ru",
         databaseUrl: "postgres://example",
+        assetStorageDir: "storage/assets",
         credentialsMasterKey: "local-test-master-key-32-characters",
         bootstrapAdminEmails: ["admin@example.com"]
       })

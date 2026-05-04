@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
-  createGoblinHirePreview,
   createGoblinHutProgressionState,
   createGoblinHutVisualStage,
   createGoblinIdentity,
@@ -275,25 +274,6 @@ describe("goblin hut client state", () => {
   });
 
   it("previews hut progression and role-locked hires", () => {
-    expect(
-      createGoblinHirePreview({
-        builtMinesCount: 0,
-        completedMineTemplateIds: [],
-        goblin: builder,
-        goblinHut: content.goblinHut,
-        goblins: content.goblins,
-        resources: {
-          gold: 1000
-        },
-        roster: {
-          hiredGoblinIds: ["miner_1"]
-        }
-      })
-    ).toMatchObject({
-      canHire: false,
-      failureReason: "role_locked"
-    });
-
     const hutState = createGoblinHutProgressionState({
       builtMinesCount: 1,
       completedMineTemplateIds: [],
@@ -391,7 +371,7 @@ describe("goblin hut client state", () => {
   it("counts rolled goblin instances in hut summaries", () => {
     expect(
       createGoblinRoleSummary(content.goblins, {
-        hiredGoblinIds: ["miner_1", "rolled:miner_contract:1"],
+        hiredGoblinIds: ["miner_1", "rolled:miner_contract:1", "rolled:collector_contract:1"],
         instances: [
           {
             class: "miner",
@@ -414,12 +394,25 @@ describe("goblin hut client state", () => {
             rolledStats: { loyalty: 6, luck: 4, speed: 5, strength: 8 },
             templateId: "miner_1",
             traits: []
+          },
+          {
+            class: "collector",
+            equipment: [],
+            id: "rolled:collector_contract:1",
+            level: 3,
+            lifetimeStats: {},
+            rarity: "rare",
+            rolledStats: { loyalty: 7, luck: 8, speed: 5, strength: 3 },
+            templateId: "collector_1",
+            traits: []
           }
         ]
       })
     ).toMatchObject({
-      hiredCount: 2,
-      minerCount: 2
+      collectorCount: 1,
+      hiredCount: 3,
+      minerCount: 2,
+      totalAutoCollectSlots: 2
     });
   });
 

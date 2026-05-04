@@ -25,6 +25,7 @@ services:
       PORT: 3000
       BASE_URL: ${BASE_URL}
       DATABASE_URL: ${DATABASE_URL}
+      APP_ASSET_STORAGE_DIR: /app/storage/assets
       APP_CREDENTIALS_MASTER_KEY: ${APP_CREDENTIALS_MASTER_KEY}
       APP_BOOTSTRAP_ADMIN_EMAILS: ${APP_BOOTSTRAP_ADMIN_EMAILS}
     depends_on:
@@ -33,6 +34,8 @@ services:
     networks:
       - default
       - web
+    volumes:
+      - asset_data:/app/storage/assets
 
   game-client:
     container_name: goblin_cartel_game_client
@@ -64,3 +67,4 @@ networks:
 
 volumes:
   postgres_data:
+  asset_data:

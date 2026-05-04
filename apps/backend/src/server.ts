@@ -2,6 +2,7 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 import { createAdminAuthService, type AdminAuthService } from "./admin/auth.js";
 import { DrizzleAdminAuthStore } from "./admin/auth-store.js";
+import { registerAssetRoutes } from "./admin/asset-routes.js";
 import { createContentService, type ContentService } from "./admin/content.js";
 import { registerContentRoutes } from "./admin/content-routes.js";
 import { DrizzleContentStore } from "./admin/content-store.js";
@@ -83,6 +84,7 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
 
   await registerAdminAuthRoutes(server, adminAuthService, env.bootstrapAdminEmails);
   await registerAdminCredentialRoutes(server, adminAuthService, adminCredentialService);
+  await registerAssetRoutes(server, adminAuthService, { assetStorageDir: env.assetStorageDir });
   await registerContentRoutes(server, adminAuthService, contentService);
   await registerPlayerSaveRoutes(server, playerSaveService);
 

@@ -350,13 +350,9 @@ interface ResolvedHiredGoblin {
   instance: GoblinRosterInstance | undefined;
 }
 
-export function createInitialGoblinRoster(goblins: GoblinRosterGoblin[]): GoblinRosterState {
-  const firstFreeGoblin = [...goblins]
-    .sort((left, right) => left.sortOrder - right.sortOrder)
-    .find((goblin) => goblin.hireCost.length === 0 && goblin.unlockRequirements.length === 0);
-
+export function createInitialGoblinRoster(_goblins: GoblinRosterGoblin[]): GoblinRosterState {
   return {
-    hiredGoblinIds: firstFreeGoblin ? [firstFreeGoblin.id] : []
+    hiredGoblinIds: []
   };
 }
 
@@ -699,6 +695,10 @@ export function calculateGoblinGenerationHireCost(
   roster: GoblinRosterState,
   goblinHut?: GoblinHutConfig
 ): GoblinRosterResourceAmount[] {
+  if (getHiredGoblinCount(roster) === 0) {
+    return [];
+  }
+
   const multiplier = getCurrentGoblinHutLevelConfig(roster, goblinHut).hireCostMultiplier ?? 1;
 
   return normalizeResourceCost(

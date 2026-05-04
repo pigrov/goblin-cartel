@@ -7,7 +7,6 @@ import type {
 } from "@goblin-cartel/content-schemas";
 import {
   calculateGoblinGenerationHireCost,
-  calculateGoblinHireCost,
   calculateGoblinHutMaxHired,
   calculateCrewAutoDamagePerSecond,
   calculateGoblinMaxLevel,
@@ -17,10 +16,8 @@ import {
   getGoblinHutLevel,
   isGoblinHired,
   isGoblinClassUnlockedByHut,
-  isGoblinUnlocked,
   upgradeGoblinHut,
   type GoblinRosterState,
-  type HireGoblinFailureReason,
   type HireRandomGoblinFailureReason,
   type UpgradeGoblinHutFailureReason,
   type UpgradeGoblinFailureReason
@@ -48,12 +45,6 @@ export interface GoblinUpgradePreview {
   levelAfter: number;
   levelNow: number;
   maxLevel: number;
-}
-
-export interface GoblinHirePreview {
-  canHire: boolean;
-  costRequirements: BuildCostRequirement[];
-  failureReason: HireGoblinFailureReason | null;
 }
 
 export interface RandomGoblinContractPreview {
@@ -158,53 +149,6 @@ export function createGoblinUpgradePreview(
     levelNow,
     maxLevel
   };
-}
-
-export function createGoblinHirePreview(input: {
-  builtMinesCount: number;
-  completedMineTemplateIds: string[];
-  goblin: GoblinConfig;
-  goblinHut?: GoblinHutConfig;
-  goblins: GoblinConfig[];
-  resources: Record<string, number>;
-  roster: GoblinRosterState;
-}): GoblinHirePreview {
-  const hired = isGoblinHired(input.roster, input.goblin.id);
-  const cost = calculateGoblinHireCost(input.goblin, input.roster, input.goblinHut);
-  const costRequirements = createBuildCostRequirements(cost, input.resources);
-
-  if (hired) {
-    return { canHire: false, costRequirements, failureReason: "already_hired" };
-  }
-
-  if (!isGoblinClassUnlockedByHut(input.goblin.class, input.roster, input.goblinHut)) {
-    return { canHire: false, costRequirements, failureReason: "role_locked" };
-  }
-
-  if (getHiredGoblinCount(input.roster) >= calculateGoblinHutMaxHired(input.roster, input.goblinHut)) {
-    return { canHire: false, costRequirements, failureReason: "hut_limit" };
-  }
-
-  if (
-    !isGoblinUnlocked({
-      goblin: input.goblin,
-      goblins: input.goblins,
-      progress: {
-        builtMinesCount: input.builtMinesCount,
-        completedMineTemplateIds: input.completedMineTemplateIds,
-        resources: input.resources
-      },
-      roster: input.roster
-    })
-  ) {
-    return { canHire: false, costRequirements, failureReason: "locked" };
-  }
-
-  if (!costRequirements.every((requirement) => requirement.ok)) {
-    return { canHire: false, costRequirements, failureReason: "not_enough_resources" };
-  }
-
-  return { canHire: true, costRequirements, failureReason: null };
 }
 
 export function createRandomGoblinContractPreview(input: {
@@ -332,16 +276,20 @@ export function createGoblinRoleSummary(goblins: readonly GoblinConfig[], roster
   if (hiredInstances.length > 0) {
     const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
     const instanceGoblins = hiredInstances
-      .map((instance) => goblinById.get(instance.templateId))
-      .filter((goblin): goblin is GoblinConfig => Boolean(goblin));
+      .map((instance) => {
+        const goblin = goblinById.get(instance.templateId);
+
+        return goblin ? { goblin, instance } : null;
+      })
+      .filter((item): item is { goblin: GoblinConfig; instance: (typeof hiredInstances)[number] } => Boolean(item));
 
     return {
-      builderCount: instanceGoblins.filter((goblin) => goblin.class === "builder" || goblin.class === "foreman").length,
-      collectorCount: instanceGoblins.filter((goblin) => goblin.class === "collector").length,
+      builderCount: instanceGoblins.filter(({ goblin }) => goblin.class === "builder" || goblin.class === "foreman").length,
+      collectorCount: instanceGoblins.filter(({ goblin }) => goblin.class === "collector").length,
       hiredCount: hiredInstances.length,
-      minerCount: instanceGoblins.filter((goblin) => goblin.class === "miner").length,
+      minerCount: instanceGoblins.filter(({ goblin }) => goblin.class === "miner").length,
       totalAutoCollectSlots: instanceGoblins.reduce(
-        (total, goblin) => total + getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)),
+        (total, { goblin, instance }) => total + getGoblinAutoCollectSlots(goblin, instance.level),
         0
       )
     };

@@ -92,6 +92,9 @@ export function MineScreen(props: {
     return <MineLoadingState />;
   }
 
+  const mineModalOpen = foremanPickerOpen || elevatorOpen || progressOpen;
+  const occupiedElevatorSlots = Math.min(props.goblins.length, props.elevatorProgression.platformSlots);
+
   return (
     <section className="mine-screen-stage">
       <Suspense fallback={<MineLoadingState />}>
@@ -115,23 +118,28 @@ export function MineScreen(props: {
           session={props.session}
         />
       </Suspense>
-      <div className="mine-side-actions" aria-label="Управление рудником">
-        <div className="mine-elevator-action">
-          <ElevatorMineButton
-            lowering={props.platformDropAnimating}
-            upgraded={elevatorUpgradePulse}
-            level={props.elevatorProgression.levelNow}
-            slots={props.elevatorProgression.platformSlots}
-            onOpen={() => setElevatorOpen(true)}
+      {!mineModalOpen ? (
+        <div className="mine-side-actions" aria-label="Управление рудником">
+          <div className="mine-elevator-action">
+            <ElevatorMineButton
+              lowering={props.platformDropAnimating}
+              occupiedSlots={occupiedElevatorSlots}
+              upgraded={elevatorUpgradePulse}
+              level={props.elevatorProgression.levelNow}
+              slots={props.elevatorProgression.platformSlots}
+              onOpen={() => setElevatorOpen(true)}
+            />
+            {elevatorUpgradePulse ? (
+              <div className="mine-elevator-upgrade-toast">LV {props.elevatorProgression.levelNow}</div>
+            ) : null}
+          </div>
+          <ForemanTowerButton
+            assignedCount={props.foremanTower.assignedForemen.length}
+            onOpen={() => setForemanPickerOpen(true)}
           />
-          {elevatorUpgradePulse ? <div className="mine-elevator-upgrade-toast">LV {props.elevatorProgression.levelNow}</div> : null}
+          <MineProgressButton stats={props.progressStats} onOpen={() => setProgressOpen(true)} />
         </div>
-        <ForemanTowerButton
-          assignedCount={props.foremanTower.assignedForemen.length}
-          onOpen={() => setForemanPickerOpen(true)}
-        />
-        <MineProgressButton stats={props.progressStats} onOpen={() => setProgressOpen(true)} />
-      </div>
+      ) : null}
       {props.platformDropEvent ? <MineDepthEventToast event={props.platformDropEvent} key={props.platformDropEvent.id} /> : null}
       {elevatorOpen ? (
         <ElevatorModal
@@ -159,7 +167,14 @@ export function MineScreen(props: {
   );
 }
 
-function ElevatorMineButton(props: { level: number; lowering: boolean; slots: number; onOpen: () => void; upgraded: boolean }) {
+function ElevatorMineButton(props: {
+  level: number;
+  lowering: boolean;
+  occupiedSlots: number;
+  slots: number;
+  onOpen: () => void;
+  upgraded: boolean;
+}) {
   const className = [
     "mine-elevator-button",
     props.lowering ? "lowering" : "",
@@ -167,10 +182,15 @@ function ElevatorMineButton(props: { level: number; lowering: boolean; slots: nu
   ].filter(Boolean).join(" ");
 
   return (
-    <button className={className} onClick={props.onOpen} type="button" aria-label="Подъемник">
+    <button
+      className={className}
+      onClick={props.onOpen}
+      title={`LV ${props.level}`}
+      type="button"
+      aria-label="Подъемник"
+    >
       <ArrowDownUp size={18} />
-      <span>LV {props.level}</span>
-      <strong>{props.slots}</strong>
+      <strong>{formatInteger(props.occupiedSlots)}/{formatInteger(props.slots)}</strong>
     </button>
   );
 }
@@ -195,10 +215,7 @@ function MineProgressButton(props: { onOpen: () => void; stats: MineRunProgressS
   return (
     <button className="mine-progress-button" onClick={props.onOpen} type="button" aria-label="Прогресс рудника">
       <BarChart3 size={17} />
-      <span>{props.stats.progressPercent}%</span>
-      <strong>
-        {props.stats.currentDepthMeters}/{props.stats.depthMeters}м
-      </strong>
+      <strong>{formatInteger(props.stats.currentDepthMeters)}/{formatInteger(props.stats.depthMeters)}</strong>
     </button>
   );
 }

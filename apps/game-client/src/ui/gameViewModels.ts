@@ -68,7 +68,6 @@ export interface CreateGameViewModelsInput {
   handleContinueRewardChest: () => void;
   handleDismissMineCompletionNotice: () => void;
   handleAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
-  handleHireGoblin: (goblin: GoblinConfig) => void;
   handleHireRandomGoblin: (archetypeId: string) => void;
   handleOpenRewardChest: () => void;
   handleLinkVkIdentity: () => void;
@@ -167,8 +166,6 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
     goblins: {
       activeRoleTab: input.goblinRoleTab,
       availableGoblins: input.availableGoblins,
-      builtMinesCount: input.visibleBuiltMines.length,
-      completedMineTemplateIds: input.completedMineTemplateIds,
       hutLevel: input.goblinHutProgression.levelNow,
       hutLimit: input.goblinHutProgression.maxHiredGoblins,
       roster: input.roster,
@@ -218,7 +215,6 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
     onCollectAllMines: input.handleCollectAllBuiltMines,
     onCollectMine: input.handleCollectBuiltMine,
     onAssignForemanSlot: input.handleAssignForemanSlot,
-    onHireGoblin: input.handleHireGoblin,
     onHireRandomGoblin: input.handleHireRandomGoblin,
     onOpenGoblins: () => {
       input.setGoblinRoleTab("builders");

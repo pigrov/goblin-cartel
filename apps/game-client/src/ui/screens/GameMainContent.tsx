@@ -26,7 +26,6 @@ export interface GameMainContentActions {
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
-  onHireGoblin: (goblin: GoblinConfig) => void;
   onHireRandomGoblin: (archetypeId: string) => void;
   onOpenGoblins: () => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
@@ -69,8 +68,6 @@ export interface GameMainContentView {
   goblins: {
     activeRoleTab: GoblinHutRoleTabId;
     availableGoblins: GoblinConfig[];
-    builtMinesCount: number;
-    completedMineTemplateIds: string[];
     hutLevel: number;
     hutLimit: number;
     randomGoblinReveal: RandomGoblinReveal | null;
@@ -141,13 +138,10 @@ export function GameMainContent(props: {
       <GoblinSection
         activeRoleTab={view.goblins.activeRoleTab}
         availableGoblins={view.goblins.availableGoblins}
-        builtMinesCount={view.goblins.builtMinesCount}
-        completedMineTemplateIds={view.goblins.completedMineTemplateIds}
         content={common.content}
         hutLevel={view.goblins.hutLevel}
         hutLimit={view.goblins.hutLimit}
         labels={common.labels}
-        onHireGoblin={actions.onHireGoblin}
         onHireRandomGoblin={actions.onHireRandomGoblin}
         onRandomGoblinRevealClose={actions.onRandomGoblinRevealClose}
         onRoleTabChange={actions.onRoleTabChange}
