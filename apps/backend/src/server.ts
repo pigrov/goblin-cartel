@@ -23,13 +23,15 @@ export interface ServerDependencies {
   playerSaveService?: PlayerSaveService;
 }
 
+const nativeAppCorsOrigins = ["https://localhost", "capacitor://localhost", "ionic://localhost"];
+
 export async function buildServer(env: AppEnv, dependencies: ServerDependencies = {}): Promise<FastifyInstance> {
   const server = Fastify({
     logger: env.nodeEnv !== "test"
   });
 
   await server.register(cors, {
-    origin: env.nodeEnv === "production" ? env.baseUrl : true
+    origin: createCorsOrigin(env)
   });
 
   server.get("/health", async () => ({
@@ -85,4 +87,12 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
   await registerPlayerSaveRoutes(server, playerSaveService);
 
   return server;
+}
+
+export function createCorsOrigin(env: AppEnv): true | string[] {
+  if (env.nodeEnv !== "production") {
+    return true;
+  }
+
+  return Array.from(new Set([env.baseUrl, ...nativeAppCorsOrigins]));
 }

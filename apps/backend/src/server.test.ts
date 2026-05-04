@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildServer } from "./server.js";
+import { buildServer, createCorsOrigin } from "./server.js";
 
 describe("server", () => {
   it("serves health status", async () => {
@@ -22,5 +22,18 @@ describe("server", () => {
       status: "ok",
       service: "goblin-cartel-backend"
     });
+  });
+
+  it("allows production web and native app origins", () => {
+    expect(
+      createCorsOrigin({
+        nodeEnv: "production",
+        port: 3000,
+        baseUrl: "https://goblin-cartel.murph.ru",
+        databaseUrl: "postgres://example",
+        credentialsMasterKey: "local-test-master-key-32-characters",
+        bootstrapAdminEmails: ["admin@example.com"]
+      })
+    ).toEqual(["https://goblin-cartel.murph.ru", "https://localhost", "capacitor://localhost", "ionic://localhost"]);
   });
 });

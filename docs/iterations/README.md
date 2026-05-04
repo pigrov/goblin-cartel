@@ -90,3 +90,4 @@
 - `0085_random_goblin_instance_upgrades` - added upgrade support for a concrete rolled goblin instance without leveling its template goblin.
 - `0086_random_goblin_details_modal` - added a details modal for concrete random goblins with stat growth, traits, upgrade cost, and future equipment slots.
 - `0087_player_db_save_foundation` - added backend player identity, device tokens, versioned save snapshots, score rows, Drizzle migration, API routes, client bootstrap/sync, Android VK ID bridge, and tests before item/inventory work.
+- `0088_android_cors_fix` - allowed Capacitor/WebView origins in production CORS so Android APK can load the production API.
