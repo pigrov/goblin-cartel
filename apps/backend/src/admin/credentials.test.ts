@@ -10,6 +10,10 @@ class MemoryCredentialStore implements AdminCredentialStore {
   readonly records = new Map<string, AdminCredentialRecord>();
   readonly auditLogs: Array<{ action: string; metadata?: Record<string, unknown> }> = [];
 
+  async findCredentialByName(name: string): Promise<AdminCredentialRecord | null> {
+    return this.records.get(name) ?? null;
+  }
+
   async listCredentials(): Promise<AdminCredentialRecord[]> {
     return [...this.records.values()].sort((left, right) => left.name.localeCompare(right.name));
   }

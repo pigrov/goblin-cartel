@@ -19,7 +19,9 @@ import type { MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
 import type { GameSection } from "./screens/BottomNav";
 import type { GameMainContentActions, GameMainContentView } from "./screens/GameMainContent";
 import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverlays";
+import type { VkIdentityLinkStatus } from "./screens/SettingsModal";
 import type { ContentState } from "./useGameBootstrap";
+import type { PlayerDbSyncState } from "./playerDbSyncState";
 import type { RandomGoblinReveal } from "./useGoblinRosterController";
 import type { FoundVeinView } from "./useMineUiController";
 import type { PlatformDropEvent } from "./useMiningLoop";
@@ -69,6 +71,7 @@ export interface CreateGameViewModelsInput {
   handleHireGoblin: (goblin: GoblinConfig) => void;
   handleHireRandomGoblin: (archetypeId: string) => void;
   handleOpenRewardChest: () => void;
+  handleLinkVkIdentity: () => void;
   handlePlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   handleStartNextMine: () => void;
   handleUpgradeBossCard: (cardId: BossCardId) => void;
@@ -87,6 +90,7 @@ export interface CreateGameViewModelsInput {
   nextMineTitle: string | null;
   pendingRewardChest: PendingRewardChest | null;
   pendingRewardChestType: RewardChestTypeConfig | null;
+  playerDbSyncState: PlayerDbSyncState;
   pixiDepthMarkerLabel: (row: number) => string;
   pixiDevOverlayEnabled: boolean;
   pixiGoblins: MinePixiGoblin[];
@@ -112,6 +116,11 @@ export interface CreateGameViewModelsInput {
   settingsOpen: boolean;
   unbuiltFoundVeins: MiningFoundVein[];
   visibleBuiltMines: BuiltMineState[];
+  vkIdentity: {
+    displayName: string | null;
+    message: string;
+    status: VkIdentityLinkStatus;
+  };
 }
 
 export function createGameViewModels(input: CreateGameViewModelsInput) {
@@ -273,7 +282,9 @@ function createOverlaysView(input: CreateGameViewModelsInput): GameOverlaysView 
     settings: {
       contentLabel: input.contentState.source === "published" ? input.contentState.version : input.contentState.message,
       open: input.settingsOpen,
-      pixiDevOverlayEnabled: input.pixiDevOverlayEnabled
+      playerDbSync: input.playerDbSyncState,
+      pixiDevOverlayEnabled: input.pixiDevOverlayEnabled,
+      vkIdentity: input.vkIdentity
     }
   };
 }
@@ -293,6 +304,7 @@ function createOverlaysActions(input: CreateGameViewModelsInput): GameOverlaysAc
     onOpenBuiltMines: () => input.setActiveSection("builtMines"),
     onOpenRewardChest: input.handleOpenRewardChest,
     onPixiDevOverlayChange: input.setPixiDevOverlayEnabled,
+    onLinkVkIdentity: input.handleLinkVkIdentity,
     onSettingsClose: () => input.setSettingsOpen(false),
     onStartNextMine: input.handleStartNextMine
   };

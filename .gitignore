@@ -21,3 +21,6 @@ release.tar.gz
 
 android/
 ios/
+
+!apps/game-client/android/
+!apps/game-client/android/**

@@ -5,12 +5,16 @@
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "cap:open:android": "cap open android",
+    "cap:sync:android": "cap sync android",
     "dev": "vite --host 0.0.0.0 --port 5173",
     "preview": "vite preview --host 0.0.0.0 --port 4173",
     "test": "vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
     "@goblin-cartel/content-schemas": "workspace:*",
     "@goblin-cartel/game-core": "workspace:*",
     "@goblin-cartel/ui-kit": "workspace:*",
@@ -20,6 +24,7 @@
     "react-dom": "^19.2.5"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",

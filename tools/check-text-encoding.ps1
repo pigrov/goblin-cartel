@@ -81,7 +81,7 @@ foreach ($path in $Paths) {
     $item = Get-Item -LiteralPath $resolvedPath
 
     if ($item.PSIsContainer) {
-      $files = Get-ChildItem -LiteralPath $item.FullName -Recurse -File
+      $files = Get-ChildItem -LiteralPath $item.FullName -Recurse -File -ErrorAction SilentlyContinue
     } else {
       $files = @($item)
     }

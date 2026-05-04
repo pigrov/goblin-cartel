@@ -33,6 +33,9 @@ import {
 import { getElevatorLevelConfig, normalizeElevatorLevel } from "./elevatorState";
 import { isMiningGoblin } from "./goblinHutClientState";
 import { addMineRunBlockRewards, createMineRunStats, restoreMineRunStats, type MineRunStats } from "./mineRunStats";
+import { apiUrl } from "./apiClient";
+import { bootstrapPlayerDbSave } from "./playerDbSaveClient";
+import { createPlayerDbSyncState, type PlayerDbSyncState } from "./playerDbSyncState";
 import { loadStoredBossCards, loadStoredGoblinRoster, loadStoredMiningSession } from "./playerSave";
 import { contentVersionWithRuntimeSuffix, createRuntimeContentBundle } from "./runtimeContent";
 import {
@@ -111,6 +114,7 @@ export function useGameBootstrap(input: {
   setOfflineSummary: Dispatch<SetStateAction<OfflineMiningSummary | null>>;
   setPendingOfflineFinalHit: Dispatch<SetStateAction<{ row: number; col: number } | null>>;
   setPlatformRow: Dispatch<SetStateAction<number>>;
+  setPlayerDbSyncState: Dispatch<SetStateAction<PlayerDbSyncState>>;
   setRoster: Dispatch<SetStateAction<GoblinRosterState>>;
   setSession: Dispatch<SetStateAction<MiningSession>>;
   setSessionReady: Dispatch<SetStateAction<boolean>>;
@@ -121,7 +125,7 @@ export function useGameBootstrap(input: {
 
     async function loadContent() {
       try {
-        const response = await fetch("/api/content/current", {
+        const response = await fetch(apiUrl("/api/content/current"), {
           headers: {
             Accept: "application/json"
           }
@@ -139,8 +143,47 @@ export function useGameBootstrap(input: {
         if (active) {
           const runtimeContent = createRuntimeContentBundle(payload.content);
           const runtimeVersion = contentVersionWithRuntimeSuffix(payload.version.version);
-          const nextRoster = createRestoredGoblinRoster(runtimeContent, runtimeVersion);
           const nextBossCardDefinitions = createBossCardDefinitions(runtimeContent.bossCards);
+          input.setPlayerDbSyncState(
+            createPlayerDbSyncState({
+              status: "connecting",
+              message: "Подключение к серверному сохранению"
+            })
+          );
+          const playerDbBootstrap = await bootstrapPlayerDbSave({
+            contentVersion: runtimeVersion,
+            definitions: nextBossCardDefinitions
+          });
+
+          if (!active) {
+            return;
+          }
+
+          if (playerDbBootstrap.ok) {
+            input.setPlayerDbSyncState(
+              createPlayerDbSyncState({
+                status: playerDbBootstrap.appliedServerSave ? "restored" : "local_only",
+                revision: playerDbBootstrap.serverRevision,
+                message: playerDbBootstrap.appliedServerSave
+                  ? "Прогресс загружен с сервера"
+                  : playerDbBootstrap.serverRevision !== null
+                    ? "Серверная ревизия не применена к текущему контенту"
+                    : "Первое локальное сохранение"
+              })
+            );
+          } else {
+            input.setPlayerDbSyncState(
+              createPlayerDbSyncState({
+                status: playerDbBootstrap.code === "network_error" ? "offline" : "error",
+                message:
+                  playerDbBootstrap.code === "network_error"
+                    ? "Сервер недоступен, игра идет локально"
+                    : "Серверное сохранение не применено"
+              })
+            );
+          }
+
+          const nextRoster = createRestoredGoblinRoster(runtimeContent, runtimeVersion);
           const nextBossCards = loadStoredBossCards(localStorage, nextBossCardDefinitions, runtimeVersion);
           const restoredMining = createRestoredMiningState(
             runtimeContent,

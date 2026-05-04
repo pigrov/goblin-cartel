@@ -1,6 +1,6 @@
-import { Hammer, Pickaxe, Users, Warehouse } from "lucide-react";
+import { Hammer, Pickaxe, Trophy, Users, Warehouse } from "lucide-react";
 
-export type GameSection = "mine" | "base" | "goblins" | "builtMines";
+export type GameSection = "mine" | "base" | "goblins" | "builtMines" | "leaderboard";
 
 export function BottomNav(props: {
   activeSection: GameSection;
@@ -23,6 +23,10 @@ export function BottomNav(props: {
       <button className={props.activeSection === "builtMines" ? "active" : ""} onClick={() => props.onSectionChange("builtMines")} type="button">
         <Warehouse size={18} />
         Шахты
+      </button>
+      <button className={props.activeSection === "leaderboard" ? "active" : ""} onClick={() => props.onSectionChange("leaderboard")} type="button">
+        <Trophy size={18} />
+        Рейтинг
       </button>
     </nav>
   );

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Goblin Cartel</string>
+    <string name="title_activity_main">Goblin Cartel</string>
+    <string name="package_name">ru.murph.goblincartel</string>
+    <string name="custom_url_scheme">ru.murph.goblincartel</string>
+</resources>

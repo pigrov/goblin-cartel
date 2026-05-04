@@ -1,0 +1,4 @@
+VKIDClientID=
+VKIDClientSecret=
+VKIDRedirectHost=vk.ru
+VKIDRedirectScheme=vk<client_id>

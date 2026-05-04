@@ -11,11 +11,16 @@ import { DrizzleAdminCredentialStore } from "./admin/credentials-store.js";
 import { registerAdminAuthRoutes } from "./admin/routes.js";
 import type { AppEnv } from "./config/env.js";
 import { createDb } from "./db/client.js";
+import { createPlayerSaveService, type PlayerSaveService } from "./player/player-save.js";
+import { registerPlayerSaveRoutes } from "./player/player-save-routes.js";
+import { DrizzlePlayerSaveStore } from "./player/player-save-store.js";
+import { createVkIdentityVerifier } from "./player/vk-identity-verifier.js";
 
 export interface ServerDependencies {
   adminAuthService?: AdminAuthService;
   adminCredentialService?: AdminCredentialService;
   contentService?: ContentService;
+  playerSaveService?: PlayerSaveService;
 }
 
 export async function buildServer(env: AppEnv, dependencies: ServerDependencies = {}): Promise<FastifyInstance> {
@@ -35,7 +40,14 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
   }));
 
   const db =
-    dependencies.adminAuthService && dependencies.adminCredentialService && dependencies.contentService ? null : createDb(env);
+    dependencies.adminAuthService &&
+    dependencies.adminCredentialService &&
+    dependencies.contentService &&
+    dependencies.playerSaveService
+      ? null
+      : createDb(env);
+
+  const adminCredentialStore = new DrizzleAdminCredentialStore(db ?? createDb(env));
 
   const adminAuthService =
     dependencies.adminAuthService ??
@@ -47,7 +59,7 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
   const adminCredentialService =
     dependencies.adminCredentialService ??
     createAdminCredentialService({
-      store: new DrizzleAdminCredentialStore(db ?? createDb(env)),
+      store: adminCredentialStore,
       masterKey: env.credentialsMasterKey
     });
 
@@ -57,9 +69,20 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
       store: new DrizzleContentStore(db ?? createDb(env))
     });
 
+  const playerSaveService =
+    dependencies.playerSaveService ??
+    createPlayerSaveService({
+      identityVerifier: createVkIdentityVerifier({
+        credentialStore: adminCredentialStore,
+        masterKey: env.credentialsMasterKey
+      }),
+      store: new DrizzlePlayerSaveStore(db ?? createDb(env))
+    });
+
   await registerAdminAuthRoutes(server, adminAuthService, env.bootstrapAdminEmails);
   await registerAdminCredentialRoutes(server, adminAuthService, adminCredentialService);
   await registerContentRoutes(server, adminAuthService, contentService);
+  await registerPlayerSaveRoutes(server, playerSaveService);
 
   return server;
 }

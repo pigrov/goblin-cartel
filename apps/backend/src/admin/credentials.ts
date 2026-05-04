@@ -23,6 +23,7 @@ export interface AdminCredentialListItem {
 }
 
 export interface AdminCredentialStore {
+  findCredentialByName(name: string): Promise<AdminCredentialRecord | null>;
   listCredentials(): Promise<AdminCredentialRecord[]>;
   upsertCredential(input: {
     name: string;

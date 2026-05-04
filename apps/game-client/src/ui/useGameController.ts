@@ -18,11 +18,15 @@ import { createElevatorProgressionState, upgradeElevator } from "./elevatorState
 import { createGameViewModels } from "./gameViewModels";
 import { type GoblinHutRoleTabId } from "./goblinHutClientState";
 import { addMineRunBlockRewards, addMineRunDepthRewards, createMineRunStats } from "./mineRunStats";
+import { requestNativeVkIdentityProof } from "./nativeVkIdentityBridge";
+import { linkPlayerVkIdentity } from "./playerDbSaveClient";
 import { type GameSection } from "./screens/BottomNav";
+import type { VkIdentityLinkStatus } from "./screens/SettingsModal";
 import { useBossCardsController } from "./useBossCardsController";
 import { useBossEnergy } from "./useBossEnergy";
 import { useBuiltMinesController } from "./useBuiltMinesController";
 import { createSession, initialContentBundle, type ContentState, type OfflineMiningSummary, useGameBootstrap } from "./useGameBootstrap";
+import { createPlayerDbSyncState, initialPlayerDbSyncState } from "./playerDbSyncState";
 import { useGamePersistence } from "./useGamePersistence";
 import { useGameUiController } from "./useGameUiController";
 import { useGoblinRosterController } from "./useGoblinRosterController";
@@ -49,6 +53,16 @@ export function useGameController() {
   const [loadingContent, setLoadingContent] = useState(true);
   const [session, setSession] = useState<MiningSession>(() => createSession(initialContentBundle));
   const [sessionReady, setSessionReady] = useState(false);
+  const [playerDbSyncState, setPlayerDbSyncState] = useState(initialPlayerDbSyncState);
+  const [vkIdentity, setVkIdentity] = useState<{
+    displayName: string | null;
+    message: string;
+    status: VkIdentityLinkStatus;
+  }>(() => ({
+    displayName: null,
+    message: "Доступно в Android/RuStore-сборке",
+    status: "idle"
+  }));
   const [activeCell, setActiveCell] = useState({ row: 0, col: 0 });
   const [platformRow, setPlatformRow] = useState(0);
   const [activeSection, setActiveSection] = useState<GameSection>("mine");
@@ -265,6 +279,7 @@ export function useGameController() {
     setOfflineSummary,
     setPendingOfflineFinalHit,
     setPlatformRow,
+    setPlayerDbSyncState,
     setRoster,
     setSession,
     setSessionReady,
@@ -276,6 +291,7 @@ export function useGameController() {
     bossCards,
     bossEnergy,
     builtMines,
+    content: contentState.content,
     contentVersion: contentState.version,
     elevatorLevel,
     foremanAssignments,
@@ -285,7 +301,8 @@ export function useGameController() {
     platformRow,
     roster,
     session,
-    sessionReady
+    sessionReady,
+    setPlayerDbSyncState
   });
   useEffect(() => {
     setForemanAssignments((current) => normalizeForemanAssignments(current, availableGoblins, roster));
@@ -315,6 +332,57 @@ export function useGameController() {
       lastRewards: {},
       resources: result.resources
     }));
+  }
+
+  async function handleLinkVkIdentity() {
+    setVkIdentity((current) => ({
+      ...current,
+      message: "Открываем VK ID",
+      status: "linking"
+    }));
+
+    const nativeResult = await requestNativeVkIdentityProof();
+
+    if (!nativeResult.ok) {
+      setVkIdentity({
+        displayName: null,
+        message: nativeVkIdentityMessage(nativeResult.code),
+        status: nativeResult.code === "bridge_unavailable" ? "unavailable" : "error"
+      });
+      return;
+    }
+
+    const linkResult = await linkPlayerVkIdentity({
+      contentVersion: contentState.version,
+      definitions: bossCardDefinitions,
+      proof: nativeResult.proof
+    });
+
+    if (!linkResult.ok) {
+      setVkIdentity({
+        displayName: null,
+        message: vkIdentityLinkMessage(linkResult.code),
+        status: linkResult.code === "identity_verifier_not_configured" || linkResult.code === "no_token" ? "unavailable" : "error"
+      });
+      return;
+    }
+
+    setVkIdentity({
+      displayName: linkResult.displayName,
+      message: linkResult.linkedExistingPlayer ? "Профиль найден, прогресс загружен" : "Профиль подключен к этому устройству",
+      status: "linked"
+    });
+    setPlayerDbSyncState(
+      createPlayerDbSyncState({
+        status: linkResult.appliedServerSave ? "restored" : "synced",
+        revision: linkResult.serverRevision,
+        message: linkResult.appliedServerSave ? "Прогресс VK ID загружен. Перезапускаем экран" : "VK ID подключен"
+      })
+    );
+
+    if (linkResult.appliedServerSave) {
+      window.setTimeout(() => window.location.reload(), 350);
+    }
   }
 
   useEffect(() => {
@@ -434,6 +502,7 @@ export function useGameController() {
     handleHireGoblin,
     handleHireRandomGoblin,
     handleOpenRewardChest,
+    handleLinkVkIdentity,
     handlePlaceGoblin,
     handleStartNextMine,
     handleUpgradeBossCard,
@@ -452,6 +521,7 @@ export function useGameController() {
     nextMineTitle,
     pendingRewardChest,
     pendingRewardChestType,
+    playerDbSyncState,
     pixiDepthMarkerLabel,
     pixiDevOverlayEnabled,
     pixiGoblins,
@@ -476,7 +546,8 @@ export function useGameController() {
     setSettingsOpen,
     settingsOpen,
     unbuiltFoundVeins,
-    visibleBuiltMines
+    visibleBuiltMines,
+    vkIdentity
   });
 
   return {
@@ -512,4 +583,37 @@ export function useGameController() {
       visibleResourceAmounts
     }
   };
+}
+
+function nativeVkIdentityMessage(code: "bridge_unavailable" | "cancelled" | "invalid_response" | "native_error"): string {
+  switch (code) {
+    case "bridge_unavailable":
+      return "VK ID доступен только в Android/RuStore-сборке";
+    case "cancelled":
+      return "Вход через VK ID отменен";
+    case "native_error":
+      return "Native VK ID вернул ошибку";
+    case "invalid_response":
+    default:
+      return "Native VK ID вернул неверный ответ";
+  }
+}
+
+function vkIdentityLinkMessage(
+  code: "identity_verifier_not_configured" | "invalid_identity_token" | "invalid_session" | "network_error" | "invalid_response" | "no_token"
+): string {
+  switch (code) {
+    case "identity_verifier_not_configured":
+      return "На сервере не настроены VK ID credentials";
+    case "invalid_identity_token":
+      return "VK ID не подтвердил пользователя";
+    case "invalid_session":
+    case "no_token":
+      return "Сначала дождись подключения сохранения";
+    case "network_error":
+      return "Нет связи с сервером";
+    case "invalid_response":
+    default:
+      return "Сервер вернул неверный ответ";
+  }
 }

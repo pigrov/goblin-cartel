@@ -17,6 +17,7 @@ import type { RandomGoblinReveal } from "../useGoblinRosterController";
 import type { GameSection } from "./BottomNav";
 import { BuiltMinesSection } from "./BuiltMinesSection";
 import { BaseSection, GoblinSection } from "./GoblinManagementScreens";
+import { LeaderboardSection } from "./LeaderboardSection";
 import { MineScreen } from "./MineScreen";
 
 export interface GameMainContentActions {
@@ -184,6 +185,10 @@ export function GameMainContent(props: {
         upgradePreviews={view.builtMines.upgradePreviews}
       />
     );
+  }
+
+  if (view.activeSection === "leaderboard") {
+    return <LeaderboardSection />;
   }
 
   return (

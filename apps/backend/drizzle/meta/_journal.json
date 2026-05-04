@@ -15,6 +15,20 @@
       "when": 1777406859205,
       "tag": "0001_cheerful_tana_nile",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777826702922,
+      "tag": "0002_fancy_speedball",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1777874141796,
+      "tag": "0003_colossal_alex_wilder",
+      "breakpoints": true
     }
   ]
 }

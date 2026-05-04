@@ -21,10 +21,9 @@ import { createSession, type OfflineMiningSummary } from "./useGameBootstrap";
 import { saveMiningSession } from "./useGamePersistence";
 import type { ForemanAssignments } from "./foremanTowerState";
 import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
+import type { GameSection } from "./screens/BottomNav";
 import { createDefaultGoblinPlacements, type GoblinPlacementMap } from "./useGoblinPlacement";
 import { useRewardChestFlow } from "./useRewardChestFlow";
-
-type GameSection = "mine" | "base" | "goblins" | "builtMines";
 
 export function useMineProgressionController(input: {
   bossCardDefinitions: BossCardDefinition[];

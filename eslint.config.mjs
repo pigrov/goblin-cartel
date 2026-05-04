@@ -8,8 +8,8 @@ export default [
       "**/dist/**",
       "**/build/**",
       "**/coverage/**",
-      "android/**",
-      "ios/**"
+      "**/android/**",
+      "**/ios/**"
     ]
   },
   js.configs.recommended,

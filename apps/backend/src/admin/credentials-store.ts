@@ -1,4 +1,4 @@
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { createDb } from "../db/client.js";
 import { appCredentials, auditLogs } from "../db/schema.js";
 import type { AdminCredentialRecord, AdminCredentialStore } from "./credentials.js";
@@ -7,6 +7,11 @@ type AppDb = ReturnType<typeof createDb>;
 
 export class DrizzleAdminCredentialStore implements AdminCredentialStore {
   constructor(private readonly db: AppDb) {}
+
+  async findCredentialByName(name: string): Promise<AdminCredentialRecord | null> {
+    const [record] = await this.db.select().from(appCredentials).where(eq(appCredentials.name, name)).limit(1);
+    return record ?? null;
+  }
 
   async listCredentials(): Promise<AdminCredentialRecord[]> {
     return this.db.select().from(appCredentials).orderBy(asc(appCredentials.name));

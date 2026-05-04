@@ -150,6 +150,21 @@ export function readPlayerSave(storage: PlayerSaveStorage = localStorage, defini
   return null;
 }
 
+export function writeStoredPlayerSave(
+  payload: unknown,
+  storage: PlayerSaveStorage = localStorage,
+  definitions?: BossCardDefinition[]
+): StoredPlayerSaveV1 | null {
+  const normalized = normalizePlayerSave(payload, definitions);
+
+  if (!normalized) {
+    return null;
+  }
+
+  storage.setItem(playerSaveStorageKey, JSON.stringify(normalized));
+  return normalized;
+}
+
 function readCurrentPlayerSave(
   storage: PlayerSaveStorage,
   definitions: BossCardDefinition[] | undefined,

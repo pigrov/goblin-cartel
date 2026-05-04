@@ -8,6 +8,7 @@ import type {
   MiningFoundVein
 } from "@goblin-cartel/game-core";
 import type { MineRunCompletionStatsView } from "../mineRunStats";
+import type { PlayerDbSyncState } from "../playerDbSyncState";
 import { type FoundVeinView } from "../useMineUiController";
 import { type ChestRewardFlyout, type PendingRewardChest, type RewardChestStage } from "../useRewardChestFlow";
 import { BossCardsModal } from "./BossCardsModal";
@@ -16,7 +17,7 @@ import { CollectorAssignmentModal } from "./BuiltMinesSection";
 import { FoundVeinModal } from "./FoundVeinModal";
 import { MineCompletionModal } from "./MineCompletionModal";
 import { RewardChestScreen } from "./RewardChestScreen";
-import { SettingsModal } from "./SettingsModal";
+import { SettingsModal, type VkIdentityLinkStatus } from "./SettingsModal";
 
 export interface GameOverlaysActions {
   onAssignBuiltMineCollector: (builtMineId: string, goblinId: string | null) => void;
@@ -32,6 +33,7 @@ export interface GameOverlaysActions {
   onOpenBuiltMines: () => void;
   onOpenRewardChest: () => void;
   onPixiDevOverlayChange: (enabled: boolean) => void;
+  onLinkVkIdentity: () => void;
   onSettingsClose: () => void;
   onStartNextMine: () => void;
 }
@@ -81,7 +83,13 @@ export interface GameOverlaysView {
   settings: {
     contentLabel: string;
     open: boolean;
+    playerDbSync: PlayerDbSyncState;
     pixiDevOverlayEnabled: boolean;
+    vkIdentity: {
+      displayName: string | null;
+      message: string;
+      status: VkIdentityLinkStatus;
+    };
   };
 }
 
@@ -164,8 +172,11 @@ export function GameOverlays(props: {
           mineTitle={view.common.currentMineTitle}
           onClose={actions.onSettingsClose}
           onConfirmResetMine={actions.onConfirmResetMine}
+          onLinkVkIdentity={actions.onLinkVkIdentity}
           onPixiDevOverlayChange={actions.onPixiDevOverlayChange}
+          playerDbSync={view.settings.playerDbSync}
           pixiDevOverlayEnabled={view.settings.pixiDevOverlayEnabled}
+          vkIdentity={view.settings.vkIdentity}
         />
       ) : null}
 
