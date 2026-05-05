@@ -25,9 +25,11 @@ export interface ServerDependencies {
 }
 
 const nativeAppCorsOrigins = ["https://localhost", "capacitor://localhost", "ionic://localhost"];
+const requestBodyLimitBytes = 10 * 1024 * 1024;
 
 export async function buildServer(env: AppEnv, dependencies: ServerDependencies = {}): Promise<FastifyInstance> {
   const server = Fastify({
+    bodyLimit: requestBodyLimitBytes,
     logger: env.nodeEnv !== "test"
   });
 

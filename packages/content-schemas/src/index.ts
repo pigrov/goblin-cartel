@@ -447,26 +447,18 @@ export const goblinSchema = z.object({
   sortOrder: z.number().int()
 });
 
-export const localizationSchema = z.record(z.string().min(2), z.record(z.string().min(1), z.string().min(1))).default({});
+export const localizationSchema = z.record(z.string().min(2), z.record(z.string().min(1), z.string().min(1)));
 
 export const contentBundleSchema = z
   .object({
     resources: z.array(resourceSchema).min(1),
     blockTypes: z.array(blockTypeSchema).min(1),
-    veinTypes: z.array(veinTypeSchema).default([]),
-    builtMineTypes: z.array(builtMineTypeSchema).default([]),
-    rewardChestTypes: z.array(rewardChestTypeSchema).default([]),
-    bossCards: z.array(bossCardSchema).default([]),
+    veinTypes: z.array(veinTypeSchema),
+    builtMineTypes: z.array(builtMineTypeSchema),
+    rewardChestTypes: z.array(rewardChestTypeSchema),
+    bossCards: z.array(bossCardSchema),
     mineTemplates: z.array(mineTemplateSchema).min(1),
-    goblinGeneration: goblinGenerationSchema.default({
-      id: "default",
-      nameKey: "goblin_generation.name",
-      namePool: {
-        names: ["Крикк"],
-        nicknames: ["Ржавое Ухо"]
-      },
-      archetypes: []
-    }),
+    goblinGeneration: goblinGenerationSchema,
     goblinHut: goblinHutSchema,
     elevator: elevatorSchema,
     localization: localizationSchema
@@ -1426,6 +1418,10 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
   const ruLocalization = parsed.data.localization.ru;
 
+  if (!ruLocalization) {
+    errors.push("localization.ru is required");
+  }
+
   validateLocalizationText(parsed.data.localization, errors);
 
   for (const blockType of parsed.data.blockTypes) {
@@ -1789,6 +1785,7 @@ function validateLocalizationKey(
   errors: string[]
 ): void {
   if (!localization) {
+    errors.push(`localization.${locale} is required for key ${key}`);
     return;
   }
 

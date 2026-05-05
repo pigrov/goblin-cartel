@@ -95,3 +95,4 @@
 - `0090_random_goblin_renders_admin_upload` - added backend-hosted goblin render uploads in admin, public asset serving, and production asset volume docs.
 - `0091_goblin_generation_render_pool` - moved random goblin render selection into generation archetypes and stored selected asset IDs on rolled goblin instances.
 - `0092_goblin_generation_template_cleanup` - removed template goblins from content/runtime, moved random goblin ability, leveling, specialization, and renders into generation archetypes, and rebuilt starter content with 10 mines plus 100+ names/nicknames.
+- `0093_legacy_cleanup_asset_upload` - removed remaining old-content fallbacks and raised nginx/backend upload body limits for 5 MB goblin render files.

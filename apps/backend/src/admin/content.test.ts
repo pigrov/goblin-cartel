@@ -195,6 +195,36 @@ describe("content service", () => {
     expect(restored?.content.bossCards).toEqual([]);
   });
 
+  it("does not backfill missing singleton content entities", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({ store });
+    const detail = await service.createVersion("admin-1", {
+      version: "0.1.0"
+    });
+
+    store.entities.set(
+      detail.version.id,
+      (store.entities.get(detail.version.id) ?? []).filter(
+        (entity) => entity.entityType !== "goblinGeneration" && entity.entityType !== "elevator"
+      )
+    );
+
+    const restored = await service.getVersion("admin-1", detail.version.id);
+    const restoredContent = restored?.content as { elevator?: unknown; goblinGeneration?: unknown } | undefined;
+    const validation = await service.validateVersion("admin-1", detail.version.id);
+    const validationResult = validation && "validation" in validation ? validation.validation : null;
+
+    expect(restoredContent?.goblinGeneration).toBeUndefined();
+    expect(restoredContent?.elevator).toBeUndefined();
+    expect(validationResult?.ok).toBe(false);
+    expect(validationResult?.errors ?? []).toEqual(
+      expect.arrayContaining([
+        "goblinGeneration: Invalid input: expected object, received undefined",
+        "elevator: Invalid input: expected object, received undefined"
+      ])
+    );
+  });
+
   it("keeps published and archived versions read-only", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({ store });

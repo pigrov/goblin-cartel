@@ -78,6 +78,34 @@ describe("asset routes", () => {
     expect(assetResponse.headers["content-type"]).toContain("image/png");
     expect(assetResponse.rawPayload.length).toBeGreaterThan(0);
   });
+
+  it("accepts large base64 render payloads below the 5 MB file limit", async () => {
+    const server = Fastify({ bodyLimit: 10 * 1024 * 1024, logger: false });
+    await registerAssetRoutes(server, createAuthService(readyUser), { assetStorageDir: await createStorageDir() });
+    const renderBytes = 2_402_489;
+
+    const uploadResponse = await server.inject({
+      method: "POST",
+      url: "/admin/assets/goblin-renders",
+      headers: {
+        authorization: "Bearer token"
+      },
+      payload: {
+        assetId: "goblin_large_render",
+        dataBase64: Buffer.alloc(renderBytes, 1).toString("base64"),
+        fileName: "goblin_large_render.png",
+        mimeType: "image/png"
+      }
+    });
+
+    expect(uploadResponse.statusCode).toBe(200);
+    expect(uploadResponse.json()).toMatchObject({
+      asset: {
+        assetId: "goblin_large_render",
+        size: renderBytes
+      }
+    });
+  });
 });
 
 async function createStorageDir(): Promise<string> {

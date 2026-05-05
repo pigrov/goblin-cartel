@@ -433,10 +433,9 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   const goblinHutEntity = entities.find((entity) => entity.entityType === "goblinHut" && entity.entityId === "default");
   const goblinHut = goblinHutEntity?.data as ContentBundle["goblinHut"];
   const goblinGenerationEntity = entities.find((entity) => entity.entityType === "goblinGeneration" && entity.entityId === "default");
-  const goblinGeneration =
-    (goblinGenerationEntity?.data as ContentBundle["goblinGeneration"] | undefined) ?? starterContentBundle.goblinGeneration;
+  const goblinGeneration = goblinGenerationEntity?.data as ContentBundle["goblinGeneration"] | undefined;
   const elevatorEntity = entities.find((entity) => entity.entityType === "elevator" && entity.entityId === "default");
-  const elevator = (elevatorEntity?.data as ContentBundle["elevator"] | undefined) ?? starterContentBundle.elevator;
+  const elevator = elevatorEntity?.data as ContentBundle["elevator"] | undefined;
 
   return {
     resources: sortContentItems(entities, "resource", starterContentBundle.resources),
@@ -446,11 +445,11 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
     bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
-    goblinGeneration,
-    goblinHut,
-    elevator,
+    ...(goblinGeneration ? { goblinGeneration } : {}),
+    ...(goblinHut ? { goblinHut } : {}),
+    ...(elevator ? { elevator } : {}),
     localization
-  } as ContentBundle;
+  } as unknown as ContentBundle;
 }
 
 function upsertEditableContentEntity(

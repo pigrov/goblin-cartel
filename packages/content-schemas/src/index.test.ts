@@ -405,14 +405,14 @@ describe("content schemas", () => {
     expect(result.errors).toContain("elevator.levels.1.upgradeCost references missing resource missing_resource");
   });
 
-  it("accepts legacy content without localization", () => {
-    const legacy = structuredClone(starterContentBundle);
-    Reflect.deleteProperty(legacy, "localization");
+  it("rejects content without localization", () => {
+    const broken = structuredClone(starterContentBundle);
+    Reflect.deleteProperty(broken, "localization");
 
-    expect(validateContentBundle(legacy)).toEqual({
-      ok: true,
-      errors: []
-    });
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("localization: Invalid input: expected record, received undefined");
   });
 
   it("rejects missing localization keys when locale exists", () => {

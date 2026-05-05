@@ -8,7 +8,7 @@
 
 - `goblinGeneration.archetypes[]` теперь содержит `specialization`, `ability`, `leveling` и `renderPool`.
 - При ролле случайного гоблина `ability`, `leveling`, `specialization`, `assetId` и `archetypeId` сохраняются в конкретный `roster.instances[]`.
-- Апгрейд случайного гоблина использует `instance.leveling`, поэтому правка шаблона больше не меняет уже нанятого гоблина.
+- Апгрейд случайного гоблина использует `instance.leveling`, поэтому правка контракта больше не меняет уже нанятого гоблина.
 - Клиент строит runtime-гоблина из instance snapshot, включая рендер, умение, прокачку и специализацию.
 - Поле `content.goblins`, entity type `goblin`, backend route `/entities/goblin/...` и UI старых шаблонных гоблинов удалены без fallback.
 - В `game-core` удалена модель `templateId` для гоблинов: instance теперь ссылается на контракт генерации через `archetypeId`, а старые `template:*` instance-id больше не создаются.

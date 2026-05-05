@@ -1,4 +1,4 @@
-import { starterContentBundle, type ElevatorConfig, type ElevatorLevelConfig } from "@goblin-cartel/content-schemas";
+import type { ElevatorConfig, ElevatorLevelConfig } from "@goblin-cartel/content-schemas";
 import { createBuildCostRequirements, type BuildCostRequirement } from "./builtMineClientState";
 
 export interface ElevatorUpgradeCost {
@@ -24,7 +24,7 @@ export interface ElevatorProgressionState {
 }
 
 export function createElevatorProgressionState(
-  elevator: ElevatorConfig | undefined,
+  elevator: ElevatorConfig,
   level: number | undefined,
   resources: Record<string, number>
 ): ElevatorProgressionState {
@@ -55,7 +55,7 @@ export function createElevatorProgressionState(
 }
 
 export function upgradeElevator(input: {
-  elevator?: ElevatorConfig;
+  elevator: ElevatorConfig;
   level: number | undefined;
   resources: Record<string, number>;
 }):
@@ -85,7 +85,7 @@ export function upgradeElevator(input: {
   };
 }
 
-export function normalizeElevatorLevel(elevator: ElevatorConfig | undefined, level: number | undefined): number {
+export function normalizeElevatorLevel(elevator: ElevatorConfig, level: number | undefined): number {
   if (!Number.isFinite(level)) {
     return sortedElevatorLevels(elevator)[0]?.level ?? 1;
   }
@@ -93,7 +93,7 @@ export function normalizeElevatorLevel(elevator: ElevatorConfig | undefined, lev
   return getElevatorLevelConfig(elevator, Math.floor(level ?? 1)).level;
 }
 
-export function getElevatorLevelConfig(elevator: ElevatorConfig | undefined, level: number | undefined): ElevatorLevelConfig {
+export function getElevatorLevelConfig(elevator: ElevatorConfig, level: number | undefined): ElevatorLevelConfig {
   const normalizedLevel = Number.isFinite(level) ? Math.floor(level ?? 1) : 1;
   const levels = sortedElevatorLevels(elevator).sort((left, right) => right.level - left.level);
   const fallbackLevel = levels[levels.length - 1];
@@ -105,7 +105,7 @@ export function getElevatorLevelConfig(elevator: ElevatorConfig | undefined, lev
   return levels.find((item) => item.level <= normalizedLevel) ?? fallbackLevel;
 }
 
-export function getNextElevatorLevelConfig(elevator: ElevatorConfig | undefined, level: number | undefined): ElevatorLevelConfig | null {
+export function getNextElevatorLevelConfig(elevator: ElevatorConfig, level: number | undefined): ElevatorLevelConfig | null {
   const currentLevel = getElevatorLevelConfig(elevator, level).level;
 
   return sortedElevatorLevels(elevator).find((item) => item.level > currentLevel) ?? null;
@@ -124,7 +124,7 @@ function deductResources(
   return nextResources;
 }
 
-function sortedElevatorLevels(elevator: ElevatorConfig | undefined): ElevatorLevelConfig[] {
-  const levels = elevator?.levels.length ? elevator.levels : starterContentBundle.elevator.levels;
+function sortedElevatorLevels(elevator: ElevatorConfig): ElevatorLevelConfig[] {
+  const levels = elevator.levels;
   return [...levels].sort((left, right) => left.level - right.level);
 }
