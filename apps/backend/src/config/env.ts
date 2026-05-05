@@ -1,6 +1,14 @@
-import "dotenv/config";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { config as loadDotenv } from "dotenv";
 import { z } from "zod";
 import { parseBootstrapEmails } from "../security/bootstrap.js";
+
+for (const envPath of [path.resolve(process.cwd(), ".env"), path.resolve(process.cwd(), "..", "..", ".env")]) {
+  if (existsSync(envPath)) {
+    loadDotenv({ path: envPath, override: false });
+  }
+}
 
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),

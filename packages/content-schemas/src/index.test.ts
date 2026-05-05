@@ -92,6 +92,13 @@ describe("content schemas", () => {
       "warehouse_keeper"
     );
     expect(starterContentBundle.goblinGeneration.archetypes.every((archetype) => archetype.renderPool.length > 0)).toBe(true);
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.cardBases.common).toBe("ui_hire_card_base_common_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.buttons.normal).toBe("ui_hire_button_normal_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.screenBackground).toBe("ui_goblin_screen_pattern_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.titlePlate).toBe("ui_hire_title_plate_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.ownedCards.base).toBe("ui_owned_goblin_card_base_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.ownedCards.upgradeArrow).toBe("ui_owned_goblin_upgrade_arrow_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.icons.strength).toBe("ui_icon_pickaxe_v1");
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.upgradeCost])).toEqual([
       [1, []],
       [
@@ -464,7 +471,10 @@ describe("content schemas", () => {
       };
       archetype.rarityWeights.push({ rarity: "common", statMultiplier: 1, weight: 1 });
       archetype.traitPool.push({ id: "stone_focus", nameKey: "missing.trait.name", weight: 1 });
-      archetype.renderPool.push({ assetId: "goblin_gryzz_v1", rarity: "common", weight: 1 });
+      const firstRender = archetype.renderPool[0];
+      if (firstRender) {
+        archetype.renderPool.push({ ...firstRender, weight: 1 });
+      }
     }
 
     const result = validateContentBundle(broken);
@@ -481,8 +491,22 @@ describe("content schemas", () => {
     );
     expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.rarityWeights has duplicate rarity common");
     expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.traitPool has duplicate trait stone_focus");
-    expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.renderPool has duplicate asset goblin_gryzz_v1");
+    expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.renderPool has duplicate asset goblin_hire_miner_v1");
     expect(result.errors).toContain("localization.ru is missing key missing.trait.name");
+  });
+
+  it("requires goblin hire costs to use gold", () => {
+    const broken = structuredClone(starterContentBundle);
+    const archetype = broken.goblinGeneration.archetypes[0];
+
+    if (archetype) {
+      archetype.hireCost = [{ resourceId: "stone", amount: 10 }];
+    }
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblinGeneration.archetypes.random_miner_contract.hireCost.0 must use gold");
   });
 });
 

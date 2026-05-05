@@ -74,6 +74,83 @@ export const goblinGenerationRenderSchema = z
   })
   .strict();
 
+export const defaultGoblinHireCardSkin = {
+  buttons: {
+    disabled: "ui_hire_button_disabled_v1",
+    hover: "ui_hire_button_hover_v1",
+    normal: "ui_hire_button_normal_v1",
+    pressed: "ui_hire_button_pressed_v1"
+  },
+  cardBases: {
+    common: "ui_hire_card_base_common_v1",
+    epic: "ui_hire_card_base_epic_v1",
+    legendary: "ui_hire_card_base_legendary_v1",
+    rare: "ui_hire_card_base_rare_v1"
+  },
+  icons: {
+    cost: "ui_icon_coin_v1",
+    loyalty: "ui_icon_clock_v1",
+    luck: "ui_icon_star_v1",
+    speed: "ui_icon_boot_v1",
+    strength: "ui_icon_pickaxe_v1"
+  },
+  ownedCards: {
+    base: "ui_owned_goblin_card_base_v1",
+    upgradeArrow: "ui_owned_goblin_upgrade_arrow_v1"
+  },
+  pricePills: {
+    disabled: "ui_hire_price_disabled_v1",
+    normal: "ui_hire_price_normal_v1"
+  },
+  screenBackground: "ui_goblin_screen_pattern_v1",
+  titlePlate: "ui_hire_title_plate_v1"
+} as const;
+
+export const goblinHireCardSkinSchema = z
+  .object({
+    cardBases: z
+      .object({
+        common: z.string().min(1),
+        rare: z.string().min(1),
+        epic: z.string().min(1),
+        legendary: z.string().min(1)
+      })
+      .strict(),
+    buttons: z
+      .object({
+        normal: z.string().min(1),
+        hover: z.string().min(1),
+        pressed: z.string().min(1),
+        disabled: z.string().min(1)
+      })
+      .strict(),
+    pricePills: z
+      .object({
+        normal: z.string().min(1),
+        disabled: z.string().min(1)
+      })
+      .strict(),
+    icons: z
+      .object({
+        cost: z.string().min(1),
+        strength: z.string().min(1),
+        speed: z.string().min(1),
+        luck: z.string().min(1),
+        loyalty: z.string().min(1)
+      })
+      .strict(),
+    ownedCards: z
+      .object({
+        base: z.string().min(1),
+        upgradeArrow: z.string().min(1)
+      })
+      .strict()
+      .default(defaultGoblinHireCardSkin.ownedCards),
+    screenBackground: z.string().min(1).default(defaultGoblinHireCardSkin.screenBackground),
+    titlePlate: z.string().min(1).default(defaultGoblinHireCardSkin.titlePlate)
+  })
+  .strict();
+
 export const goblinGenerationNamePoolSchema = z
   .object({
     names: z.array(z.string().min(1)).min(1),
@@ -104,6 +181,7 @@ export const goblinGenerationSchema = z
     id: z.literal("default").default("default"),
     nameKey: z.string().min(1),
     namePool: goblinGenerationNamePoolSchema,
+    hireCardSkin: goblinHireCardSkinSchema.default(defaultGoblinHireCardSkin),
     archetypes: z.array(goblinGenerationArchetypeSchema).default([])
   })
   .strict();
@@ -1027,6 +1105,7 @@ export const starterContentBundle: ContentBundle = {
     id: "default",
     nameKey: "goblin_generation.name",
     namePool: createStarterGoblinNamePool(),
+    hireCardSkin: defaultGoblinHireCardSkin,
     archetypes: [
       {
         id: "random_miner_contract",
@@ -1057,9 +1136,7 @@ export const starterContentBundle: ContentBundle = {
           { id: "steady_hands", nameKey: "goblin_trait.steady_hands.name", weight: 25 }
         ],
         renderPool: [
-          { assetId: "goblin_gryzz_v1", rarity: "common", weight: 10 },
-          { assetId: "goblin_myk_v1", rarity: "common", weight: 10 },
-          { assetId: "goblin_skrapp_v1", rarity: "rare", weight: 6 }
+          { assetId: "goblin_hire_miner_v1", rarity: "common", weight: 10 }
         ],
         equipmentSlots: ["tool"],
         hireCost: [{ resourceId: "gold", amount: 220 }],
@@ -1098,14 +1175,10 @@ export const starterContentBundle: ContentBundle = {
           { id: "quiet_count", nameKey: "goblin_trait.quiet_count.name", weight: 20 }
         ],
         renderPool: [
-          { assetId: "goblin_pip_v1", rarity: "common", weight: 10 },
-          { assetId: "goblin_nokk_v1", rarity: "rare", weight: 6 }
+          { assetId: "goblin_hire_builder_v1", rarity: "common", weight: 10 }
         ],
         equipmentSlots: ["ledger"],
-        hireCost: [
-          { resourceId: "gold", amount: 900 },
-          { resourceId: "stone", amount: 80 }
-        ],
+        hireCost: [{ resourceId: "gold", amount: 900 }],
         sortOrder: 20
       },
       {
@@ -1158,14 +1231,10 @@ export const starterContentBundle: ContentBundle = {
           { id: "strict_shift", nameKey: "goblin_trait.strict_shift.name", weight: 25 }
         ],
         renderPool: [
-          { assetId: "goblin_krakk_v1", rarity: "common", weight: 10 },
-          { assetId: "goblin_brikk_v1", rarity: "rare", weight: 6 }
+          { assetId: "goblin_hire_foreman_v1", rarity: "common", weight: 10 }
         ],
         equipmentSlots: ["whistle"],
-        hireCost: [
-          { resourceId: "gold", amount: 2400 },
-          { resourceId: "copper_ore", amount: 120 }
-        ],
+        hireCost: [{ resourceId: "gold", amount: 2400 }],
         sortOrder: 30
       }
     ]
@@ -1657,7 +1726,7 @@ function validateGoblinGeneration(
     const seenRenderKeys = new Set<string>();
 
     validateLocalizationKey(archetype.nameKey, "ru", ruLocalization, errors);
-    validateResourceAmounts(`goblinGeneration.archetypes.${archetype.id}.hireCost`, archetype.hireCost, resourceIds, errors);
+    validateGoldResourceAmounts(`goblinGeneration.archetypes.${archetype.id}.hireCost`, archetype.hireCost, resourceIds, errors);
     if (archetype.ability) {
       validateLocalizationKey(archetype.ability.nameKey, "ru", ruLocalization, errors);
       validateLocalizationKey(archetype.ability.descriptionKey, "ru", ruLocalization, errors);
@@ -1735,6 +1804,23 @@ function validateGoblinLevelingCost(
     }
 
     if (row.resourceId !== "gold") {
+      errors.push(`${path}.${index} must use gold`);
+    }
+  }
+}
+
+function validateGoldResourceAmounts(
+  path: string,
+  amounts: Array<{ resourceId: string }>,
+  resourceIds: Set<string>,
+  errors: string[]
+): void {
+  validateResourceAmounts(path, amounts, resourceIds, errors);
+
+  for (let index = 0; index < amounts.length; index += 1) {
+    const amount = amounts[index];
+
+    if (amount && resourceIds.has(amount.resourceId) && amount.resourceId !== "gold") {
       errors.push(`${path}.${index} must use gold`);
     }
   }

@@ -173,7 +173,6 @@
   min-height: 48px;
   border-color: var(--gc-border-strong);
   color: var(--gc-bg-deep);
-  font-weight: 700;
   background: var(--gc-gold);
 }
 
@@ -412,7 +411,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 800;
 }
 
 .content-create-form {
@@ -533,7 +531,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 800;
 }
 
 .content-actions {
@@ -594,7 +591,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 700;
 }
 
 .content-template-actions button.active {
@@ -653,7 +649,6 @@
 }
 
 .content-entity-preview section > span {
-  font-weight: 800;
 }
 
 .content-entity-preview div {
@@ -699,7 +694,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 700;
 }
 
 .content-entity-tabs button.active,
@@ -765,7 +759,6 @@
   gap: 7px;
   color: var(--gc-muted);
   font-size: 13px;
-  font-weight: 700;
 }
 
 .content-entity-form input:disabled {
@@ -825,7 +818,6 @@
   background: rgb(255 255 255 / 7%);
   cursor: pointer;
   font-size: 12px;
-  font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -895,7 +887,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 700;
 }
 
 .content-nested-section header button:disabled,
@@ -948,6 +939,15 @@
   grid-column: 1 / -1;
 }
 
+.content-hire-card-skin-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.content-hire-card-skin-grid .content-list-row-wide {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+}
+
 .content-json-details {
   display: grid;
   gap: 8px;
@@ -961,7 +961,6 @@
   cursor: pointer;
   color: var(--gc-muted);
   font-size: 13px;
-  font-weight: 800;
 }
 
 .content-drop-summary-grid {
@@ -1096,7 +1095,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 800;
 }
 
 .content-mine-visual-grid {
@@ -1131,14 +1129,12 @@
 .content-mine-row-label {
   color: var(--gc-muted);
   font-size: 11px;
-  font-weight: 900;
   text-align: right;
 }
 
 .content-mine-row-difficulty {
   color: var(--gc-muted);
   font-size: 11px;
-  font-weight: 900;
 }
 
 .content-mine-cell {
@@ -1152,7 +1148,6 @@
   color: rgb(255 255 255 / 72%);
   background: var(--mine-cell-color);
   font-size: 11px;
-  font-weight: 900;
   cursor: pointer;
 }
 
@@ -1177,7 +1172,6 @@
   background: rgb(9 14 18 / 38%);
   color: var(--gc-muted);
   font-size: 12px;
-  font-weight: 800;
   cursor: pointer;
 }
 
@@ -1244,7 +1238,6 @@
   color: var(--gc-text);
   background: var(--gc-panel);
   cursor: pointer;
-  font-weight: 800;
 }
 
 .content-mine-cell-hp {
@@ -1309,7 +1302,6 @@
   padding: 14px;
   color: var(--gc-text);
   background: var(--gc-bg);
-  font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
   line-height: 1.45;
   outline: none;

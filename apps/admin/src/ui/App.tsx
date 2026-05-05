@@ -193,6 +193,40 @@ const rarityOptions = [
   { value: "legendary", label: "Legendary" }
 ];
 
+const goblinScreenSkinFields = [
+  { field: "skinScreenBackground", label: "Фон экрана Гоблины", path: ["screenBackground"], defaultAssetId: "ui_goblin_screen_pattern_v1" }
+] as const;
+
+const ownedGoblinSkinFields = [
+  { field: "skinOwnedCardBase", label: "Подложка личного гоблина", path: ["ownedCards", "base"], defaultAssetId: "ui_owned_goblin_card_base_v1" },
+  {
+    field: "skinOwnedUpgradeArrow",
+    label: "Стрелка доступного апгрейда",
+    path: ["ownedCards", "upgradeArrow"],
+    defaultAssetId: "ui_owned_goblin_upgrade_arrow_v1"
+  }
+] as const;
+
+const hireCardSkinFields = [
+  { field: "skinTitlePlate", label: "Плашка заголовка", path: ["titlePlate"], defaultAssetId: "ui_hire_title_plate_v1" },
+  { field: "skinCardBaseCommon", label: "Подложка Common", path: ["cardBases", "common"], defaultAssetId: "ui_hire_card_base_common_v1" },
+  { field: "skinCardBaseRare", label: "Подложка Rare", path: ["cardBases", "rare"], defaultAssetId: "ui_hire_card_base_rare_v1" },
+  { field: "skinCardBaseEpic", label: "Подложка Epic", path: ["cardBases", "epic"], defaultAssetId: "ui_hire_card_base_epic_v1" },
+  { field: "skinCardBaseLegendary", label: "Подложка Legendary", path: ["cardBases", "legendary"], defaultAssetId: "ui_hire_card_base_legendary_v1" },
+  { field: "skinButtonNormal", label: "Кнопка normal", path: ["buttons", "normal"], defaultAssetId: "ui_hire_button_normal_v1" },
+  { field: "skinButtonHover", label: "Кнопка hover", path: ["buttons", "hover"], defaultAssetId: "ui_hire_button_hover_v1" },
+  { field: "skinButtonPressed", label: "Кнопка pressed", path: ["buttons", "pressed"], defaultAssetId: "ui_hire_button_pressed_v1" },
+  { field: "skinButtonDisabled", label: "Кнопка disabled", path: ["buttons", "disabled"], defaultAssetId: "ui_hire_button_disabled_v1" },
+  { field: "skinPriceNormal", label: "Плашка цены normal", path: ["pricePills", "normal"], defaultAssetId: "ui_hire_price_normal_v1" },
+  { field: "skinPriceDisabled", label: "Плашка цены disabled", path: ["pricePills", "disabled"], defaultAssetId: "ui_hire_price_disabled_v1" },
+  { field: "skinIconCost", label: "Иконка цены", path: ["icons", "cost"], defaultAssetId: "ui_icon_coin_v1" },
+  { field: "skinIconStrength", label: "Иконка силы", path: ["icons", "strength"], defaultAssetId: "ui_icon_pickaxe_v1" },
+  { field: "skinIconSpeed", label: "Иконка скорости", path: ["icons", "speed"], defaultAssetId: "ui_icon_boot_v1" },
+  { field: "skinIconLuck", label: "Иконка удачи", path: ["icons", "luck"], defaultAssetId: "ui_icon_star_v1" },
+  { field: "skinIconLoyalty", label: "Иконка лояльности", path: ["icons", "loyalty"], defaultAssetId: "ui_icon_clock_v1" }
+] as const;
+const goblinUiSkinFields = [...goblinScreenSkinFields, ...ownedGoblinSkinFields, ...hireCardSkinFields] as const;
+
 const specialBehaviorOptions = [
   { value: "none", label: "None" },
   { value: "explosion", label: "Explosion" }
@@ -1417,6 +1451,12 @@ function renderEntityFields(
           onChange={updateField}
           value={formState.namePoolNicknames}
         />
+        <ContentGoblinHireCardSkinFields
+          formState={formState}
+          sessionToken={sessionToken}
+          updateField={updateField}
+          updateFields={updateFields}
+        />
         <ContentGoblinGenerationArchetypeRows
           content={content}
           formState={formState}
@@ -1633,6 +1673,7 @@ function ContentAssetUploadField(props: {
   label: string;
   onAssetIdChange: (assetId: string) => void;
   token: string | null;
+  uploadLabel?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -1672,7 +1713,7 @@ function ContentAssetUploadField(props: {
     setMessage(null);
 
     try {
-      const response = await apiRequest<AssetUploadResponse>("/admin/assets/goblin-renders", {
+      const response = await apiRequest<AssetUploadResponse>("/admin/assets", {
         body: {
           assetId: targetAssetId,
           dataBase64: await readFileAsDataUrl(file),
@@ -1686,7 +1727,7 @@ function ContentAssetUploadField(props: {
       setPreviewVersion(String(Date.now()));
       setMessage(`Загружено: ${response.asset.fileName}, ${formatFileSize(response.asset.size)}.`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Не удалось загрузить рендер.");
+      setMessage(error instanceof Error ? error.message : "Не удалось загрузить ассет.");
     } finally {
       setBusy(false);
     }
@@ -1711,11 +1752,68 @@ function ContentAssetUploadField(props: {
         </div>
         <label className="content-asset-file">
           <input accept="image/png,image/webp,image/jpeg" disabled={busy || !props.token} onChange={(event) => void handleFileChange(event)} type="file" />
-          <span>{busy ? "Загружаем..." : "Загрузить рендер"}</span>
+          <span>{busy ? "Загружаем..." : props.uploadLabel ?? "Загрузить ассет"}</span>
         </label>
       </div>
       {message ? <p>{message}</p> : null}
     </section>
+  );
+}
+
+function ContentGoblinHireCardSkinFields(props: {
+  formState: EntityFormState;
+  sessionToken: string | null;
+  updateField: (field: string, value: string) => void;
+  updateFields: (values: EntityFormState) => void;
+}) {
+  const renderSkinField = (item: (typeof goblinUiSkinFields)[number]) => {
+    const value = formValue(props.formState, item.field) || item.defaultAssetId;
+
+    return (
+      <div className="content-list-row content-list-row-wide" key={item.field}>
+        <ContentTextField label={item.label} name={item.field} onChange={props.updateField} value={value} />
+        <ContentAssetUploadField
+          assetId={value}
+          label={item.label}
+          onAssetIdChange={(assetId) => props.updateField(item.field, assetId)}
+          token={props.sessionToken}
+          uploadLabel="Загрузить PNG"
+        />
+      </div>
+    );
+  };
+
+  return (
+    <>
+      <ContentNestedSection
+        addLabel="Заполнить дефолтами"
+        onAdd={() => props.updateFields(Object.fromEntries(goblinScreenSkinFields.map((item) => [item.field, item.defaultAssetId])))}
+        title="UI экрана гоблинов"
+      >
+        <p className="content-form-note">Фон экрана Гоблины берется из Asset ID и может быть заменен загрузкой PNG.</p>
+        <div className="content-form-grid content-hire-card-skin-grid">{goblinScreenSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+
+      <ContentNestedSection
+        addLabel="Заполнить дефолтами"
+        onAdd={() => props.updateFields(Object.fromEntries(ownedGoblinSkinFields.map((item) => [item.field, item.defaultAssetId])))}
+        title="UI личных гоблинов"
+      >
+        <p className="content-form-note">Эти Asset ID управляют подложкой личного гоблина и стрелкой доступного улучшения.</p>
+        <div className="content-form-grid content-hire-card-skin-grid">{ownedGoblinSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+
+      <ContentNestedSection
+        addLabel="Заполнить дефолтами"
+        onAdd={() => props.updateFields(Object.fromEntries(hireCardSkinFields.map((item) => [item.field, item.defaultAssetId])))}
+        title="UI карточки найма"
+      >
+        <p className="content-form-note">
+          Эти Asset ID управляют визуальным скином карточек найма. PNG можно заменить загрузкой файла в нужный слот; игра берет картинки через `/api/assets`.
+        </p>
+        <div className="content-form-grid content-hire-card-skin-grid">{hireCardSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+    </>
   );
 }
 
@@ -3295,6 +3393,20 @@ function stringField(record: ContentRecord, key: string): string {
   return typeof value === "string" ? value : "";
 }
 
+function stringFieldAtPath(record: ContentRecord, pathSegments: readonly string[]): string {
+  let current: unknown = record;
+
+  for (const segment of pathSegments) {
+    if (!isRecord(current)) {
+      return "";
+    }
+
+    current = current[segment];
+  }
+
+  return typeof current === "string" ? current : "";
+}
+
 function contentEntityTitle(record: ContentRecord, localization: Record<string, string>): string {
   const titleKey = stringField(record, "nameKey") || stringField(record, "displayNameKey");
   return localization[titleKey] ?? (titleKey || stringField(record, "id") || "Без id");
@@ -3422,14 +3534,22 @@ function createBlockTypeFormState(entity: ContentRecord, content: ContentBundle)
 
 function createGoblinGenerationFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
   const namePool = recordField(entity, "namePool");
+  const hireCardSkin = recordField(entity, "hireCardSkin");
 
   return {
     archetypesJson: JSON.stringify(arrayField(entity, "archetypes"), null, 2),
     id: stringField(entity, "id") || "default",
     namePoolNames: arrayStringField(namePool, "names").join("\n"),
     namePoolNicknames: arrayStringField(namePool, "nicknames").join("\n"),
-    title: localizationValue(content, stringField(entity, "nameKey"))
+    title: localizationValue(content, stringField(entity, "nameKey")),
+    ...createGoblinHireCardSkinFormState(hireCardSkin)
   };
+}
+
+function createGoblinHireCardSkinFormState(hireCardSkin: ContentRecord): EntityFormState {
+  return Object.fromEntries(
+    goblinUiSkinFields.map((item) => [item.field, stringFieldAtPath(hireCardSkin, item.path) || item.defaultAssetId])
+  );
 }
 
 function createGoblinHutFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
@@ -3767,6 +3887,12 @@ function validateGoblinGenerationForm(state: EntityFormState, content: ContentBu
 
   if (nicknames.length === 0) {
     errors.push("Пул прозвищ должен содержать хотя бы одно прозвище.");
+  }
+
+  for (const field of goblinUiSkinFields) {
+    if (!formValue(state, field.field).trim()) {
+      errors.push(`${field.label}: Asset ID обязателен.`);
+    }
   }
 
   if (!archetypes.ok) {
@@ -4280,6 +4406,7 @@ function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, s
         names: parseLineList(formValue(state, "namePoolNames")),
         nicknames: parseLineList(formValue(state, "namePoolNicknames"))
       },
+      hireCardSkin: createGoblinHireCardSkinFromForm(state),
       archetypes: archetypes.value
     },
     entityId: selectedId,
@@ -4288,6 +4415,40 @@ function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, s
       [nameKey]: formValue(state, "title").trim()
     },
     message: `Генерация гоблинов ${id} сохранена как draft.`
+  };
+}
+
+function createGoblinHireCardSkinFromForm(state: EntityFormState): ContentRecord {
+  return {
+    buttons: {
+      disabled: formValue(state, "skinButtonDisabled").trim(),
+      hover: formValue(state, "skinButtonHover").trim(),
+      normal: formValue(state, "skinButtonNormal").trim(),
+      pressed: formValue(state, "skinButtonPressed").trim()
+    },
+    cardBases: {
+      common: formValue(state, "skinCardBaseCommon").trim(),
+      epic: formValue(state, "skinCardBaseEpic").trim(),
+      legendary: formValue(state, "skinCardBaseLegendary").trim(),
+      rare: formValue(state, "skinCardBaseRare").trim()
+    },
+    icons: {
+      cost: formValue(state, "skinIconCost").trim(),
+      loyalty: formValue(state, "skinIconLoyalty").trim(),
+      luck: formValue(state, "skinIconLuck").trim(),
+      speed: formValue(state, "skinIconSpeed").trim(),
+      strength: formValue(state, "skinIconStrength").trim()
+    },
+    ownedCards: {
+      base: formValue(state, "skinOwnedCardBase").trim(),
+      upgradeArrow: formValue(state, "skinOwnedUpgradeArrow").trim()
+    },
+    pricePills: {
+      disabled: formValue(state, "skinPriceDisabled").trim(),
+      normal: formValue(state, "skinPriceNormal").trim()
+    },
+    screenBackground: formValue(state, "skinScreenBackground").trim(),
+    titlePlate: formValue(state, "skinTitlePlate").trim()
   };
 }
 

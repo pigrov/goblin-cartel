@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
+import { defaultGoblinHireCardSkin, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
   createGoblinHutProgressionState,
   createGoblinHutVisualStage,
@@ -134,6 +134,7 @@ const content: ContentBundle = {
       },
       traitPool: []
     })),
+    hireCardSkin: defaultGoblinHireCardSkin,
     id: "default",
     nameKey: "goblin_generation.name",
     namePool: {
@@ -360,6 +361,20 @@ describe("goblin hut client state", () => {
     ).toMatchObject({
       canHire: true,
       costRequirements: [{ available: 140, missing: 0, ok: true, required: 120, resourceId: "gold" }],
+      failureReason: null
+    });
+
+    expect(
+      createRandomGoblinContractPreview({
+        archetype,
+        goblinHut: content.goblinHut,
+        goblins: availableGoblins,
+        resources: { gold: 0 },
+        roster: { hiredGoblinIds: [] }
+      })
+    ).toMatchObject({
+      canHire: true,
+      costRequirements: [],
       failureReason: null
     });
 

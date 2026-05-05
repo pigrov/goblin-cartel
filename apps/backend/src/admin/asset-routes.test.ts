@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import Fastify from "fastify";
@@ -77,6 +77,63 @@ describe("asset routes", () => {
     expect(assetResponse.statusCode).toBe(200);
     expect(assetResponse.headers["content-type"]).toContain("image/png");
     expect(assetResponse.rawPayload.length).toBeGreaterThan(0);
+  });
+
+  it("stores generic UI assets through the shared upload endpoint", async () => {
+    const server = Fastify({ logger: false });
+    await registerAssetRoutes(server, createAuthService(readyUser), { assetStorageDir: await createStorageDir() });
+
+    const uploadResponse = await server.inject({
+      method: "POST",
+      url: "/admin/assets",
+      headers: {
+        authorization: "Bearer token"
+      },
+      payload: {
+        assetId: "ui_hire_card_base_common_v1",
+        dataBase64: onePixelPngBase64,
+        fileName: "ui_hire_card_base_common_v1.png",
+        mimeType: "image/png"
+      }
+    });
+
+    expect(uploadResponse.statusCode).toBe(200);
+
+    const assetResponse = await server.inject({
+      method: "GET",
+      url: "/assets/ui_hire_card_base_common_v1"
+    });
+
+    expect(assetResponse.statusCode).toBe(200);
+  });
+
+  it("seeds bundled default assets without overwriting uploaded files", async () => {
+    const storageDir = await createStorageDir();
+    const seedDir = await createStorageDir();
+    const server = Fastify({ logger: false });
+
+    await writeFile(path.join(storageDir, "custom_asset.png"), Buffer.from("uploaded"));
+    await mkdir(seedDir, { recursive: true });
+    await writeFile(path.join(seedDir, "custom_asset.png"), Buffer.from("seed"));
+    await writeFile(path.join(seedDir, "seeded_asset.png"), Buffer.from(onePixelPngBase64, "base64"));
+
+    await registerAssetRoutes(server, createAuthService(readyUser), {
+      assetStorageDir: storageDir,
+      defaultAssetSeedDir: seedDir
+    });
+
+    const seededResponse = await server.inject({
+      method: "GET",
+      url: "/assets/seeded_asset"
+    });
+
+    const uploadedResponse = await server.inject({
+      method: "GET",
+      url: "/assets/custom_asset"
+    });
+
+    expect(seededResponse.statusCode).toBe(200);
+    expect(uploadedResponse.rawPayload.toString()).toBe("uploaded");
   });
 
   it("accepts large base64 render payloads below the 5 MB file limit", async () => {

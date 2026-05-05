@@ -1,7 +1,7 @@
 import { createReadStream } from "node:fs";
-import { mkdir, rm, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import type { AdminAuthService } from "./auth.js";
 import { requireReadyAdminUser } from "./http-auth.js";
@@ -21,6 +21,7 @@ const uploadPayloadSchema = z.object({
 
 export interface AssetRoutesOptions {
   assetStorageDir: string;
+  defaultAssetSeedDir?: string;
 }
 
 export async function registerAssetRoutes(
@@ -29,6 +30,10 @@ export async function registerAssetRoutes(
   options: AssetRoutesOptions
 ): Promise<void> {
   const storageDir = path.resolve(options.assetStorageDir);
+
+  if (options.defaultAssetSeedDir) {
+    await seedDefaultAssets(storageDir, path.resolve(options.defaultAssetSeedDir));
+  }
 
   server.get("/assets/:assetId", async (request, reply) => {
     const params = z.object({ assetId: assetIdSchema }).safeParse(request.params);
@@ -49,7 +54,7 @@ export async function registerAssetRoutes(
       .send(createReadStream(asset.filePath));
   });
 
-  server.post("/admin/assets/goblin-renders", async (request, reply) => {
+  const uploadAssetHandler = async (request: FastifyRequest, reply: FastifyReply) => {
     const user = await requireReadyAdminUser(request, reply, authService);
 
     if (!user) {
@@ -86,7 +91,10 @@ export async function registerAssetRoutes(
         url: `/api/assets/${encodeURIComponent(payload.data.assetId)}`
       }
     };
-  });
+  };
+
+  server.post("/admin/assets", uploadAssetHandler);
+  server.post("/admin/assets/goblin-renders", uploadAssetHandler);
 }
 
 function decodeBase64Payload(value: string): Buffer | null {
@@ -152,4 +160,37 @@ async function fileExists(filePath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function directoryExists(dirPath: string): Promise<boolean> {
+  try {
+    return (await stat(dirPath)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+async function seedDefaultAssets(storageDir: string, seedDir: string): Promise<void> {
+  if (!(await directoryExists(seedDir))) {
+    return;
+  }
+
+  await mkdir(storageDir, { recursive: true });
+
+  const entries = await readdir(seedDir, { withFileTypes: true });
+
+  await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && allowedExtensions.includes(path.extname(entry.name).toLowerCase() as (typeof allowedExtensions)[number]))
+      .map(async (entry) => {
+        const sourcePath = path.join(seedDir, entry.name);
+        const targetPath = path.join(storageDir, entry.name);
+
+        if (await fileExists(targetPath)) {
+          return;
+        }
+
+        await copyFile(sourcePath, targetPath);
+      })
+  );
 }

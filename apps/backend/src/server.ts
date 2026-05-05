@@ -1,5 +1,7 @@
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createAdminAuthService, type AdminAuthService } from "./admin/auth.js";
 import { DrizzleAdminAuthStore } from "./admin/auth-store.js";
 import { registerAssetRoutes } from "./admin/asset-routes.js";
@@ -26,6 +28,7 @@ export interface ServerDependencies {
 
 const nativeAppCorsOrigins = ["https://localhost", "capacitor://localhost", "ionic://localhost"];
 const requestBodyLimitBytes = 10 * 1024 * 1024;
+const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export async function buildServer(env: AppEnv, dependencies: ServerDependencies = {}): Promise<FastifyInstance> {
   const server = Fastify({
@@ -86,7 +89,10 @@ export async function buildServer(env: AppEnv, dependencies: ServerDependencies 
 
   await registerAdminAuthRoutes(server, adminAuthService, env.bootstrapAdminEmails);
   await registerAdminCredentialRoutes(server, adminAuthService, adminCredentialService);
-  await registerAssetRoutes(server, adminAuthService, { assetStorageDir: env.assetStorageDir });
+  await registerAssetRoutes(server, adminAuthService, {
+    assetStorageDir: env.assetStorageDir,
+    defaultAssetSeedDir: path.resolve(backendDir, "assets/default")
+  });
   await registerContentRoutes(server, adminAuthService, contentService);
   await registerPlayerSaveRoutes(server, playerSaveService);
 

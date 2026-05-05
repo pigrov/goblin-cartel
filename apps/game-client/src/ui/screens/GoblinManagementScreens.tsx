@@ -1,21 +1,13 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { Coins, Gem, Hammer, Mountain, Pickaxe, Sparkles, Users, Warehouse, X, Zap } from "lucide-react";
 import type { ContentBundle, GoblinConfig, GoblinGenerationArchetypeConfig } from "@goblin-cartel/content-schemas";
 import type { ElevatorProgressionState } from "../elevatorState";
-import {
-  calculateCrewAutoDamagePerSecond,
-  calculateGoblinEffectiveBaseStats,
-  type GoblinRosterInstance,
-  type GoblinRosterState
-} from "@goblin-cartel/game-core";
+import { calculateGoblinEffectiveBaseStats, type GoblinRosterInstance, type GoblinRosterState } from "@goblin-cartel/game-core";
 import {
   createGoblinIdentity,
-  createGoblinRoleSummary,
   createRandomGoblinContractPreview,
   createGoblinUpgradePreview,
-  isMiningGoblin,
   type GoblinHutProgressionState,
-  type GoblinHutRoleTab,
   type GoblinHutRoleTabId,
   type RandomGoblinContractPreview,
   type GoblinUpgradePreview
@@ -23,6 +15,40 @@ import {
 import type { RandomGoblinReveal } from "../useGoblinRosterController";
 import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "../goblinRuntimeUnits";
 import { assetUrl } from "../assetUrls";
+
+type GoblinHireCardSkin = NonNullable<ContentBundle["goblinGeneration"]["hireCardSkin"]>;
+
+const defaultGoblinHireCardSkin: GoblinHireCardSkin = {
+  buttons: {
+    disabled: "ui_hire_button_disabled_v1",
+    hover: "ui_hire_button_hover_v1",
+    normal: "ui_hire_button_normal_v1",
+    pressed: "ui_hire_button_pressed_v1"
+  },
+  cardBases: {
+    common: "ui_hire_card_base_common_v1",
+    epic: "ui_hire_card_base_epic_v1",
+    legendary: "ui_hire_card_base_legendary_v1",
+    rare: "ui_hire_card_base_rare_v1"
+  },
+  icons: {
+    cost: "ui_icon_coin_v1",
+    loyalty: "ui_icon_clock_v1",
+    luck: "ui_icon_star_v1",
+    speed: "ui_icon_boot_v1",
+    strength: "ui_icon_pickaxe_v1"
+  },
+  ownedCards: {
+    base: "ui_owned_goblin_card_base_v1",
+    upgradeArrow: "ui_owned_goblin_upgrade_arrow_v1"
+  },
+  pricePills: {
+    disabled: "ui_hire_price_disabled_v1",
+    normal: "ui_hire_price_normal_v1"
+  },
+  screenBackground: "ui_goblin_screen_pattern_v1",
+  titlePlate: "ui_hire_title_plate_v1"
+};
 
 export function BaseSection(props: {
   elevatorProgression: ElevatorProgressionState;
@@ -202,9 +228,7 @@ export function GoblinSection(props: {
   roster: GoblinRosterState;
   rosterMessage: string | null;
 }) {
-  const roleSummary = createGoblinRoleSummary(props.availableGoblins, props.roster);
   const runtimeGoblins = createRuntimeGoblinConfigs(props.availableGoblins, props.roster);
-  const minerGoblins = runtimeGoblins.filter(isMiningGoblin);
   const generation = props.content.goblinGeneration;
   const allContractPreviews = [...generation.archetypes]
     .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -218,51 +242,18 @@ export function GoblinSection(props: {
       })
     );
   const allRolledGoblins = runtimeGoblins.filter((goblin) => goblin.id.startsWith("rolled:"));
-  const roleTabs = createRandomGoblinRoleTabs(allContractPreviews, allRolledGoblins);
-  const contractPreviews = allContractPreviews.filter((preview) => goblinClassMatchesRole(preview.archetype.class, props.activeRoleTab));
-  const rolledGoblins = allRolledGoblins.filter((goblin) => goblinClassMatchesRole(goblin.class, props.activeRoleTab));
+  const contractPreviews = allContractPreviews;
+  const rolledGoblins = allRolledGoblins;
+  const skin = createGoblinHireCardSkin(props.content.goblinGeneration);
 
   return (
-    <section className="goblin-roster management-screen" aria-label="Гоблины">
-      <header className="section-title">
-        <div>
-          <p>Гоблины</p>
-          <strong>
-            Хижина {props.hutLevel} ур. · {roleSummary.hiredCount}/{props.hutLimit}
-          </strong>
-        </div>
-        <span>Урон {calculateCrewAutoDamagePerSecond({ goblins: minerGoblins, roster: props.roster })}/сек</span>
-      </header>
-
-      <div className="goblin-role-tabs" aria-label="Виды гоблинов">
-        {roleTabs.map((tab) => (
-          <button
-            className={props.activeRoleTab === tab.id ? "active" : ""}
-            disabled={tab.locked}
-            key={tab.id}
-            onClick={() => props.onRoleTabChange(tab.id)}
-            type="button"
-          >
-            <span>{tab.label}</span>
-            <strong>
-              {tab.locked ? "закрыто" : `${tab.hiredCount}/${tab.count}`}
-            </strong>
-          </button>
-        ))}
-      </div>
-
-      <div className="goblin-role-summary" aria-label="Роли гоблинов">
-        <span>Шахтеры {roleSummary.minerCount}</span>
-        <span>Сборщики {roleSummary.collectorCount}</span>
-        <span>Автосбор {roleSummary.totalAutoCollectSlots}</span>
-        <span>Бригадиры {roleSummary.builderCount}</span>
-      </div>
-
+    <section className="goblin-roster management-screen" style={createGoblinScreenStyle(skin)} aria-label="Гоблины">
       {contractPreviews.length > 0 ? (
         <GoblinContractPanel
           labels={props.labels}
           onHireRandomGoblin={props.onHireRandomGoblin}
           previews={contractPreviews}
+          skin={skin}
         />
       ) : null}
 
@@ -275,6 +266,7 @@ export function GoblinSection(props: {
           onUpgradeGoblin={props.onUpgradeGoblin}
           resources={props.resources}
           roster={props.roster}
+          skin={skin}
         />
       ) : null}
 
@@ -291,45 +283,140 @@ export function GoblinSection(props: {
   );
 }
 
-function createRandomGoblinRoleTabs(
-  previews: RandomGoblinContractPreview[],
-  goblins: RuntimeGoblinConfig[]
-): GoblinHutRoleTab[] {
-  const tabs: Array<{ id: GoblinHutRoleTabId; label: string }> = [
-    { id: "all", label: "Все" },
-    { id: "miners", label: "Шахтеры" },
-    { id: "collectors", label: "Сборщики" },
-    { id: "builders", label: "Стройка" }
-  ];
+function createGoblinHireCardSkin(goblinGeneration: ContentBundle["goblinGeneration"]): GoblinHireCardSkin {
+  const skin = goblinGeneration.hireCardSkin as Partial<GoblinHireCardSkin> | undefined;
 
-  return tabs.map((tab) => {
-    const matchingPreviews = previews.filter((preview) => goblinClassMatchesRole(preview.archetype.class, tab.id));
-    const matchingGoblins = goblins.filter((goblin) => goblinClassMatchesRole(goblin.class, tab.id));
-    const locked =
-      tab.id !== "all" &&
-      matchingGoblins.length === 0 &&
-      (matchingPreviews.length === 0 || matchingPreviews.every((preview) => preview.failureReason === "role_locked"));
-
-    return {
-      ...tab,
-      count: matchingPreviews.length + matchingGoblins.length,
-      hiredCount: matchingGoblins.length,
-      locked
-    };
-  });
+  return {
+    buttons: {
+      ...defaultGoblinHireCardSkin.buttons,
+      ...(skin?.buttons ?? {})
+    },
+    cardBases: {
+      ...defaultGoblinHireCardSkin.cardBases,
+      ...(skin?.cardBases ?? {})
+    },
+    icons: {
+      ...defaultGoblinHireCardSkin.icons,
+      ...(skin?.icons ?? {})
+    },
+    ownedCards: {
+      ...defaultGoblinHireCardSkin.ownedCards,
+      ...(skin?.ownedCards ?? {})
+    },
+    pricePills: {
+      ...defaultGoblinHireCardSkin.pricePills,
+      ...(skin?.pricePills ?? {})
+    },
+    screenBackground: skin?.screenBackground ?? defaultGoblinHireCardSkin.screenBackground,
+    titlePlate: skin?.titlePlate ?? defaultGoblinHireCardSkin.titlePlate
+  };
 }
 
-function goblinClassMatchesRole(goblinClass: GoblinConfig["class"], role: GoblinHutRoleTabId): boolean {
-  switch (role) {
-    case "builders":
-      return goblinClass === "builder" || goblinClass === "foreman";
-    case "collectors":
-      return goblinClass === "collector";
-    case "miners":
-      return goblinClass === "miner";
+function createGoblinHireCardStyle(
+  skin: GoblinHireCardSkin,
+  rarity: GoblinRosterInstance["rarity"],
+  enabled: boolean
+): CSSProperties {
+  return {
+    "--hire-button-disabled": cssAssetUrl(skin.buttons.disabled),
+    "--hire-button-hover": cssAssetUrl(skin.buttons.hover),
+    "--hire-button-normal": cssAssetUrl(skin.buttons.normal),
+    "--hire-button-pressed": cssAssetUrl(skin.buttons.pressed),
+    "--hire-card-base": cssAssetUrl(skin.cardBases[rarity]),
+    "--hire-price-pill": cssAssetUrl(enabled ? skin.pricePills.normal : skin.pricePills.disabled)
+  } as CSSProperties;
+}
+
+function createOwnedGoblinCardStyle(skin: GoblinHireCardSkin): CSSProperties {
+  return {
+    "--owned-goblin-card-base": cssAssetUrl(skin.ownedCards.base)
+  } as CSSProperties;
+}
+
+function cssAssetUrl(assetId: string): string {
+  const url = assetUrl(assetId);
+  return url ? `url("${url}")` : "none";
+}
+
+function createGoblinScreenStyle(skin: GoblinHireCardSkin): CSSProperties {
+  return {
+    "--goblin-roster-background": cssAssetUrl(skin.screenBackground)
+  } as CSSProperties;
+}
+
+function createGoblinHireTitlePlateStyle(skin: GoblinHireCardSkin): CSSProperties {
+  return {
+    "--hire-title-plate": cssAssetUrl(skin.titlePlate)
+  } as CSSProperties;
+}
+
+function contractVisualRarity(goblinClass: GoblinGenerationArchetypeConfig["class"]): GoblinRosterInstance["rarity"] {
+  switch (goblinClass) {
+    case "foreman":
+      return "epic";
+    case "builder":
+    case "collector":
+      return "rare";
     default:
-      return true;
+      return "common";
   }
+}
+
+type ContractStatKey = keyof GoblinGenerationArchetypeConfig["statRanges"];
+
+function createContractPrimaryStats(
+  archetype: GoblinGenerationArchetypeConfig
+): Array<{ key: ContractStatKey; label: string; range: { max: number; min: number } }> {
+  return contractPrimaryStatKeys(archetype.class).map((key) => ({
+    key,
+    label: contractStatLabel(key),
+    range: archetype.statRanges[key]
+  }));
+}
+
+function contractPrimaryStatKeys(goblinClass: GoblinGenerationArchetypeConfig["class"]): [ContractStatKey, ContractStatKey] {
+  switch (goblinClass) {
+    case "collector":
+      return ["luck", "speed"];
+    case "builder":
+    case "foreman":
+      return ["loyalty", "speed"];
+    default:
+      return ["strength", "speed"];
+  }
+}
+
+function contractStatLabel(stat: ContractStatKey): string {
+  switch (stat) {
+    case "loyalty":
+      return "лояльность";
+    case "luck":
+      return "удача";
+    case "speed":
+      return "скорость";
+    default:
+      return "сила";
+  }
+}
+
+function contractStatIconAssetId(skin: GoblinHireCardSkin, stat: ContractStatKey): string {
+  switch (stat) {
+    case "loyalty":
+      return skin.icons.loyalty;
+    case "luck":
+      return skin.icons.luck;
+    case "speed":
+      return skin.icons.speed;
+    default:
+      return skin.icons.strength;
+  }
+}
+
+function findCostRequirement(
+  requirements: RandomGoblinContractPreview["costRequirements"],
+  resourceId: string
+): RandomGoblinContractPreview["costRequirements"][number] | null {
+  return requirements.find((requirement) => requirement.resourceId === resourceId) ?? null;
 }
 
 function GoblinHutVisual(props: { stage: 1 | 2 | 3 | 4 }) {
@@ -402,70 +489,87 @@ function SpecializationIcon(props: { goblin: GoblinConfig; size: number }) {
   }
 }
 
+function SkinAssetIcon(props: { assetId: string; fallback?: ReactNode }) {
+  const url = assetUrl(props.assetId);
+
+  if (!url) {
+    return props.fallback ?? null;
+  }
+
+  return <img className="skin-asset-icon" src={url} alt="" />;
+}
+
+function OwnedGoblinUpgradeArrow(props: { skin: GoblinHireCardSkin }) {
+  const url = assetUrl(props.skin.ownedCards.upgradeArrow);
+
+  if (!url) {
+    return <span aria-hidden="true">↑</span>;
+  }
+
+  return <img className="owned-random-goblin-upgrade-arrow" src={url} alt="" />;
+}
+
+function HireCostIcon(props: { resourceId: string; skin: GoblinHireCardSkin }) {
+  if (props.resourceId.includes("gold")) {
+    return <SkinAssetIcon assetId={props.skin.icons.cost} fallback={<ResourceIcon resourceId={props.resourceId} size={13} />} />;
+  }
+
+  return <ResourceIcon resourceId={props.resourceId} size={13} />;
+}
+
 function GoblinContractPanel(props: {
   labels: Record<string, string>;
   onHireRandomGoblin: (archetypeId: string) => void;
   previews: RandomGoblinContractPreview[];
+  skin: GoblinHireCardSkin;
 }) {
   return (
     <section className="goblin-contract-panel" aria-label="Контракты гоблинов">
-      <header>
-        <div>
-          <span>Контракты</span>
-          <strong>Случайные гоблины</strong>
-        </div>
-        <small>имя и статы после найма</small>
+      <header className="goblin-contract-title-plaque" style={createGoblinHireTitlePlateStyle(props.skin)}>
+        <span>НАЙМ ГОБЛИНОВ</span>
       </header>
       <div className="goblin-contract-grid">
         {props.previews.map((preview) => {
-          const rarityChips = createContractRarityChips(preview.archetype.rarityWeights);
-          const statRanges = preview.archetype.statRanges;
+          const identity = createGoblinIdentity(preview.goblin, props.labels);
+          const primaryStats = createContractPrimaryStats(preview.archetype);
+          const goldRequirement = findCostRequirement(preview.costRequirements, "gold");
+          const goldAmount = goldRequirement?.required ?? 0;
+          const visualRarity = contractVisualRarity(preview.archetype.class);
+          const cardStyle = createGoblinHireCardStyle(props.skin, visualRarity, preview.canHire);
 
           return (
-            <article className={preview.canHire ? "goblin-contract-card" : "goblin-contract-card locked"} key={preview.archetype.id}>
-              <div className="goblin-contract-topline">
-                <span className={`goblin-contract-icon ${preview.archetype.class}`}>{contractRoleIcon(preview.archetype.class)}</span>
+            <article
+              className={preview.canHire ? `goblin-contract-card skinned ${visualRarity}` : `goblin-contract-card skinned locked ${visualRarity}`}
+              key={preview.archetype.id}
+              style={cardStyle}
+            >
+              <div className="goblin-contract-role">
                 <strong>{goblinClassLabel(preview.archetype.class)}</strong>
               </div>
-              <div className="goblin-contract-title">
-                <strong>{labelFromNameKey(preview.archetype.nameKey, preview.archetype.id, props.labels)}</strong>
-                <small>{collectorSpecializationLabel(preview.goblin)}</small>
-              </div>
-              <div className="goblin-contract-statline" aria-label="Возможные характеристики">
-                <span>
-                  <strong>{formatStatRange(statRanges.strength)}</strong>
-                  <small>сил</small>
-                </span>
-                <span>
-                  <strong>{formatStatRange(statRanges.speed)}</strong>
-                  <small>скр</small>
-                </span>
-                <span>
-                  <strong>{formatStatRange(statRanges.luck)}</strong>
-                  <small>удч</small>
-                </span>
-              </div>
-              <div className="goblin-contract-rarity-strip" aria-label="Шансы редкости">
-                {rarityChips.map((chip) => (
-                  <span className={chip.rarity} key={chip.rarity}>
-                    {chip.label} {chip.percent}
+              <GoblinPortrait goblin={preview.goblin} identity={identity} />
+              <div className="goblin-contract-statline primary" aria-label="Основные характеристики">
+                {primaryStats.map((stat) => (
+                  <span key={stat.key}>
+                    <small>{stat.label}</small>
+                    <strong>
+                      <SkinAssetIcon assetId={contractStatIconAssetId(props.skin, stat.key)} />
+                      {formatStatRange(stat.range)}
+                    </strong>
                   </span>
                 ))}
               </div>
-              <div className="build-cost-list">
-                {preview.costRequirements.length > 0 ? (
-                  preview.costRequirements.map((requirement) => (
-                    <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
-                      <ResourceIcon resourceId={requirement.resourceId} size={13} />
-                      {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
-                    </span>
-                  ))
-                ) : (
-                  <span className="ok">бесплатно</span>
-                )}
-              </div>
-              <button disabled={!preview.canHire} onClick={() => props.onHireRandomGoblin(preview.archetype.id)} type="button">
-                {contractActionLabel(preview)}
+              <button
+                aria-label={`${contractActionLabel(preview)} за ${formatInteger(goldAmount)} золота`}
+                disabled={!preview.canHire}
+                onClick={() => props.onHireRandomGoblin(preview.archetype.id)}
+                title={contractActionLabel(preview)}
+                type="button"
+              >
+                <span>НАНЯТЬ</span>
+                <span className="goblin-contract-button-cost">
+                  <HireCostIcon resourceId="gold" skin={props.skin} />
+                  {formatInteger(goldAmount)}
+                </span>
               </button>
             </article>
           );
@@ -483,31 +587,22 @@ function OwnedRandomGoblins(props: {
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
   roster: GoblinRosterState;
+  skin: GoblinHireCardSkin;
 }) {
   const [selectedGoblinId, setSelectedGoblinId] = useState<string | null>(null);
   const selectedGoblin = selectedGoblinId ? props.goblins.find((goblin) => goblin.id === selectedGoblinId) ?? null : null;
 
   return (
     <section className="owned-random-goblins" aria-label="Нанятые случайные гоблины">
-      <header>
-        <div>
-          <span>Хижина</span>
-          <strong>Личные гоблины</strong>
-        </div>
-        <span>{props.goblins.length}/{props.hutLimit}</span>
+      <header className="goblin-contract-title-plaque" style={createGoblinHireTitlePlateStyle(props.skin)}>
+        <span>
+          ВАШИ ГОБЛИНЫ {formatInteger(props.goblins.length)}/{formatInteger(props.hutLimit)}
+        </span>
       </header>
       <div className="owned-random-goblin-list">
         {props.goblins.map((goblin) => {
-          const nameParts = runtimeGoblinNameParts(goblin, props.labels);
           const identity = createGoblinIdentity(goblin, props.labels);
           const preview = createGoblinUpgradePreview(goblin, props.roster, props.resources, props.content.goblinHut);
-          const instance = {
-            archetypeId: goblin.sourceArchetypeId ?? goblin.id,
-            class: goblin.class,
-            id: goblin.id,
-            rarity: goblin.rarity,
-            rolledStats: goblin.baseStats
-          } as GoblinRosterInstance;
 
           return (
             <article
@@ -521,48 +616,25 @@ function OwnedRandomGoblins(props: {
                 }
               }}
               role="button"
+              style={createOwnedGoblinCardStyle(props.skin)}
               tabIndex={0}
             >
-              <div className="owned-random-goblin-topline">
-                <span>ур. {preview.levelNow}</span>
-                <strong>{rarityLabel(instance.rarity)}</strong>
-              </div>
+              <span className="owned-random-goblin-level">{formatInteger(preview.levelNow)}</span>
+              {preview.canUpgrade ? (
+                <button
+                  aria-label={`Улучшить ${identity.fullName}`}
+                  className="owned-random-goblin-upgrade"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    props.onUpgradeGoblin(goblin);
+                  }}
+                  title="Улучшить"
+                  type="button"
+                >
+                  <OwnedGoblinUpgradeArrow skin={props.skin} />
+                </button>
+              ) : null}
               <GoblinPortrait goblin={goblin} identity={{ ...identity, name: goblin.instanceName ?? identity.name }} />
-              <div className="owned-random-goblin-name">
-                <strong>{nameParts.name}</strong>
-                <small>{nameParts.nickname || goblinClassLabel(goblin.class)}</small>
-              </div>
-              <div className="owned-random-goblin-specialty">
-                <span>
-                  <SpecializationIcon goblin={goblin} size={13} />
-                </span>
-                <small>{collectorSpecializationLabel(goblin)}</small>
-              </div>
-              <div className="owned-random-goblin-statline" aria-label="Характеристики">
-                <span>
-                  <strong>{instance.rolledStats.strength}</strong>
-                  <small>сил</small>
-                </span>
-                <span>
-                  <strong>{instance.rolledStats.speed}</strong>
-                  <small>скр</small>
-                </span>
-                <span>
-                  <strong>{instance.rolledStats.luck}</strong>
-                  <small>удч</small>
-                </span>
-              </div>
-              <button
-                className="owned-random-goblin-action"
-                disabled={!preview.canUpgrade}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  props.onUpgradeGoblin(goblin);
-                }}
-                type="button"
-              >
-                {preview.canUpgrade ? "Улучшить" : randomGoblinUpgradeActionLabel(preview)}
-              </button>
             </article>
           );
         })}
@@ -923,18 +995,6 @@ function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
   }
 }
 
-function contractRoleIcon(goblinClass: GoblinGenerationArchetypeConfig["class"]) {
-  switch (goblinClass) {
-    case "builder":
-    case "foreman":
-      return <Hammer size={17} />;
-    case "collector":
-      return <Warehouse size={17} />;
-    default:
-      return <Pickaxe size={17} />;
-  }
-}
-
 function contractActionLabel(preview: RandomGoblinContractPreview): string {
   switch (preview.failureReason) {
     case null:
@@ -990,60 +1050,6 @@ function rarityLabel(rarity: GoblinRosterInstance["rarity"]): string {
     default:
       return "Обычный";
   }
-}
-
-function rarityShortLabel(rarity: GoblinRosterInstance["rarity"]): string {
-  switch (rarity) {
-    case "rare":
-      return "ред";
-    case "epic":
-      return "эп";
-    case "legendary":
-      return "лег";
-    default:
-      return "об";
-  }
-}
-
-function createContractRarityChips(
-  rarityWeights: GoblinGenerationArchetypeConfig["rarityWeights"]
-): Array<{ label: string; percent: string; rarity: GoblinRosterInstance["rarity"] }> {
-  const totalWeight = rarityWeights.reduce((sum, item) => sum + item.weight, 0);
-
-  return [...rarityWeights]
-    .sort((left, right) => raritySortOrder(left.rarity) - raritySortOrder(right.rarity))
-    .map((item) => ({
-      label: rarityShortLabel(item.rarity),
-      percent: formatWeightPercent(item.weight, totalWeight),
-      rarity: item.rarity
-    }));
-}
-
-function raritySortOrder(rarity: GoblinRosterInstance["rarity"]): number {
-  switch (rarity) {
-    case "legendary":
-      return 3;
-    case "epic":
-      return 2;
-    case "rare":
-      return 1;
-    default:
-      return 0;
-  }
-}
-
-function formatWeightPercent(weight: number, totalWeight: number): string {
-  if (totalWeight <= 0) {
-    return "0%";
-  }
-
-  const percent = (weight / totalWeight) * 100;
-
-  if (percent > 0 && percent < 1) {
-    return "<1%";
-  }
-
-  return `${Math.round(percent)}%`;
 }
 
 function formatStatRange(range: { max: number; min: number }): string {

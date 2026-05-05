@@ -1,3 +1,11 @@
+@font-face {
+  font-family: "Russo One";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("./fonts/RussoOne-Regular.ttf") format("truetype");
+}
+
 :root {
   color-scheme: dark;
   --gc-bg: #15110d;
@@ -13,18 +21,24 @@
   --gc-energy: #44c6c8;
   --gc-success: #6fbf57;
   --gc-text: #f6ead8;
+  --gc-heading: #c7b28a;
+  --gc-heading-shadow: -1px -1px 0 rgb(0 0 0 / 90%), 0 -1px 0 rgb(0 0 0 / 90%),
+    1px -1px 0 rgb(0 0 0 / 90%), -1px 0 0 rgb(0 0 0 / 90%), 1px 0 0 rgb(0 0 0 / 90%),
+    -1px 1px 0 rgb(0 0 0 / 90%), 0 1px 0 rgb(0 0 0 / 90%), 1px 1px 0 rgb(0 0 0 / 90%),
+    0 2px 0 rgb(0 0 0 / 92%);
   --gc-muted: #b7a58f;
   --gc-radius-sm: 4px;
   --gc-radius-md: 8px;
   --gc-shadow-panel: 0 8px 24px rgb(0 0 0 / 32%);
   font-family:
-    Inter, "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
+    "Russo One", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, Arial, sans-serif;
 }
 
 body {
   margin: 0;
   background: var(--gc-bg);
   color: var(--gc-text);
+  font-weight: 500;
 }
 
 button,
@@ -32,6 +46,10 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .gc-panel {

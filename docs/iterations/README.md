@@ -100,3 +100,5 @@
 - `0095_mine_column_tactics` - added per-column mine tactics hints showing current DPS, best miner DPS, tag bonuses, and whether a column needs a better miner.
 - `0096_goblin_screen_cards` - rebuilt hired random goblins as compact card-style UI with larger detail modal and admin-uploaded render requirements.
 - `0097_goblin_contract_reveal_cards` - rebuilt random goblin hire contracts and reveal modal into the same compact card-style UI with rarity odds and stat ranges.
+- `0098_hire_card_asset_skin` - added configurable content/admin asset skin slots for goblin hire cards, seeded the production asset pack, and wired client cards through asset IDs.
+- `0099_hire_card_simplification` - rebuilt the Goblins screen visual skin with admin-uploaded backgrounds, title plates, hire-card assets, owned-goblin cards, Russo One typography, and gold-only random hire contracts.

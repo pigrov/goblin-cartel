@@ -457,7 +457,7 @@ describe("goblin roster", () => {
     expect(result.ok ? getHiredGoblinCount(result.roster) : 0).toBe(2);
   });
 
-  it("makes the first random goblin contract free for a new roster", () => {
+  it("gives the first random goblin contract for free and charges the next ones", () => {
     const archetype: GoblinGenerationArchetypeConfig = {
       class: "miner",
       hireCost: [{ amount: 50, resourceId: "gold" }],
@@ -480,15 +480,33 @@ describe("goblin roster", () => {
         names: ["Krikk"],
         nicknames: ["Stone Ear"]
       },
-      resources: {},
+      resources: { gold: 80 },
       roster: ensureGoblinRosterInstances(createInitialGoblinRoster(contractGoblins), contractGoblins),
       seed: "player-1"
     });
 
     expect(result.ok).toBe(true);
-    expect(result.ok ? result.resources : null).toEqual({});
+    expect(result.ok ? result.resources : null).toEqual({ gold: 80 });
     expect(result.ok ? result.roster.hiredGoblinIds : []).toEqual([expect.stringMatching(/^rolled:miner_contract:/u)]);
     expect(result.ok ? getHiredGoblinCount(result.roster) : 0).toBe(1);
+
+    const secondResult = hireRandomGoblin({
+      archetypeId: "miner_contract",
+      archetypes: [archetype],
+      goblinHut,
+      goblins: contractGoblins,
+      namePool: {
+        names: ["Krikk"],
+        nicknames: ["Stone Ear"]
+      },
+      resources: result.ok ? result.resources : {},
+      roster: result.ok ? result.roster : { hiredGoblinIds: [] },
+      seed: "player-1"
+    });
+
+    expect(secondResult.ok).toBe(true);
+    expect(secondResult.ok ? secondResult.resources : null).toEqual({ gold: 30 });
+    expect(secondResult.ok ? getHiredGoblinCount(secondResult.roster) : 0).toBe(2);
   });
 
   it("blocks random goblin hire when hut limit, role, or resources prevent it", () => {
