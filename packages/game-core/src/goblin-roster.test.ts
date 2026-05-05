@@ -7,7 +7,7 @@ import {
   calculateGoblinHitDamage,
   calculateGoblinUpgradeCost,
   canHireGoblin,
-  createGoblinTemplateInstance,
+  createGoblinContractInstance,
   createInitialGoblinRoster,
   ensureGoblinRosterInstances,
   getHiredGoblinCount,
@@ -137,7 +137,7 @@ const goblinHut: GoblinHutConfig = {
 };
 
 describe("goblin roster", () => {
-  it("starts without a pre-hired template goblin", () => {
+  it("starts without a pre-hired contract goblin", () => {
     expect(createInitialGoblinRoster(goblins)).toEqual({
       hiredGoblinIds: []
     });
@@ -164,7 +164,7 @@ describe("goblin roster", () => {
     });
   });
 
-  it("creates stable instances for already hired template goblins", () => {
+  it("does not create generated instances from direct roster ids", () => {
     expect(
       ensureGoblinRosterInstances(
         {
@@ -180,41 +180,14 @@ describe("goblin roster", () => {
         second_miner: 2
       },
       hiredGoblinIds: ["starter_miner", "second_miner"],
-      instances: [
-        {
-          class: "miner",
-          id: "template:starter_miner",
-          level: 1,
-          rarity: "common",
-          rolledStats: {
-            loyalty: 5,
-            luck: 1,
-            speed: 4,
-            strength: 8
-          },
-          templateId: "starter_miner"
-        },
-        {
-          class: "miner",
-          id: "template:second_miner",
-          level: 2,
-          rarity: "common",
-          rolledStats: {
-            loyalty: 4,
-            luck: 1,
-            speed: 4,
-            strength: 5
-          },
-          templateId: "second_miner"
-        }
-      ]
+      instances: []
     });
   });
 
   it("normalizes existing instances and preserves rolled stats", () => {
     const roster = normalizeGoblinRoster(
       {
-        hiredGoblinIds: ["second_miner"],
+        hiredGoblinIds: ["rolled:abc"],
         instances: [
           {
             class: "collector",
@@ -234,7 +207,7 @@ describe("goblin roster", () => {
               speed: 8,
               strength: 11
             },
-            templateId: "second_miner",
+            archetypeId: "second_miner",
             traits: [{ id: "gold_nose" }]
           }
         ]
@@ -261,7 +234,7 @@ describe("goblin roster", () => {
           speed: 8,
           strength: 11
         },
-        templateId: "second_miner",
+        archetypeId: "second_miner",
         traits: [{ id: "gold_nose" }]
       }
     ]);
@@ -271,13 +244,16 @@ describe("goblin roster", () => {
     const hired = hireGoblin({
       goblinId: "second_miner",
       goblins,
-      roster: ensureGoblinRosterInstances({ hiredGoblinIds: ["starter_miner"] }, goblins),
+      roster: {
+        hiredGoblinIds: ["starter_miner"],
+        instances: [createGoblinContractInstance(goblins[0] as GoblinRosterGoblin)]
+      },
       resources: {
         gold: 120
       }
     });
 
-    expect(hired.ok ? hired.roster.instances?.map((instance) => instance.templateId) : []).toEqual([
+    expect(hired.ok ? hired.roster.instances?.map((instance) => instance.archetypeId) : []).toEqual([
       "starter_miner",
       "second_miner"
     ]);
@@ -293,31 +269,51 @@ describe("goblin roster", () => {
         })
       : null;
 
-    expect(upgraded?.ok ? upgraded.roster.instances?.find((instance) => instance.templateId === "second_miner")?.level : null).toBe(2);
+    expect(upgraded?.ok ? upgraded.roster.instances?.find((instance) => instance.archetypeId === "second_miner")?.level : null).toBe(2);
   });
 
-  it("can create a template-backed instance explicitly", () => {
-    expect(createGoblinTemplateInstance(goblins[1] as GoblinRosterGoblin, 2, "manual-instance")).toMatchObject({
+  it("can create a contract-backed instance explicitly", () => {
+    expect(createGoblinContractInstance(goblins[1] as GoblinRosterGoblin, 2, "manual-instance")).toMatchObject({
       class: "miner",
       id: "manual-instance",
       level: 2,
       rarity: "common",
-      templateId: "second_miner"
+      archetypeId: "second_miner"
     });
   });
 
   it("rolls deterministic random goblin instances from an archetype", () => {
     const archetype: GoblinGenerationArchetypeConfig = {
+      ability: {
+        descriptionKey: "ability.random_stone_biter.description",
+        effects: [{ type: "base_damage_bonus", value: 3 }],
+        id: "random_stone_biter",
+        nameKey: "ability.random_stone_biter.name"
+      },
       class: "miner",
       id: "miner_contract",
+      leveling: {
+        autoCollectSlotsPerLevel: 0,
+        cost: [{ resourceId: "gold", baseAmount: 25, levelMultiplier: 1, levelPower: 1 }],
+        maxLevel: 4,
+        mineCapacityMultiplierPerLevel: 0,
+        mineProductionMultiplierPerLevel: 0,
+        statGrowthPerLevel: {
+          loyalty: 0,
+          luck: 0,
+          speed: 1,
+          strength: 2
+        }
+      },
       rarityWeights: [{ rarity: "epic", statMultiplier: 2, weight: 1 }],
+      renderPool: [{ assetId: "goblin_epic_render_v1", rarity: "epic", weight: 1 }],
+      specialization: "stonebreaker",
       statRanges: {
         loyalty: { min: 4, max: 4 },
         luck: { min: 2, max: 2 },
         speed: { min: 3, max: 3 },
         strength: { min: 5, max: 5 }
       },
-      templateGoblinId: "starter_miner",
       traitPool: [{ id: "stone_focus", weight: 1 }]
     };
     const input = {
@@ -327,14 +323,21 @@ describe("goblin roster", () => {
         nicknames: ["Stone Ear"]
       },
       seed: "player-1",
-      sequence: 3,
-      template: goblins[0] as GoblinRosterGoblin
+      sequence: 3
     };
 
     expect(rollGoblinInstance(input)).toEqual(rollGoblinInstance(input));
     expect(rollGoblinInstance(input)).toMatchObject({
+      ability: {
+        effects: [{ type: "base_damage_bonus", value: 3 }],
+        id: "random_stone_biter"
+      },
+      assetId: "goblin_epic_render_v1",
       class: "miner",
       level: 1,
+      leveling: {
+        maxLevel: 4
+      },
       name: "Krikk",
       nickname: "Stone Ear",
       rarity: "epic",
@@ -344,10 +347,34 @@ describe("goblin roster", () => {
         speed: 6,
         strength: 10
       },
-      templateId: "starter_miner",
+      specialization: "stonebreaker",
+      archetypeId: "miner_contract",
       traits: [{ id: "stone_focus" }]
     });
     expect(rollGoblinInstance(input).id).toMatch(/^rolled:miner_contract:/u);
+  });
+
+  it("falls back to any render when rarity-specific render is missing", () => {
+    const archetype: GoblinGenerationArchetypeConfig = {
+      class: "miner",
+      id: "miner_contract",
+      rarityWeights: [{ rarity: "legendary", weight: 1 }],
+      renderPool: [{ assetId: "goblin_any_render_v1", weight: 1 }],
+      statRanges: {
+        loyalty: { min: 1, max: 1 },
+        luck: { min: 1, max: 1 },
+        speed: { min: 1, max: 1 },
+        strength: { min: 1, max: 1 }
+      }
+    };
+
+    expect(
+      rollGoblinInstance({
+        archetype,
+        namePool: { names: ["A"], nicknames: ["B"] },
+        seed: "player-1"
+      }).assetId
+    ).toBe("goblin_any_render_v1");
   });
 
   it("uses seed and sequence to roll different goblin instance ids", () => {
@@ -360,29 +387,26 @@ describe("goblin roster", () => {
         luck: { min: 1, max: 3 },
         speed: { min: 1, max: 3 },
         strength: { min: 1, max: 3 }
-      },
-      templateGoblinId: "starter_miner"
+      }
     };
     const first = rollGoblinInstance({
       archetype,
       namePool: { names: ["A"], nicknames: ["B"] },
       seed: "player-1",
-      sequence: 0,
-      template: goblins[0] as GoblinRosterGoblin
+      sequence: 0
     });
     const second = rollGoblinInstance({
       archetype,
       namePool: { names: ["A"], nicknames: ["B"] },
       seed: "player-1",
-      sequence: 1,
-      template: goblins[0] as GoblinRosterGoblin
+      sequence: 1
     });
 
     expect(first.id).not.toBe(second.id);
     expect(first.id).toMatch(/^rolled:miner_contract:/u);
   });
 
-  it("hires a random goblin instance and keeps it separate from the template instance", () => {
+  it("hires a random goblin instance and keeps it separate from the contract instance", () => {
     const archetype: GoblinGenerationArchetypeConfig = {
       class: "miner",
       hireCost: [{ amount: 50, resourceId: "gold" }],
@@ -393,13 +417,13 @@ describe("goblin roster", () => {
         luck: { min: 3, max: 3 },
         speed: { min: 5, max: 5 },
         strength: { min: 7, max: 7 }
-      },
-      templateGoblinId: "starter_miner"
+      }
     };
+    const contractGoblins = [...goblins, { ...(goblins[0] as GoblinRosterGoblin), id: "miner_contract" }];
     const result = hireRandomGoblin({
       archetypeId: "miner_contract",
       archetypes: [archetype],
-      goblins,
+      goblins: contractGoblins,
       namePool: {
         names: ["Krikk"],
         nicknames: ["Stone Ear"]
@@ -407,7 +431,10 @@ describe("goblin roster", () => {
       resources: {
         gold: 100
       },
-      roster: ensureGoblinRosterInstances({ hiredGoblinIds: ["starter_miner"] }, goblins),
+      roster: {
+        hiredGoblinIds: ["starter_miner"],
+        instances: [createGoblinContractInstance(goblins[0] as GoblinRosterGoblin)]
+      },
       seed: "player-1"
     });
 
@@ -417,14 +444,14 @@ describe("goblin roster", () => {
       name: "Krikk",
       nickname: "Stone Ear",
       rarity: "rare",
-      templateId: "starter_miner"
+      archetypeId: "miner_contract"
     });
     expect(result.ok ? result.roster.hiredGoblinIds : []).toEqual([
       "starter_miner",
       expect.stringMatching(/^rolled:miner_contract:/u)
     ]);
     expect(result.ok ? result.roster.instances?.map((instance) => instance.id) : []).toEqual([
-      "template:starter_miner",
+      "contract:starter_miner",
       expect.stringMatching(/^rolled:miner_contract:/u)
     ]);
     expect(result.ok ? getHiredGoblinCount(result.roster) : 0).toBe(2);
@@ -441,20 +468,20 @@ describe("goblin roster", () => {
         luck: { min: 3, max: 3 },
         speed: { min: 5, max: 5 },
         strength: { min: 7, max: 7 }
-      },
-      templateGoblinId: "starter_miner"
+      }
     };
+    const contractGoblins = [{ ...(goblins[0] as GoblinRosterGoblin), id: "miner_contract" }];
     const result = hireRandomGoblin({
       archetypeId: "miner_contract",
       archetypes: [archetype],
       goblinHut,
-      goblins,
+      goblins: contractGoblins,
       namePool: {
         names: ["Krikk"],
         nicknames: ["Stone Ear"]
       },
       resources: {},
-      roster: ensureGoblinRosterInstances(createInitialGoblinRoster(goblins), goblins),
+      roster: ensureGoblinRosterInstances(createInitialGoblinRoster(contractGoblins), contractGoblins),
       seed: "player-1"
     });
 
@@ -475,16 +502,17 @@ describe("goblin roster", () => {
         luck: { min: 1, max: 1 },
         speed: { min: 1, max: 1 },
         strength: { min: 1, max: 1 }
-      },
-      templateGoblinId: "foreman"
+      }
     };
+    const foremanContractGoblins = [...goblins, { ...(goblins[2] as GoblinRosterGoblin), id: "foreman_contract" }];
+    const minerContractGoblins = [...goblins, { ...(goblins[0] as GoblinRosterGoblin), id: "foreman_contract" }];
 
     expect(
       hireRandomGoblin({
         archetypeId: "foreman_contract",
         archetypes: [archetype],
         goblinHut,
-        goblins,
+        goblins: foremanContractGoblins,
         namePool: { names: ["A"], nicknames: ["B"] },
         resources: { gold: 100 },
         roster: { hiredGoblinIds: ["starter_miner"] },
@@ -495,9 +523,9 @@ describe("goblin roster", () => {
     expect(
       hireRandomGoblin({
         archetypeId: "foreman_contract",
-        archetypes: [{ ...archetype, class: "miner", templateGoblinId: "starter_miner" }],
+        archetypes: [{ ...archetype, class: "miner" }],
         goblinHut,
-        goblins,
+        goblins: minerContractGoblins,
         namePool: { names: ["A"], nicknames: ["B"] },
         resources: { gold: 10 },
         roster: { hiredGoblinIds: ["starter_miner"], hutLevel: 2 },
@@ -508,12 +536,15 @@ describe("goblin roster", () => {
     expect(
       hireRandomGoblin({
         archetypeId: "foreman_contract",
-        archetypes: [{ ...archetype, class: "miner", templateGoblinId: "starter_miner" }],
+        archetypes: [{ ...archetype, class: "miner" }],
         goblinHut,
-        goblins,
+        goblins: minerContractGoblins,
         namePool: { names: ["A"], nicknames: ["B"] },
         resources: { gold: 1000 },
-        roster: ensureGoblinRosterInstances({ hiredGoblinIds: ["starter_miner", "second_miner"] }, goblins),
+        roster: {
+          hiredGoblinIds: ["starter_miner", "second_miner"],
+          instances: [createGoblinContractInstance(goblins[0] as GoblinRosterGoblin), createGoblinContractInstance(goblins[1] as GoblinRosterGoblin)]
+        },
         seed: "player-1"
       })
     ).toMatchObject({ ok: false, reason: "hut_limit" });
@@ -570,7 +601,7 @@ describe("goblin roster", () => {
             speed: 10,
             strength: 20
           },
-          templateId: "second_miner",
+          archetypeId: "second_miner",
           traits: []
         }
       ]
@@ -609,7 +640,8 @@ describe("goblin roster", () => {
     expect(result).toEqual({
       ok: true,
       roster: {
-        hiredGoblinIds: ["starter_miner", "second_miner"]
+        hiredGoblinIds: ["starter_miner", "second_miner"],
+        instances: [createGoblinContractInstance(goblins[1] as GoblinRosterGoblin)]
       },
       resources: {
         gold: 20,
@@ -703,7 +735,8 @@ describe("goblin roster", () => {
       },
       roster: {
         hiredGoblinIds: ["starter_miner", "second_miner", "foreman"],
-        hutLevel: 2
+        hutLevel: 2,
+        instances: [createGoblinContractInstance(goblins[2] as GoblinRosterGoblin)]
       }
     });
   });
@@ -753,7 +786,7 @@ describe("goblin roster", () => {
     });
   });
 
-  it("upgrades a hired random goblin instance without leveling the template", () => {
+  it("upgrades a hired random goblin instance without leveling the contract", () => {
     const result = upgradeGoblin({
       goblinId: "rolled:miner_contract:1",
       goblins,
@@ -766,7 +799,7 @@ describe("goblin roster", () => {
           {
             class: "miner",
             equipment: [],
-            id: "template:second_miner",
+            id: "contract:second_miner",
             level: 1,
             lifetimeStats: {},
             rarity: "common",
@@ -776,7 +809,7 @@ describe("goblin roster", () => {
               speed: 4,
               strength: 5
             },
-            templateId: "second_miner",
+            archetypeId: "second_miner",
             traits: []
           },
           {
@@ -784,6 +817,19 @@ describe("goblin roster", () => {
             equipment: [],
             id: "rolled:miner_contract:1",
             level: 2,
+            leveling: {
+              autoCollectSlotsPerLevel: 0,
+              cost: [{ resourceId: "gold", baseAmount: 25, levelMultiplier: 1, levelPower: 1 }],
+              maxLevel: 4,
+              mineCapacityMultiplierPerLevel: 0,
+              mineProductionMultiplierPerLevel: 0,
+              statGrowthPerLevel: {
+                loyalty: 0,
+                luck: 0,
+                speed: 1,
+                strength: 2
+              }
+            },
             lifetimeStats: {},
             rarity: "rare",
             rolledStats: {
@@ -792,7 +838,7 @@ describe("goblin roster", () => {
               speed: 10,
               strength: 20
             },
-            templateId: "second_miner",
+            archetypeId: "second_miner",
             traits: []
           }
         ]
@@ -801,15 +847,15 @@ describe("goblin roster", () => {
 
     expect(result).toMatchObject({
       ok: true,
-      cost: [{ amount: 160, resourceId: "gold" }],
+      cost: [{ amount: 50, resourceId: "gold" }],
       resources: {
-        gold: 40
+        gold: 150
       },
       roster: {
         hiredGoblinIds: ["second_miner", "rolled:miner_contract:1"],
         instances: [
           {
-            id: "template:second_miner",
+            id: "contract:second_miner",
             level: 1
           },
           {

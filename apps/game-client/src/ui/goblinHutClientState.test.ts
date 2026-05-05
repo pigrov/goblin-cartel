@@ -107,12 +107,33 @@ const builder: GoblinConfig = {
   specialization: "construction_foreman"
 };
 
+const availableGoblins = [builder, collector, miner];
+
 const content: ContentBundle = {
   blockTypes: [],
   bossCards: [],
   builtMineTypes: [],
   goblinGeneration: {
-    archetypes: [],
+    archetypes: availableGoblins.map((goblin) => ({
+      ability: goblin.ability,
+      class: goblin.class,
+      equipmentSlots: [],
+      hireCost: goblin.hireCost,
+      id: goblin.id,
+      leveling: goblin.leveling,
+      nameKey: goblin.nameKey,
+      rarityWeights: [{ rarity: "common" as const, statMultiplier: 1, weight: 1 }],
+      renderPool: [{ assetId: goblin.assetId, rarity: "common" as const, weight: 1 }],
+      sortOrder: goblin.sortOrder,
+      specialization: goblin.specialization,
+      statRanges: {
+        loyalty: { max: goblin.baseStats.loyalty, min: goblin.baseStats.loyalty },
+        luck: { max: goblin.baseStats.luck, min: goblin.baseStats.luck },
+        speed: { max: goblin.baseStats.speed, min: goblin.baseStats.speed },
+        strength: { max: goblin.baseStats.strength, min: goblin.baseStats.strength }
+      },
+      traitPool: []
+    })),
     id: "default",
     nameKey: "goblin_generation.name",
     namePool: {
@@ -162,7 +183,6 @@ const content: ContentBundle = {
     ],
     nameKey: "elevator.name"
   },
-  goblins: [builder, collector, miner],
   localization: {
     ru: {}
   },
@@ -302,7 +322,7 @@ describe("goblin hut client state", () => {
         resourceId: "gold"
       }
     ]);
-    expect(createGoblinHutRoleTabs(content.goblins, { hiredGoblinIds: ["miner_1"] }, content.goblinHut)[2]).toMatchObject({
+    expect(createGoblinHutRoleTabs(availableGoblins, { hiredGoblinIds: ["miner_1"] }, content.goblinHut)[2]).toMatchObject({
       id: "collectors",
       locked: true
     });
@@ -310,12 +330,15 @@ describe("goblin hut client state", () => {
 
   it("previews random goblin contracts with hut limits and resources", () => {
     const archetype = {
+      ability: miner.ability,
       class: "miner" as const,
       equipmentSlots: [],
       hireCost: [{ amount: 120, resourceId: "gold" }],
       id: "miner_contract",
+      leveling: miner.leveling,
       nameKey: "contract.miner",
       rarityWeights: [{ rarity: "common" as const, statMultiplier: 1, weight: 1 }],
+      renderPool: [{ assetId: miner.assetId, rarity: "common" as const, weight: 1 }],
       sortOrder: 1,
       statRanges: {
         loyalty: { max: 5, min: 5 },
@@ -323,7 +346,6 @@ describe("goblin hut client state", () => {
         speed: { max: 5, min: 5 },
         strength: { max: 5, min: 5 }
       },
-      templateGoblinId: "miner_1",
       traitPool: []
     };
 
@@ -331,7 +353,7 @@ describe("goblin hut client state", () => {
       createRandomGoblinContractPreview({
         archetype,
         goblinHut: content.goblinHut,
-        goblins: content.goblins,
+        goblins: availableGoblins,
         resources: { gold: 140 },
         roster: { hiredGoblinIds: ["miner_1"] }
       })
@@ -345,7 +367,7 @@ describe("goblin hut client state", () => {
       createRandomGoblinContractPreview({
         archetype,
         goblinHut: content.goblinHut,
-        goblins: content.goblins,
+        goblins: availableGoblins,
         resources: { gold: 20 },
         roster: { hiredGoblinIds: ["miner_1"] }
       })
@@ -358,7 +380,7 @@ describe("goblin hut client state", () => {
       createRandomGoblinContractPreview({
         archetype,
         goblinHut: content.goblinHut,
-        goblins: content.goblins,
+        goblins: availableGoblins,
         resources: { gold: 500 },
         roster: { hiredGoblinIds: ["miner_1", "rolled:miner_contract:1"] }
       })
@@ -370,18 +392,18 @@ describe("goblin hut client state", () => {
 
   it("counts rolled goblin instances in hut summaries", () => {
     expect(
-      createGoblinRoleSummary(content.goblins, {
+      createGoblinRoleSummary(availableGoblins, {
         hiredGoblinIds: ["miner_1", "rolled:miner_contract:1", "rolled:collector_contract:1"],
         instances: [
           {
             class: "miner",
             equipment: [],
-            id: "template:miner_1",
+            id: "contract:miner_1",
             level: 1,
             lifetimeStats: {},
             rarity: "common",
             rolledStats: { loyalty: 5, luck: 5, speed: 5, strength: 5 },
-            templateId: "miner_1",
+            archetypeId: "miner_1",
             traits: []
           },
           {
@@ -392,7 +414,7 @@ describe("goblin hut client state", () => {
             lifetimeStats: {},
             rarity: "rare",
             rolledStats: { loyalty: 6, luck: 4, speed: 5, strength: 8 },
-            templateId: "miner_1",
+            archetypeId: "miner_1",
             traits: []
           },
           {
@@ -403,7 +425,7 @@ describe("goblin hut client state", () => {
             lifetimeStats: {},
             rarity: "rare",
             rolledStats: { loyalty: 7, luck: 8, speed: 5, strength: 3 },
-            templateId: "collector_1",
+            archetypeId: "collector_1",
             traits: []
           }
         ]

@@ -136,7 +136,7 @@ describe("goblin placement", () => {
 
   it("uses rolled miner instance id and stats for worker damage", () => {
     const session = createSession();
-    const template = createGoblin("miner_template");
+    const archetype = createGoblin("miner_archetype");
     const roster = {
       hiredGoblinIds: ["rolled:miner_contract:1"],
       instances: [
@@ -155,17 +155,17 @@ describe("goblin placement", () => {
             speed: 10,
             strength: 20
           },
-          templateId: "miner_template",
+          archetypeId: "miner_archetype",
           traits: []
         }
       ]
     };
-    const runtimeGoblins = createRuntimeGoblinConfigs([template], roster);
+    const runtimeGoblins = createRuntimeGoblinConfigs([archetype], roster);
 
     expect(runtimeGoblins[0]).toMatchObject({
       id: "rolled:miner_contract:1",
       instanceName: "Krikk",
-      templateGoblinId: "miner_template"
+      sourceArchetypeId: "miner_archetype"
     });
     expect(
       assignGoblinWorkers(

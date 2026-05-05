@@ -940,6 +940,14 @@
   font-size: 12px;
 }
 
+.content-generation-render {
+  align-items: end;
+}
+
+.content-generation-render .content-asset-upload {
+  grid-column: 1 / -1;
+}
+
 .content-json-details {
   display: grid;
   gap: 8px;

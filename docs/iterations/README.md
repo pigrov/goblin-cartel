@@ -92,4 +92,6 @@
 - `0087_player_db_save_foundation` - added backend player identity, device tokens, versioned save snapshots, score rows, Drizzle migration, API routes, client bootstrap/sync, Android VK ID bridge, and tests before item/inventory work.
 - `0088_android_cors_fix` - allowed Capacitor/WebView origins in production CORS so Android APK can load the production API.
 - `0089_mine_screen_layout_background` - moved mine action buttons into the left control column, removed depth labels, and expanded the mine play area with a full background.
-- `0090_random_goblin_renders_admin_upload` - added backend-hosted goblin render uploads in admin, public asset serving, game card render fallback, and production asset volume docs.
+- `0090_random_goblin_renders_admin_upload` - added backend-hosted goblin render uploads in admin, public asset serving, and production asset volume docs.
+- `0091_goblin_generation_render_pool` - moved random goblin render selection into generation archetypes and stored selected asset IDs on rolled goblin instances.
+- `0092_goblin_generation_template_cleanup` - removed template goblins from content/runtime, moved random goblin ability, leveling, specialization, and renders into generation archetypes, and rebuilt starter content with 10 mines plus 100+ names/nicknames.

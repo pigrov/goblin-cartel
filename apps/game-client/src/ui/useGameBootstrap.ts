@@ -49,6 +49,7 @@ import {
   type GoblinPlacementMap
 } from "./useGoblinPlacement";
 import { createRuntimeGoblinConfigs } from "./goblinRuntimeUnits";
+import { createAvailableGoblins } from "./goblinContent";
 import { findExposedCellForPreferred } from "./useMiningLoop";
 
 const mineSeed = "local-player-001";
@@ -329,7 +330,7 @@ function createRestoredMiningState(
       : createDefaultGoblinPlacements(restoredSession, miningGoblins, restoredPlatformRow, restoredPlatformSlots);
     const restoredBossEnergy = restoreBossEnergyState(storedSave.bossEnergy, bossEnergyConfig, now);
     const restoredBuiltMines = normalizeBuiltMineCollectorAssignments(storedSave.builtMines ?? [], hiredGoblins, roster);
-    const restoredForemanAssignments = normalizeForemanAssignments(storedSave.foremanAssignments, content.goblins, roster);
+    const restoredForemanAssignments = normalizeForemanAssignments(storedSave.foremanAssignments, createAvailableGoblins(content), roster);
     const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
       collectors: hiredCollectorGoblins,
@@ -629,10 +630,6 @@ function applyOfflineMining(
 
 function createHiredGoblins(content: ContentBundle, roster: GoblinRosterState): GoblinConfig[] {
   return createAvailableGoblins(content).filter((goblin) => isGoblinHired(roster, goblin.id));
-}
-
-function createAvailableGoblins(content: ContentBundle): GoblinConfig[] {
-  return [...content.goblins].sort((left, right) => left.sortOrder - right.sortOrder);
 }
 
 function normalizeBuiltMineCollectorAssignments(

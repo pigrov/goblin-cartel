@@ -465,13 +465,12 @@ function OwnedRandomGoblins(props: {
           const name = runtimeGoblinDisplayName(goblin, props.labels);
           const identity = createGoblinIdentity(goblin, props.labels);
           const preview = createGoblinUpgradePreview(goblin, props.roster, props.resources, props.content.goblinHut);
-          const template = goblin;
           const instance = {
+            archetypeId: goblin.sourceArchetypeId ?? goblin.id,
             class: goblin.class,
             id: goblin.id,
             rarity: goblin.rarity,
-            rolledStats: goblin.baseStats,
-            templateId: goblin.templateGoblinId ?? goblin.id
+            rolledStats: goblin.baseStats
           } as GoblinRosterInstance;
 
           return (
@@ -492,7 +491,7 @@ function OwnedRandomGoblins(props: {
               <div>
                 <strong>{name}</strong>
                 <small>
-                  {rarityLabel(instance.rarity)} · {template ? goblinClassLabel(template.class) : goblinClassLabel(instance.class)}
+                  {rarityLabel(instance.rarity)} · {goblinClassLabel(goblin.class)}
                 </small>
               </div>
               <div className="owned-random-goblin-level">
@@ -549,7 +548,7 @@ function RandomGoblinDetailsModal(props: {
   const statsAfter = calculateGoblinEffectiveBaseStats(props.goblin, preview.levelAfter, props.goblin.baseStats);
   const archetype =
     props.content.goblinGeneration.archetypes.find(
-      (item) => item.templateGoblinId === (props.goblin.templateGoblinId ?? props.goblin.id) && item.class === props.goblin.class
+      (item) => item.id === (props.goblin.sourceArchetypeId ?? props.goblin.id) && item.class === props.goblin.class
     ) ?? null;
   const equipmentSlots = archetype?.equipmentSlots ?? ["tool"];
   const traits = props.goblin.instanceTraits ?? [];
@@ -815,7 +814,6 @@ function contractActionLabel(preview: RandomGoblinContractPreview): string {
     case "hut_limit":
       return "Лимит";
     case "missing_archetype":
-    case "missing_template":
       return "Не настроен";
     case "not_enough_resources":
       return "Нет ресурсов";
@@ -826,8 +824,8 @@ function contractActionLabel(preview: RandomGoblinContractPreview): string {
   }
 }
 
-function randomGoblinDisplayName(instance: GoblinRosterInstance, template: GoblinConfig | null | undefined, labels: Record<string, string>): string {
-  const fallback = template ? createGoblinIdentity(template, labels).name : instance.templateId;
+function randomGoblinDisplayName(instance: GoblinRosterInstance, archetype: GoblinConfig | null | undefined, labels: Record<string, string>): string {
+  const fallback = archetype ? createGoblinIdentity(archetype, labels).name : instance.archetypeId;
   return [instance.name ?? fallback, instance.nickname].filter(Boolean).join(" ");
 }
 

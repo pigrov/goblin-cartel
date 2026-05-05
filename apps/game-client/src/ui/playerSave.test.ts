@@ -144,7 +144,7 @@ describe("player save", () => {
           {
             class: "miner",
             equipment: [],
-            id: "template:miner_1",
+            id: "contract:miner_1",
             level: 2,
             lifetimeStats: {
               blocksDestroyed: 12
@@ -156,7 +156,7 @@ describe("player save", () => {
               speed: 6,
               strength: 8
             },
-            templateId: "miner_1",
+            archetypeId: "miner_1",
             traits: []
           }
         ]

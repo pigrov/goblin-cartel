@@ -25,7 +25,12 @@ const baseContent = {
   veinTypes: [{ id: "gold_vein", nameKey: "vein.gold.name" }],
   bossCards: [],
   mineTemplates: [],
-  goblins: [],
+  goblinGeneration: {
+    archetypes: [],
+    id: "default",
+    nameKey: "goblin_generation.name",
+    namePool: { names: [], nicknames: [] }
+  },
   goblinHut: {
     id: "default",
     levels: [

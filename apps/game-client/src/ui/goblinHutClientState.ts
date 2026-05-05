@@ -29,6 +29,7 @@ import {
   getGoblinBuildTimeMultiplier,
   type BuildCostRequirement
 } from "./builtMineClientState";
+import { createGoblinConfigFromArchetype } from "./goblinContent";
 
 export interface GoblinUpgradePreview {
   autoCollectSlotsAfter: number;
@@ -52,7 +53,7 @@ export interface RandomGoblinContractPreview {
   canHire: boolean;
   costRequirements: BuildCostRequirement[];
   failureReason: HireRandomGoblinFailureReason | null;
-  templateGoblin: GoblinConfig | null;
+  goblin: GoblinConfig;
 }
 
 export interface GoblinHutProgressionState {
@@ -158,27 +159,23 @@ export function createRandomGoblinContractPreview(input: {
   resources: Record<string, number>;
   roster: GoblinRosterState;
 }): RandomGoblinContractPreview {
-  const templateGoblin = input.goblins.find((goblin) => goblin.id === input.archetype.templateGoblinId) ?? null;
+  const goblin = input.goblins.find((item) => item.id === input.archetype.id) ?? createGoblinConfigFromArchetype(input.archetype);
   const cost = calculateGoblinGenerationHireCost(input.archetype, input.roster, input.goblinHut);
   const costRequirements = createBuildCostRequirements(cost, input.resources);
 
-  if (!templateGoblin || templateGoblin.class !== input.archetype.class) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "missing_template", templateGoblin };
-  }
-
   if (!isGoblinClassUnlockedByHut(input.archetype.class, input.roster, input.goblinHut)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "role_locked", templateGoblin };
+    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "role_locked", goblin };
   }
 
   if (getHiredGoblinCount(input.roster) >= calculateGoblinHutMaxHired(input.roster, input.goblinHut)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "hut_limit", templateGoblin };
+    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "hut_limit", goblin };
   }
 
   if (!costRequirements.every((requirement) => requirement.ok)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "not_enough_resources", templateGoblin };
+    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "not_enough_resources", goblin };
   }
 
-  return { archetype: input.archetype, canHire: true, costRequirements, failureReason: null, templateGoblin };
+  return { archetype: input.archetype, canHire: true, costRequirements, failureReason: null, goblin };
 }
 
 export function createGoblinHutProgressionState(input: {
@@ -198,7 +195,7 @@ export function createGoblinHutProgressionState(input: {
         builtMinesCount: input.builtMinesCount,
         completedMineTemplateIds: input.completedMineTemplateIds,
         goblinHut: input.content.goblinHut,
-        goblins: input.content.goblins,
+        goblins: input.content.goblinGeneration.archetypes.map(createGoblinConfigFromArchetype),
         resources: input.resources,
         roster: input.roster
       })
@@ -277,7 +274,7 @@ export function createGoblinRoleSummary(goblins: readonly GoblinConfig[], roster
     const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
     const instanceGoblins = hiredInstances
       .map((instance) => {
-        const goblin = goblinById.get(instance.templateId);
+        const goblin = goblinById.get(instance.archetypeId);
 
         return goblin ? { goblin, instance } : null;
       })

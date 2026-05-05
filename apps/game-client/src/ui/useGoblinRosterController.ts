@@ -19,7 +19,8 @@ import {
   placeGoblinInFirstFreeColumn,
   useGoblinPlacement
 } from "./useGoblinPlacement";
-import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "./goblinRuntimeUnits";
+import { createAvailableGoblins } from "./goblinContent";
+import { createInstanceBackedGoblinConfig, createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 
 export function useGoblinRosterController(input: {
   completedMineTemplateIds: string[];
@@ -153,12 +154,14 @@ export function useGoblinRosterController(input: {
       resources: result.resources,
       lastRewards: {}
     }));
-    const revealGoblin = availableGoblins.find((goblin) => goblin.id === result.instance.templateId) ?? null;
+    const archetypeGoblin = availableGoblins.find((goblin) => goblin.id === result.instance.archetypeId) ?? null;
 
-    if (!revealGoblin) {
-      setRosterMessage("Найм прошел, но шаблон гоблина не найден.");
+    if (!archetypeGoblin) {
+      setRosterMessage("Найм прошел, но контракт гоблина не найден.");
       return;
     }
+
+    const revealGoblin = createInstanceBackedGoblinConfig(archetypeGoblin, result.instance);
 
     setRandomGoblinReveal({
       archetypeId,
@@ -201,10 +204,6 @@ export interface RandomGoblinReveal {
   instance: GoblinRosterInstance;
 }
 
-function createAvailableGoblins(content: ContentBundle): GoblinConfig[] {
-  return [...content.goblins].sort((left, right) => left.sortOrder - right.sortOrder);
-}
-
 function goblinName(goblin: GoblinConfig | RuntimeGoblinConfig, labels: Record<string, string>): string {
   const identity = createGoblinIdentity(goblin, labels);
   const name = "instanceName" in goblin ? goblin.instanceName?.trim() || identity.name : identity.name;
@@ -238,7 +237,6 @@ function messageForRandomHireFailure(reason: string): string {
     case "hut_limit":
       return "Лимит Хижины заполнен. Улучши Хижину, чтобы нанять больше.";
     case "missing_archetype":
-    case "missing_template":
       return "Контракт найма настроен некорректно.";
     case "not_enough_resources":
       return "Не хватает ресурсов для контракта.";

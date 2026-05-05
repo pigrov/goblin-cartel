@@ -66,6 +66,14 @@ export const goblinGenerationTraitSchema = z
   })
   .strict();
 
+export const goblinGenerationRenderSchema = z
+  .object({
+    assetId: z.string().min(1),
+    rarity: z.enum(["common", "rare", "epic", "legendary"]).optional(),
+    weight: z.number().positive()
+  })
+  .strict();
+
 export const goblinGenerationNamePoolSchema = z
   .object({
     names: z.array(z.string().min(1)).min(1),
@@ -78,10 +86,13 @@ export const goblinGenerationArchetypeSchema = z
     id: z.string().min(1),
     nameKey: z.string().min(1),
     class: goblinClassSchema,
-    templateGoblinId: z.string().min(1),
+    specialization: goblinSpecializationSchema.optional(),
+    ability: z.lazy(() => goblinAbilitySchema),
+    leveling: z.lazy(() => goblinLevelingSchema),
     rarityWeights: z.array(goblinGenerationRarityWeightSchema).min(1),
     statRanges: goblinGenerationStatRangesSchema,
     traitPool: z.array(goblinGenerationTraitSchema).default([]),
+    renderPool: z.array(goblinGenerationRenderSchema).min(1),
     equipmentSlots: z.array(z.string().min(1)).default(["tool"]),
     hireCost: z.array(resourceAmountSchema).default([]),
     sortOrder: z.number().int().default(0)
@@ -447,7 +458,6 @@ export const contentBundleSchema = z
     rewardChestTypes: z.array(rewardChestTypeSchema).default([]),
     bossCards: z.array(bossCardSchema).default([]),
     mineTemplates: z.array(mineTemplateSchema).min(1),
-    goblins: z.array(goblinSchema).default([]),
     goblinGeneration: goblinGenerationSchema.default({
       id: "default",
       nameKey: "goblin_generation.name",
@@ -481,14 +491,122 @@ export type ElevatorLevelConfig = z.infer<typeof elevatorLevelSchema>;
 export type LocalizationConfig = z.infer<typeof localizationSchema>;
 export type ContentBundle = z.infer<typeof contentBundleSchema>;
 
-function createStarterMineCellMap(rows: string[][]): MineCellConfig[] {
-  return rows.flatMap((row, rowIndex) =>
-    row.map((blockTypeId, colIndex) => ({
-      blockTypeId,
-      col: colIndex,
-      row: rowIndex
-    }))
-  );
+function createStarterGeneratedMineCellMap(height: number, tier: number): MineCellConfig[] {
+  const width = 7;
+  const pattern = ["dirt", "stone", "stone", "copper_ore", "stone", "iron_ore", "gold_cache"];
+  const cells: MineCellConfig[] = [];
+
+  for (let row = 0; row < height; row += 1) {
+    for (let col = 0; col < width; col += 1) {
+      const depthWeight = row / Math.max(1, height - 1);
+      const roll = (row * 11 + col * 7 + tier * 5) % 17;
+      let blockTypeId = pattern[(roll + tier) % pattern.length] ?? "stone";
+
+      if (depthWeight < 0.25 && blockTypeId === "iron_ore") {
+        blockTypeId = "stone";
+      }
+
+      if (depthWeight < 0.45 && blockTypeId === "gold_cache") {
+        blockTypeId = roll % 2 === 0 ? "stone" : "copper_ore";
+      }
+
+      if (tier < 3 && blockTypeId === "iron_ore") {
+        blockTypeId = "copper_ore";
+      }
+
+      if (row === height - 1 && col % 3 === tier % 3) {
+        blockTypeId = tier >= 6 ? "iron_ore" : tier >= 3 ? "copper_ore" : "stone";
+      }
+
+      cells.push({ blockTypeId, col, row });
+    }
+  }
+
+  return cells;
+}
+
+function createStarterMineTemplates(): MineTemplateConfig[] {
+  const mineConfigs = [
+    ["old_well_01", "mine.old_well.name", 3, "gold_vein_small", "wooden_completion_chest", "stone", 3, 12],
+    ["abandoned_crosscut_02", "mine.abandoned_crosscut.name", 4, "copper_vein_small", "iron_completion_chest", "stone", 4, 16],
+    ["lower_gallery_03", "mine.lower_gallery.name", 5, "iron_vein_small", "steel_completion_chest", "copper_ore", 2, 10],
+    ["sunken_works_04", "mine.sunken_works.name", 6, "gold_vein_small", "iron_completion_chest", "copper_ore", 3, 12],
+    ["red_iron_drop_05", "mine.red_iron_drop.name", 7, "copper_vein_small", "steel_completion_chest", "iron", 1, 6],
+    ["black_rib_06", "mine.black_rib.name", 8, "iron_vein_small", "steel_completion_chest", "stone", 5, 22],
+    ["copper_stairs_07", "mine.copper_stairs.name", 9, "copper_vein_small", "iron_completion_chest", "copper_ore", 4, 20],
+    ["golden_draft_08", "mine.golden_draft.name", 10, "gold_vein_small", "steel_completion_chest", "gold", 1, 8],
+    ["iron_throat_09", "mine.iron_throat.name", 10, "iron_vein_small", "steel_completion_chest", "iron", 2, 12],
+    ["cartel_root_10", "mine.cartel_root.name", 10, "gold_vein_small", "steel_completion_chest", "copper_ore", 5, 25]
+  ] as const;
+
+  return mineConfigs.map(([id, displayNameKey, height, completionVeinTypeId, completionRewardChestTypeId, resourceId, amountPerMeter, maxAmount], index) => ({
+    cellMap: createStarterGeneratedMineCellMap(height, index + 1),
+    completionRewardChestTypeId,
+    completionVeinTypeId,
+    depthMeters: height,
+    depthProgressReward: { amountPerMeter, maxAmount, multiplier: 1, resourceId },
+    difficultyEnd: Math.round((1.15 + index * 0.05) * 100) / 100,
+    difficultyStart: Math.round((1 + index * 0.05) * 100) / 100,
+    displayNameKey,
+    height,
+    id,
+    sortOrder: (index + 1) * 10,
+    width: 7
+  }));
+}
+
+function createStarterGoblinNamePool(): GoblinGenerationConfig["namePool"] {
+  const nameRoots = [
+    "Крикк",
+    "Грызз",
+    "Шмык",
+    "Бырк",
+    "Румм",
+    "Тикк",
+    "Нокк",
+    "Скрэпп",
+    "Вжикк",
+    "Хрумм",
+    "Дрынк",
+    "Пырк",
+    "Клакк",
+    "Жмых",
+    "Фырк",
+    "Грохх",
+    "Мурк",
+    "Блимм",
+    "Цокк",
+    "Шарк"
+  ];
+  const nameSuffixes = ["", "о", "ар", "ик", "ун", "аш"];
+  const nicknameAdjectives = [
+    "Ржавое",
+    "Кривое",
+    "Медное",
+    "Тяжелое",
+    "Сухое",
+    "Железное",
+    "Гулкое",
+    "Хитрое",
+    "Черное",
+    "Пыльное",
+    "Острое",
+    "Старое",
+    "Ломкое",
+    "Громкое",
+    "Тусклое",
+    "Злое",
+    "Быстрое",
+    "Копченое",
+    "Каменное",
+    "Шумное"
+  ];
+  const nicknameNouns = ["Ухо", "Зубило", "Каска", "Плечо", "Перо", "Репа"];
+
+  return {
+    names: nameRoots.flatMap((root) => nameSuffixes.map((suffix) => `${root}${suffix}`)),
+    nicknames: nicknameAdjectives.flatMap((adjective) => nicknameNouns.map((noun) => `${adjective} ${noun}`))
+  };
 }
 
 export interface ContentValidationResult {
@@ -509,25 +627,6 @@ function createStarterMinerLeveling(goldBaseAmount: number) {
     autoCollectSlotsPerLevel: 0,
     buildCostMultiplierPerLevel: 0,
     buildTimeMultiplierPerLevel: 0,
-    offlineRelocationSlotsPerLevel: 0,
-    mineCapacityMultiplierPerLevel: 0,
-    mineProductionMultiplierPerLevel: 0
-  };
-}
-
-function createStarterBuilderLeveling(goldBaseAmount: number, buildCostMultiplierPerLevel: number, buildTimeMultiplierPerLevel = 0) {
-  return {
-    maxLevel: 5,
-    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.28 }],
-    statGrowthPerLevel: {
-      strength: 1,
-      speed: 1,
-      luck: 0,
-      loyalty: 1
-    },
-    autoCollectSlotsPerLevel: 0,
-    buildCostMultiplierPerLevel,
-    buildTimeMultiplierPerLevel,
     offlineRelocationSlotsPerLevel: 0,
     mineCapacityMultiplierPerLevel: 0,
     mineProductionMultiplierPerLevel: 0
@@ -931,443 +1030,23 @@ export const starterContentBundle: ContentBundle = {
       sortOrder: 40
     }
   ],
-  mineTemplates: [
-    {
-      id: "old_well_01",
-      displayNameKey: "mine.old_well.name",
-      sortOrder: 10,
-      width: 7,
-      height: 10,
-      depthMeters: 10,
-      difficultyStart: 1,
-      difficultyEnd: 1.15,
-      completionVeinTypeId: "gold_vein_small",
-      completionRewardChestTypeId: "wooden_completion_chest",
-      depthProgressReward: { resourceId: "stone", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
-      cellMap: createStarterMineCellMap([
-        ["dirt", "dirt", "dirt", "stone", "dirt", "dirt", "stone"],
-        ["dirt", "stone", "dirt", "dirt", "dirt", "stone", "dirt"],
-        ["dirt", "dirt", "stone", "gold_cache", "stone", "dirt", "dirt"],
-        ["stone", "dirt", "stone", "stone", "dirt", "stone", "copper_ore"],
-        ["stone", "stone", "dirt", "stone", "stone", "copper_ore", "stone"],
-        ["dirt", "stone", "stone", "copper_ore", "stone", "stone", "dirt"],
-        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"],
-        ["stone", "stone", "copper_ore", "stone", "stone", "copper_ore", "stone"],
-        ["copper_ore", "stone", "stone", "copper_ore", "stone", "stone", "copper_ore"],
-        ["stone", "copper_ore", "stone", "stone", "copper_ore", "stone", "stone"]
-      ])
-    },
-    {
-      id: "abandoned_crosscut_02",
-      displayNameKey: "mine.abandoned_crosscut.name",
-      sortOrder: 20,
-      width: 7,
-      height: 10,
-      depthMeters: 10,
-      difficultyStart: 1.05,
-      difficultyEnd: 1.2,
-      completionVeinTypeId: "copper_vein_small",
-      completionRewardChestTypeId: "iron_completion_chest",
-      depthProgressReward: { resourceId: "stone", amountPerMeter: 4, multiplier: 1, maxAmount: 16 },
-      cellMap: createStarterMineCellMap([
-        ["dirt", "stone", "stone", "dirt", "stone", "dirt", "stone"],
-        ["stone", "dirt", "stone", "stone", "dirt", "stone", "stone"],
-        ["stone", "stone", "gold_cache", "stone", "stone", "dirt", "stone"],
-        ["stone", "stone", "dirt", "stone", "copper_ore", "stone", "stone"],
-        ["stone", "copper_ore", "stone", "stone", "stone", "iron_ore", "copper_ore"],
-        ["stone", "stone", "iron_ore", "copper_ore", "stone", "dirt", "stone"],
-        ["copper_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore"],
-        ["stone", "copper_ore", "iron_ore", "stone", "copper_ore", "stone", "stone"],
-        ["copper_ore", "stone", "copper_ore", "stone", "stone", "copper_ore", "iron_ore"],
-        ["stone", "copper_ore", "stone", "gold_cache", "copper_ore", "stone", "iron_ore"]
-      ])
-    },
-    {
-      id: "lower_gallery_03",
-      displayNameKey: "mine.lower_gallery.name",
-      sortOrder: 30,
-      width: 7,
-      height: 10,
-      depthMeters: 10,
-      difficultyStart: 1.1,
-      difficultyEnd: 1.25,
-      completionVeinTypeId: "iron_vein_small",
-      completionRewardChestTypeId: "steel_completion_chest",
-      depthProgressReward: { resourceId: "copper_ore", amountPerMeter: 2, multiplier: 1, maxAmount: 10 },
-      cellMap: createStarterMineCellMap([
-        ["dirt", "stone", "dirt", "stone", "stone", "dirt", "stone"],
-        ["stone", "stone", "dirt", "copper_ore", "stone", "stone", "dirt"],
-        ["stone", "gold_cache", "stone", "stone", "dirt", "copper_ore", "stone"],
-        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "stone"],
-        ["copper_ore", "stone", "stone", "iron_ore", "stone", "stone", "copper_ore"],
-        ["stone", "iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone"],
-        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "iron_ore"],
-        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "copper_ore"],
-        ["stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone", "stone"],
-        ["iron_ore", "stone", "iron_ore", "stone", "copper_ore", "iron_ore", "stone"]
-      ])
-    },
-    {
-      id: "sunken_works_04",
-      displayNameKey: "mine.sunken_works.name",
-      sortOrder: 40,
-      width: 7,
-      height: 10,
-      depthMeters: 10,
-      difficultyStart: 1.15,
-      difficultyEnd: 1.3,
-      completionVeinTypeId: "gold_vein_small",
-      completionRewardChestTypeId: "iron_completion_chest",
-      depthProgressReward: { resourceId: "copper_ore", amountPerMeter: 3, multiplier: 1, maxAmount: 12 },
-      cellMap: createStarterMineCellMap([
-        ["stone", "dirt", "stone", "dirt", "stone", "copper_ore", "stone"],
-        ["stone", "stone", "copper_ore", "stone", "dirt", "stone", "stone"],
-        ["copper_ore", "stone", "stone", "iron_ore", "stone", "copper_ore", "stone"],
-        ["stone", "iron_ore", "stone", "stone", "gold_cache", "stone", "iron_ore"],
-        ["stone", "copper_ore", "iron_ore", "stone", "stone", "copper_ore", "stone"],
-        ["iron_ore", "stone", "stone", "copper_ore", "iron_ore", "stone", "copper_ore"],
-        ["stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore", "stone"],
-        ["gold_cache", "stone", "iron_ore", "copper_ore", "stone", "stone", "iron_ore"],
-        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "gold_cache"],
-        ["iron_ore", "stone", "copper_ore", "iron_ore", "stone", "iron_ore", "copper_ore"]
-      ])
-    },
-    {
-      id: "red_iron_drop_05",
-      displayNameKey: "mine.red_iron_drop.name",
-      sortOrder: 50,
-      width: 7,
-      height: 10,
-      depthMeters: 10,
-      difficultyStart: 1.2,
-      difficultyEnd: 1.35,
-      completionVeinTypeId: "copper_vein_small",
-      completionRewardChestTypeId: "steel_completion_chest",
-      depthProgressReward: { resourceId: "iron", amountPerMeter: 1, multiplier: 1, maxAmount: 6 },
-      cellMap: createStarterMineCellMap([
-        ["stone", "copper_ore", "stone", "dirt", "stone", "iron_ore", "stone"],
-        ["stone", "stone", "iron_ore", "stone", "copper_ore", "stone", "gold_cache"],
-        ["copper_ore", "iron_ore", "stone", "stone", "iron_ore", "stone", "copper_ore"],
-        ["stone", "gold_cache", "iron_ore", "copper_ore", "stone", "iron_ore", "stone"],
-        ["iron_ore", "stone", "copper_ore", "stone", "gold_cache", "stone", "iron_ore"],
-        ["stone", "iron_ore", "stone", "iron_ore", "copper_ore", "stone", "iron_ore"],
-        ["copper_ore", "stone", "iron_ore", "gold_cache", "stone", "copper_ore", "stone"],
-        ["iron_ore", "copper_ore", "stone", "iron_ore", "stone", "iron_ore", "copper_ore"],
-        ["stone", "iron_ore", "copper_ore", "stone", "iron_ore", "gold_cache", "stone"],
-        ["iron_ore", "stone", "iron_ore", "copper_ore", "iron_ore", "stone", "copper_ore"]
-      ])
-    }
-  ],
-  goblins: [
-    {
-      id: "gryzz_crooked_tooth",
-      nameKey: "goblin.gryzz.name",
-      nicknameKey: "goblin.gryzz.nickname",
-      descriptionKey: "goblin.gryzz.description",
-      class: "miner",
-      clan: "rusty_picks",
-      rarity: "common",
-      assetId: "goblin_gryzz_v1",
-      baseStats: {
-        strength: 8,
-        speed: 5,
-        luck: 2,
-        loyalty: 5
-      },
-      ability: {
-        id: "stone_biter",
-        nameKey: "ability.stone_biter.name",
-        descriptionKey: "ability.stone_biter.description",
-        effects: [{ type: "damage_bonus_by_tag", tag: "rock", value: 0.2 }]
-      },
-      hireCost: [],
-      leveling: createStarterMinerLeveling(120),
-      unlockRequirements: [],
-      sortOrder: 10
-    },
-    {
-      id: "myk_dull_pickaxe",
-      nameKey: "goblin.myk.name",
-      nicknameKey: "goblin.myk.nickname",
-      descriptionKey: "goblin.myk.description",
-      class: "miner",
-      clan: "rusty_picks",
-      rarity: "common",
-      assetId: "goblin_myk_v1",
-      baseStats: {
-        strength: 5,
-        speed: 6,
-        luck: 1,
-        loyalty: 4
-      },
-      ability: {
-        id: "cheap_shift",
-        nameKey: "ability.cheap_shift.name",
-        descriptionKey: "ability.cheap_shift.description",
-        effects: [{ type: "base_damage_bonus", value: 2 }]
-      },
-      hireCost: [{ resourceId: "gold", amount: 150 }],
-      leveling: createStarterMinerLeveling(180),
-      unlockRequirements: [],
-      sortOrder: 20
-    },
-    {
-      id: "skrapp_copper_nose",
-      nameKey: "goblin.skrapp.name",
-      nicknameKey: "goblin.skrapp.nickname",
-      descriptionKey: "goblin.skrapp.description",
-      class: "miner",
-      clan: "rusty_picks",
-      rarity: "common",
-      assetId: "goblin_skrapp_v1",
-      baseStats: {
-        strength: 6,
-        speed: 5,
-        luck: 3,
-        loyalty: 5
-      },
-      ability: {
-        id: "copper_sniff",
-        nameKey: "ability.copper_sniff.name",
-        descriptionKey: "ability.copper_sniff.description",
-        effects: [{ type: "damage_bonus_by_tag", tag: "copper", value: 0.25 }]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 350 },
-        { resourceId: "stone", amount: 40 }
-      ],
-      leveling: createStarterMinerLeveling(260),
-      unlockRequirements: [{ type: "resource_collected", resourceId: "copper_ore", amount: 25 }],
-      sortOrder: 30
-    },
-    {
-      id: "rumm_heavy_paw",
-      nameKey: "goblin.rumm.name",
-      nicknameKey: "goblin.rumm.nickname",
-      descriptionKey: "goblin.rumm.description",
-      class: "miner",
-      clan: "rusty_picks",
-      rarity: "rare",
-      assetId: "goblin_rumm_v1",
-      baseStats: {
-        strength: 12,
-        speed: 2,
-        luck: 1,
-        loyalty: 5
-      },
-      ability: {
-        id: "slow_crusher",
-        nameKey: "ability.slow_crusher.name",
-        descriptionKey: "ability.slow_crusher.description",
-        effects: [{ type: "base_damage_bonus", value: 6 }]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 900 },
-        { resourceId: "stone", amount: 180 }
-      ],
-      leveling: createStarterMinerLeveling(520),
-      unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 300 }],
-      sortOrder: 40
-    },
-    {
-      id: "brikk_hammer",
-      nameKey: "goblin.brikk.name",
-      nicknameKey: "goblin.brikk.nickname",
-      descriptionKey: "goblin.brikk.description",
-      class: "builder",
-      clan: "bolt_skulls",
-      rarity: "common",
-      assetId: "goblin_brikk_v1",
-      baseStats: {
-        strength: 4,
-        speed: 4,
-        luck: 2,
-        loyalty: 6
-      },
-      ability: {
-        id: "first_scaffold",
-        nameKey: "ability.first_scaffold.name",
-        descriptionKey: "ability.first_scaffold.description",
-        effects: [{ type: "build_cost_multiplier", value: 0.95 }]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 500 },
-        { resourceId: "stone", amount: 120 }
-      ],
-      leveling: createStarterBuilderLeveling(360, 0.01),
-      unlockRequirements: [{ type: "resource_collected", resourceId: "stone", amount: 150 }],
-      sortOrder: 50
-    },
-    {
-      id: "tikk_straight_board",
-      nameKey: "goblin.tikk.name",
-      nicknameKey: "goblin.tikk.nickname",
-      descriptionKey: "goblin.tikk.description",
-      class: "builder",
-      clan: "bolt_skulls",
-      rarity: "common",
-      assetId: "goblin_tikk_v1",
-      baseStats: {
-        strength: 3,
-        speed: 5,
-        luck: 3,
-        loyalty: 7
-      },
-      ability: {
-        id: "tidy_planks",
-        nameKey: "ability.tidy_planks.name",
-        descriptionKey: "ability.tidy_planks.description",
-        effects: [{ type: "build_cost_multiplier", value: 0.9 }]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 700 },
-        { resourceId: "stone", amount: 160 }
-      ],
-      leveling: createStarterBuilderLeveling(440, 0.015),
-      unlockRequirements: [{ type: "built_mines_count", value: 1 }],
-      sortOrder: 60
-    },
-    {
-      id: "pip_dry_book",
-      nameKey: "goblin.pip.name",
-      nicknameKey: "goblin.pip.nickname",
-      descriptionKey: "goblin.pip.description",
-      class: "collector",
-      specialization: "warehouse_keeper",
-      clan: "black_pockets",
-      rarity: "rare",
-      assetId: "goblin_pip_v1",
-      baseStats: {
-        strength: 2,
-        speed: 4,
-        luck: 7,
-        loyalty: 8
-      },
-      ability: {
-        id: "boring_order",
-        nameKey: "ability.boring_order.name",
-        descriptionKey: "ability.boring_order.description",
-        effects: [
-          { type: "auto_collect_slots", value: 1 },
-          { type: "mine_capacity_multiplier", value: 1.15 }
-        ]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 2500 },
-        { resourceId: "copper_ore", amount: 100 }
-      ],
-      leveling: createStarterCollectorLeveling(900),
-      unlockRequirements: [{ type: "built_mines_count", value: 2 }],
-      sortOrder: 70
-    },
-    {
-      id: "nokk_copper_quill",
-      nameKey: "goblin.nokk.name",
-      nicknameKey: "goblin.nokk.nickname",
-      descriptionKey: "goblin.nokk.description",
-      class: "collector",
-      specialization: "resource_expert",
-      clan: "black_pockets",
-      rarity: "rare",
-      assetId: "goblin_nokk_v1",
-      baseStats: {
-        strength: 2,
-        speed: 5,
-        luck: 8,
-        loyalty: 6
-      },
-      ability: {
-        id: "copper_tally",
-        nameKey: "ability.copper_tally.name",
-        descriptionKey: "ability.copper_tally.description",
-        effects: [
-          { type: "auto_collect_slots", value: 1 },
-          { type: "mine_production_multiplier", resourceId: "copper_ore", value: 1.12 }
-        ]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 4200 },
-        { resourceId: "copper_ore", amount: 180 }
-      ],
-      leveling: createStarterCollectorLeveling(1300),
-      unlockRequirements: [{ type: "built_mines_count", value: 3 }],
-      sortOrder: 75
-    },
-    {
-      id: "krakk_iron_turnip",
-      nameKey: "goblin.krakk.name",
-      nicknameKey: "goblin.krakk.nickname",
-      descriptionKey: "goblin.krakk.description",
-      class: "foreman",
-      clan: "rusty_picks",
-      rarity: "rare",
-      assetId: "goblin_krakk_v1",
-      baseStats: {
-        strength: 6,
-        speed: 6,
-        luck: 3,
-        loyalty: 8
-      },
-      ability: {
-        id: "no_idle_picks",
-        nameKey: "ability.no_idle_picks.name",
-        descriptionKey: "ability.no_idle_picks.description",
-        effects: [
-          { type: "auto_select_next_block", enabled: true },
-          { type: "offline_relocation_slots", value: 1 },
-          { type: "offline_auto_damage_multiplier", value: 1.1 },
-          { type: "offline_reward_multiplier", value: 1.05 },
-          { type: "build_time_multiplier", value: 0.9 }
-        ]
-      },
-      hireCost: [
-        { resourceId: "gold", amount: 4000 },
-        { resourceId: "copper_ore", amount: 180 }
-      ],
-      leveling: {
-        maxLevel: 5,
-        cost: [
-          { resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 }
-        ],
-        statGrowthPerLevel: {
-          strength: 1,
-          speed: 1,
-          luck: 0,
-          loyalty: 1
-        },
-        autoCollectSlotsPerLevel: 0,
-        buildCostMultiplierPerLevel: 0,
-        buildTimeMultiplierPerLevel: 0.015,
-        offlineRelocationSlotsPerLevel: 1,
-        mineCapacityMultiplierPerLevel: 0,
-        mineProductionMultiplierPerLevel: 0
-      },
-      unlockRequirements: [{ type: "goblins_by_class", class: "miner", count: 3 }],
-      sortOrder: 80
-    }
-  ],
+  mineTemplates: createStarterMineTemplates(),
   goblinGeneration: {
     id: "default",
     nameKey: "goblin_generation.name",
-    namePool: {
-      names: ["Крикк", "Грызз", "Шмык", "Бырк", "Румм", "Тикк", "Нокк", "Скрэпп"],
-      nicknames: [
-        "Ржавое Ухо",
-        "Кривой Шлем",
-        "Медный Нос",
-        "Тяжелая Лапа",
-        "Сухая Книга",
-        "Железная Репа",
-        "Гулкая Кирка",
-        "Хитрый Болт"
-      ]
-    },
+    namePool: createStarterGoblinNamePool(),
     archetypes: [
       {
         id: "random_miner_contract",
         nameKey: "goblin_generation.random_miner_contract.name",
         class: "miner",
-        templateGoblinId: "gryzz_crooked_tooth",
+        ability: {
+          id: "stone_biter",
+          nameKey: "ability.stone_biter.name",
+          descriptionKey: "ability.stone_biter.description",
+          effects: [{ type: "damage_bonus_by_tag", tag: "rock", value: 0.2 }]
+        },
+        leveling: createStarterMinerLeveling(120),
         rarityWeights: [
           { rarity: "common", weight: 78, statMultiplier: 1 },
           { rarity: "rare", weight: 18, statMultiplier: 1.15 },
@@ -1385,6 +1064,11 @@ export const starterContentBundle: ContentBundle = {
           { id: "ore_eye", nameKey: "goblin_trait.ore_eye.name", weight: 30 },
           { id: "steady_hands", nameKey: "goblin_trait.steady_hands.name", weight: 25 }
         ],
+        renderPool: [
+          { assetId: "goblin_gryzz_v1", rarity: "common", weight: 10 },
+          { assetId: "goblin_myk_v1", rarity: "common", weight: 10 },
+          { assetId: "goblin_skrapp_v1", rarity: "rare", weight: 6 }
+        ],
         equipmentSlots: ["tool"],
         hireCost: [{ resourceId: "gold", amount: 220 }],
         sortOrder: 10
@@ -1393,7 +1077,17 @@ export const starterContentBundle: ContentBundle = {
         id: "random_collector_contract",
         nameKey: "goblin_generation.random_collector_contract.name",
         class: "collector",
-        templateGoblinId: "pip_dry_book",
+        specialization: "warehouse_keeper",
+        ability: {
+          id: "boring_order",
+          nameKey: "ability.boring_order.name",
+          descriptionKey: "ability.boring_order.description",
+          effects: [
+            { type: "auto_collect_slots", value: 1 },
+            { type: "mine_capacity_multiplier", value: 1.15 }
+          ]
+        },
+        leveling: createStarterCollectorLeveling(900),
         rarityWeights: [
           { rarity: "common", weight: 70, statMultiplier: 1 },
           { rarity: "rare", weight: 24, statMultiplier: 1.15 },
@@ -1411,6 +1105,10 @@ export const starterContentBundle: ContentBundle = {
           { id: "long_list", nameKey: "goblin_trait.long_list.name", weight: 35 },
           { id: "quiet_count", nameKey: "goblin_trait.quiet_count.name", weight: 20 }
         ],
+        renderPool: [
+          { assetId: "goblin_pip_v1", rarity: "common", weight: 10 },
+          { assetId: "goblin_nokk_v1", rarity: "rare", weight: 6 }
+        ],
         equipmentSlots: ["ledger"],
         hireCost: [
           { resourceId: "gold", amount: 900 },
@@ -1422,7 +1120,34 @@ export const starterContentBundle: ContentBundle = {
         id: "random_foreman_contract",
         nameKey: "goblin_generation.random_foreman_contract.name",
         class: "foreman",
-        templateGoblinId: "krakk_iron_turnip",
+        ability: {
+          id: "no_idle_picks",
+          nameKey: "ability.no_idle_picks.name",
+          descriptionKey: "ability.no_idle_picks.description",
+          effects: [
+            { type: "auto_select_next_block", enabled: true },
+            { type: "offline_relocation_slots", value: 1 },
+            { type: "offline_auto_damage_multiplier", value: 1.1 },
+            { type: "offline_reward_multiplier", value: 1.05 },
+            { type: "build_time_multiplier", value: 0.9 }
+          ]
+        },
+        leveling: {
+          maxLevel: 5,
+          cost: [{ resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 }],
+          statGrowthPerLevel: {
+            strength: 1,
+            speed: 1,
+            luck: 0,
+            loyalty: 1
+          },
+          autoCollectSlotsPerLevel: 0,
+          buildCostMultiplierPerLevel: 0,
+          buildTimeMultiplierPerLevel: 0.015,
+          offlineRelocationSlotsPerLevel: 1,
+          mineCapacityMultiplierPerLevel: 0,
+          mineProductionMultiplierPerLevel: 0
+        },
         rarityWeights: [
           { rarity: "common", weight: 62, statMultiplier: 1 },
           { rarity: "rare", weight: 30, statMultiplier: 1.15 },
@@ -1439,6 +1164,10 @@ export const starterContentBundle: ContentBundle = {
           { id: "sharp_whistle", nameKey: "goblin_trait.sharp_whistle.name", weight: 40 },
           { id: "night_orders", nameKey: "goblin_trait.night_orders.name", weight: 35 },
           { id: "strict_shift", nameKey: "goblin_trait.strict_shift.name", weight: 25 }
+        ],
+        renderPool: [
+          { assetId: "goblin_krakk_v1", rarity: "common", weight: 10 },
+          { assetId: "goblin_brikk_v1", rarity: "rare", weight: 6 }
         ],
         equipmentSlots: ["whistle"],
         hireCost: [
@@ -1602,6 +1331,11 @@ export const starterContentBundle: ContentBundle = {
       "mine.lower_gallery.name": "Нижняя галерея",
       "mine.sunken_works.name": "Затопленные выработки",
       "mine.red_iron_drop.name": "Красный железный спуск",
+      "mine.black_rib.name": "Черное ребро",
+      "mine.copper_stairs.name": "Медные ступени",
+      "mine.golden_draft.name": "Золотой сквозняк",
+      "mine.iron_throat.name": "Железное горло",
+      "mine.cartel_root.name": "Корень картеля",
       "vein.gold_small.name": "Золотая жила",
       "vein.copper_small.name": "Медная жила",
       "vein.iron_small.name": "Железная жила",
@@ -1611,33 +1345,6 @@ export const starterContentBundle: ContentBundle = {
       "reward_chest.wooden.name": "Деревянный сундук",
       "reward_chest.iron.name": "Железный сундук",
       "reward_chest.steel.name": "Стальной сундук",
-      "goblin.gryzz.name": "Грызз",
-      "goblin.gryzz.nickname": "Кривозуб",
-      "goblin.gryzz.description": "Долбит камни так уверенно, будто камни ему должны.",
-      "goblin.myk.name": "Мык",
-      "goblin.myk.nickname": "Тупая Кирка",
-      "goblin.myk.description": "Дешевый рабочий, который спорит только с инструкцией.",
-      "goblin.skrapp.name": "Скрапп",
-      "goblin.skrapp.nickname": "Медный Нос",
-      "goblin.skrapp.description": "Чует медь раньше, чем начальство чует прибыль.",
-      "goblin.rumm.name": "Румм",
-      "goblin.rumm.nickname": "Тяжелая Лапа",
-      "goblin.rumm.description": "Медленный удар, зато камень потом долго молчит.",
-      "goblin.brikk.name": "Брикк",
-      "goblin.brikk.nickname": "Молоток",
-      "goblin.brikk.description": "Строит быстро, ругается по чертежу.",
-      "goblin.tikk.name": "Тикк",
-      "goblin.tikk.nickname": "Ровная Доска",
-      "goblin.tikk.description": "Экономит доски так, будто они родня.",
-      "goblin.pip.name": "Пип",
-      "goblin.pip.nickname": "Сухая Книга",
-      "goblin.pip.description": "Собирает доход без лишних слов и почти без потерь.",
-      "goblin.nokk.name": "Нокк",
-      "goblin.nokk.nickname": "Медное Перо",
-      "goblin.nokk.description": "Считает медную руду так быстро, что шахта старается не отставать.",
-      "goblin.krakk.name": "Кракк",
-      "goblin.krakk.nickname": "Железная Репа",
-      "goblin.krakk.description": "Держит смену в движении одним тяжелым взглядом.",
       "goblin_generation.name": "Случайный найм гоблинов",
       "goblin_generation.random_miner_contract.name": "Контракт шахтера",
       "goblin_generation.random_collector_contract.name": "Контракт сборщика",
@@ -1710,7 +1417,6 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   collectDuplicateIds("rewardChestTypes", parsed.data.rewardChestTypes, errors);
   collectDuplicateIds("bossCards", parsed.data.bossCards, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
-  collectDuplicateIds("goblins", parsed.data.goblins, errors);
   collectDuplicateIds("goblinGeneration.archetypes", parsed.data.goblinGeneration.archetypes, errors);
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
@@ -1718,7 +1424,6 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   const veinTypeIds = new Set(parsed.data.veinTypes.map((veinType) => veinType.id));
   const rewardChestTypeIds = new Set(parsed.data.rewardChestTypes.map((rewardChestType) => rewardChestType.id));
   const mineTemplateIds = new Set(parsed.data.mineTemplates.map((mineTemplate) => mineTemplate.id));
-  const goblinById = new Map(parsed.data.goblins.map((goblin) => [goblin.id, goblin]));
   const ruLocalization = parsed.data.localization.ru;
 
   validateLocalizationText(parsed.data.localization, errors);
@@ -1828,27 +1533,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   validateGoblinHut(parsed.data.goblinHut, resourceIds, mineTemplateIds, ruLocalization, errors);
   validateLocalizationKey(parsed.data.elevator.nameKey, "ru", ruLocalization, errors);
   validateElevator(parsed.data.elevator, resourceIds, ruLocalization, errors);
-  validateGoblinGeneration(parsed.data.goblinGeneration, goblinById, resourceIds, ruLocalization, errors);
-
-  for (const goblin of parsed.data.goblins) {
-    validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
-    if (goblin.nicknameKey) {
-      validateLocalizationKey(goblin.nicknameKey, "ru", ruLocalization, errors);
-    }
-    validateLocalizationKey(goblin.descriptionKey, "ru", ruLocalization, errors);
-    validateLocalizationKey(goblin.ability.nameKey, "ru", ruLocalization, errors);
-    validateLocalizationKey(goblin.ability.descriptionKey, "ru", ruLocalization, errors);
-    validateResourceAmounts(`goblins.${goblin.id}.hireCost`, goblin.hireCost, resourceIds, errors);
-    validateGoblinLevelingCost(`goblins.${goblin.id}.leveling.cost`, goblin.leveling.cost, resourceIds, errors);
-    validateUnlockRequirements(
-      `goblins.${goblin.id}.unlockRequirements`,
-      goblin.unlockRequirements,
-      resourceIds,
-      mineTemplateIds,
-      errors
-    );
-    validateGoblinAbilityEffects(`goblins.${goblin.id}.ability.effects`, goblin.ability.effects, resourceIds, errors);
-  }
+  validateGoblinGeneration(parsed.data.goblinGeneration, resourceIds, ruLocalization, errors);
 
   return {
     ok: errors.length === 0,
@@ -1964,7 +1649,6 @@ function validateElevator(
 
 function validateGoblinGeneration(
   goblinGeneration: GoblinGenerationConfig,
-  goblinById: Map<string, GoblinConfig>,
   resourceIds: Set<string>,
   ruLocalization: Record<string, string> | undefined,
   errors: string[]
@@ -1972,19 +1656,23 @@ function validateGoblinGeneration(
   validateLocalizationKey(goblinGeneration.nameKey, "ru", ruLocalization, errors);
 
   for (const archetype of goblinGeneration.archetypes) {
-    const template = goblinById.get(archetype.templateGoblinId);
     const seenRarities = new Set<string>();
     const seenTraits = new Set<string>();
+    const seenRenderKeys = new Set<string>();
 
     validateLocalizationKey(archetype.nameKey, "ru", ruLocalization, errors);
     validateResourceAmounts(`goblinGeneration.archetypes.${archetype.id}.hireCost`, archetype.hireCost, resourceIds, errors);
-
-    if (!template) {
-      errors.push(`goblinGeneration.archetypes.${archetype.id} references missing template goblin ${archetype.templateGoblinId}`);
-    } else if (template.class !== archetype.class) {
-      errors.push(
-        `goblinGeneration.archetypes.${archetype.id} class ${archetype.class} does not match template ${archetype.templateGoblinId} class ${template.class}`
-      );
+    if (archetype.ability) {
+      validateLocalizationKey(archetype.ability.nameKey, "ru", ruLocalization, errors);
+      validateLocalizationKey(archetype.ability.descriptionKey, "ru", ruLocalization, errors);
+      validateGoblinAbilityEffects(`goblinGeneration.archetypes.${archetype.id}.ability.effects`, archetype.ability.effects, resourceIds, errors);
+    } else {
+      errors.push(`goblinGeneration.archetypes.${archetype.id}.ability is required`);
+    }
+    if (archetype.leveling) {
+      validateGoblinLevelingCost(`goblinGeneration.archetypes.${archetype.id}.leveling.cost`, archetype.leveling.cost, resourceIds, errors);
+    } else {
+      errors.push(`goblinGeneration.archetypes.${archetype.id}.leveling is required`);
     }
 
     for (const rarityWeight of archetype.rarityWeights) {
@@ -2003,6 +1691,16 @@ function validateGoblinGeneration(
       if (trait.nameKey) {
         validateLocalizationKey(trait.nameKey, "ru", ruLocalization, errors);
       }
+    }
+
+    for (const render of archetype.renderPool) {
+      const renderKey = `${render.rarity ?? "any"}:${render.assetId}`;
+
+      if (seenRenderKeys.has(renderKey)) {
+        errors.push(`goblinGeneration.archetypes.${archetype.id}.renderPool has duplicate asset ${render.assetId}`);
+      }
+
+      seenRenderKeys.add(renderKey);
     }
   }
 }

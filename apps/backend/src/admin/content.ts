@@ -15,7 +15,6 @@ export type ContentEntityType =
   | "rewardChestType"
   | "bossCard"
   | "mineTemplate"
-  | "goblin"
   | "goblinGeneration"
   | "goblinHut"
   | "elevator"
@@ -24,7 +23,6 @@ export type EditableContentEntityType =
   | "blockType"
   | "bossCard"
   | "builtMineType"
-  | "goblin"
   | "goblinGeneration"
   | "goblinHut"
   | "elevator"
@@ -448,7 +446,6 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
     bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
-    goblins: sortContentItems(entities, "goblin", starterContentBundle.goblins),
     goblinGeneration,
     goblinHut,
     elevator,
@@ -531,14 +528,12 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
     case "goblinHut":
     case "goblinGeneration":
       return [];
-    default:
-      return content.goblins;
   }
 }
 
 function collectionNameForEntityType(
   entityType: Exclude<EditableContentEntityType, "elevator" | "goblinGeneration" | "goblinHut">
-): "blockTypes" | "bossCards" | "builtMineTypes" | "goblins" | "mineTemplates" | "rewardChestTypes" {
+): "blockTypes" | "bossCards" | "builtMineTypes" | "mineTemplates" | "rewardChestTypes" {
   switch (entityType) {
     case "blockType":
       return "blockTypes";
@@ -550,8 +545,6 @@ function collectionNameForEntityType(
       return "mineTemplates";
     case "rewardChestType":
       return "rewardChestTypes";
-    default:
-      return "goblins";
   }
 }
 

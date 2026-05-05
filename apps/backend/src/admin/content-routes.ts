@@ -20,7 +20,6 @@ const contentEntityParamsSchema = z.object({
     "bossCard",
     "builtMineType",
     "elevator",
-    "goblin",
     "goblinGeneration",
     "goblinHut",
     "mineTemplate",

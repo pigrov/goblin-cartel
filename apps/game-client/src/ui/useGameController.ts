@@ -16,6 +16,7 @@ import {
 } from "./foremanTowerState";
 import { createElevatorProgressionState, upgradeElevator } from "./elevatorState";
 import { createGameViewModels } from "./gameViewModels";
+import { createAvailableGoblins } from "./goblinContent";
 import { type GoblinHutRoleTabId } from "./goblinHutClientState";
 import { addMineRunBlockRewards, addMineRunDepthRewards, createMineRunStats } from "./mineRunStats";
 import { requestNativeVkIdentityProof } from "./nativeVkIdentityBridge";
@@ -69,7 +70,7 @@ export function useGameController() {
   const [goblinRoleTab, setGoblinRoleTab] = useState<GoblinHutRoleTabId>("all");
   const [foremanAssignments, setForemanAssignments] = useState<ForemanAssignments>(() => createEmptyForemanAssignments());
   const [elevatorLevel, setElevatorLevel] = useState(1);
-  const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(initialContentBundle.goblins));
+  const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(createAvailableGoblins(initialContentBundle)));
   const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
   const [builtMines, setBuiltMines] = useState<BuiltMineState[]>([]);

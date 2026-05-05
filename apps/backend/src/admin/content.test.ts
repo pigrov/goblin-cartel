@@ -63,7 +63,6 @@ class MemoryContentStore implements ContentStore {
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
-      ...content.goblins.map((goblin) => this.createEntity(contentVersionId, "goblin", goblin.id, goblin)),
       this.createEntity(contentVersionId, "goblinGeneration", "default", content.goblinGeneration),
       this.createEntity(contentVersionId, "goblinHut", "default", content.goblinHut),
       this.createEntity(contentVersionId, "elevator", "default", content.elevator),
@@ -151,7 +150,7 @@ describe("content service", () => {
     });
     expect(detail.content.resources.map((resource) => resource.id)).toContain("gold");
     expect(detail.content.bossCards.map((card) => card.id)).toContain("hit_damage");
-    expect(detail.content.goblins.map((goblin) => goblin.id)).toContain("gryzz_crooked_tooth");
+    expect(detail.content.goblinGeneration.archetypes.map((archetype) => archetype.id)).toContain("random_miner_contract");
     expect(detail.content.goblinHut.levels[0]?.maxHiredGoblins).toBe(2);
     expect(detail.content.elevator.levels[0]?.platformSlots).toBe(2);
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
@@ -247,7 +246,12 @@ describe("content service", () => {
       "abandoned_crosscut_02",
       "lower_gallery_03",
       "sunken_works_04",
-      "red_iron_drop_05"
+      "red_iron_drop_05",
+      "black_rib_06",
+      "copper_stairs_07",
+      "golden_draft_08",
+      "iron_throat_09",
+      "cartel_root_10"
     ]);
   });
 
@@ -268,7 +272,7 @@ describe("content service", () => {
     });
   });
 
-  it("updates one content entity with server validation and audit log", async () => {
+  it("updates goblin generation entity with server validation and audit log", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({
       store,
@@ -277,24 +281,20 @@ describe("content service", () => {
     const detail = await service.createVersion("admin-1", {
       version: "0.1.0"
     });
-    const goblin = structuredClone(starterContentBundle.goblins[0]);
+    const goblinGeneration = structuredClone(starterContentBundle.goblinGeneration);
 
-    if (!goblin) {
-      throw new Error("Missing starter goblin");
+    if (!goblinGeneration.archetypes[0]) {
+      throw new Error("Missing starter goblin generation archetype");
     }
 
+    goblinGeneration.archetypes[0].statRanges.strength.max = 14;
+
     const result = await service.updateEntity("admin-1", detail.version.id, {
-      entityType: "goblin",
-      entityId: goblin.id,
-      entity: {
-        ...goblin,
-        baseStats: {
-          ...goblin.baseStats,
-          strength: 11
-        }
-      },
+      entityType: "goblinGeneration",
+      entityId: "default",
+      entity: goblinGeneration,
       localization: {
-        [goblin.nameKey]: "Грызз Проверенный"
+        [goblinGeneration.nameKey]: "Проверенная генерация"
       }
     });
 
@@ -302,7 +302,7 @@ describe("content service", () => {
       content: {
         localization: {
           ru: {
-            [goblin.nameKey]: "Грызз Проверенный"
+            [goblinGeneration.nameKey]: "Проверенная генерация"
           }
         }
       },
@@ -311,13 +311,13 @@ describe("content service", () => {
         updatedAt: "2026-04-29T12:00:00.000Z"
       }
     });
-    expect(result && "content" in result ? result.content.goblins[0]?.baseStats.strength : null).toBe(11);
+    expect(result && "content" in result ? result.content.goblinGeneration.archetypes[0]?.statRanges.strength.max : null).toBe(14);
     expect(store.auditLogs.at(-1)).toMatchObject({
       action: "admin.content.entity.update",
-      targetId: `goblin:${goblin.id}`,
+      targetId: "goblinGeneration:default",
       metadata: {
-        entityId: goblin.id,
-        entityType: "goblin",
+        entityId: "default",
+        entityType: "goblinGeneration",
         version: "0.1.0"
       }
     });

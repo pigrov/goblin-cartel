@@ -9,7 +9,7 @@ describe("runtime content", () => {
     content.bossCards = [];
 
     expect(createRuntimeContentBundle(content)).toBe(content);
-    expect(content.mineTemplates[0]?.id).toBe("red_iron_drop_05");
+    expect(content.mineTemplates[0]?.id).toBe("cartel_root_10");
     expect(content.bossCards).toEqual([]);
   });
 
