@@ -11,6 +11,7 @@ import {
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import { assignGoblinWorkers, type GoblinPlacementMap } from "./useGoblinPlacement";
 import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
+import type { OfflineMiningSummary } from "./offlineMiningSummary";
 
 const autoMiningTickMs = 1000;
 const offlineFinalHitDelayMs = 900;
@@ -32,13 +33,6 @@ export interface HitEffect {
   row: number;
   col: number;
   variant: HitEffectVariant;
-}
-
-interface OfflineMiningSummary {
-  seconds: number;
-  destroyedBlocks: number;
-  rewards: Record<string, number>;
-  pendingFinalHit: boolean;
 }
 
 export interface PlatformDropEvent {

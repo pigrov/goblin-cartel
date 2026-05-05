@@ -71,7 +71,7 @@ export function useGameController() {
   const [foremanAssignments, setForemanAssignments] = useState<ForemanAssignments>(() => createEmptyForemanAssignments());
   const [elevatorLevel, setElevatorLevel] = useState(1);
   const [roster, setRoster] = useState<GoblinRosterState>(() => createInitialGoblinRoster(createAvailableGoblins(initialContentBundle)));
-  const [, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
+  const [offlineSummary, setOfflineSummary] = useState<OfflineMiningSummary | null>(null);
   const [pendingOfflineFinalHit, setPendingOfflineFinalHit] = useState<{ row: number; col: number } | null>(null);
   const [builtMines, setBuiltMines] = useState<BuiltMineState[]>([]);
   const [builtMineMessage, setBuiltMineMessage] = useState<string | null>(null);
@@ -146,6 +146,7 @@ export function useGameController() {
   );
   const {
     availableGoblins,
+    columnTacticHints,
     goblinHutProgression,
     goblinLevels,
     goblinPlacements,
@@ -476,6 +477,7 @@ export function useGameController() {
     clockNow,
     collectorPickerBuiltMine,
     completedMineTemplateIds,
+    columnTacticHints,
     constructionSupport,
     contentState,
     currentMineTitle,
@@ -518,6 +520,7 @@ export function useGameController() {
     mineRunStats,
     nextMineTemplate,
     nextMineTitle,
+    offlineSummary,
     pendingRewardChest,
     pendingRewardChestType,
     playerDbSyncState,
@@ -538,6 +541,7 @@ export function useGameController() {
     setBossCardsOpen,
     setBossDetailsOpen,
     setCollectorPickerMineId,
+    setOfflineSummary,
     setFoundVeinNotice,
     setGoblinRoleTab,
     setRandomGoblinReveal,

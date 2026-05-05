@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from "react";
 import type { MinePixiGoblin } from "./MinePixiScene";
 import { createGoblinIdentity, isMiningGoblin } from "./goblinHutClientState";
 import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
+import { createMineColumnTacticHints } from "./mineColumnTactics";
 
 export type GoblinPlacementMap = Record<string, number>;
 export type GoblinPlacementStatus = "idle" | "waiting" | "working";
@@ -53,6 +54,18 @@ export function useGoblinPlacement(input: {
   const workerByColumn = useMemo(
     () => new Map(workerAssignments.map((worker) => [worker.targetCell.col, worker])),
     [workerAssignments]
+  );
+  const columnTacticHints = useMemo(
+    () =>
+      createMineColumnTacticHints({
+        currentPlatformRow: input.currentPlatformRow,
+        goblinPlacements,
+        labels: input.labels,
+        miningGoblins: input.miningGoblins,
+        roster: input.roster,
+        session: input.session
+      }),
+    [goblinPlacements, input.currentPlatformRow, input.labels, input.miningGoblins, input.roster, input.session]
   );
   const pixiGoblins = useMemo(
     () =>
@@ -120,6 +133,7 @@ export function useGoblinPlacement(input: {
   );
 
   return {
+    columnTacticHints,
     goblinPlacements,
     handlePlaceGoblin,
     pixiGoblins,

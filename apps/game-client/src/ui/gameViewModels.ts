@@ -15,7 +15,8 @@ import type { ElevatorProgressionState } from "./elevatorState";
 import { getAssignedForemen, type ForemanAssignments } from "./foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "./goblinHutClientState";
 import { createMineRunCompletionStatsView, createMineRunProgressStatsView, type MineRunStats } from "./mineRunStats";
-import type { MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
+import type { MinePixiColumnTacticHint, MinePixiGoblin, MinePixiHitEffect } from "./MinePixiScene";
+import type { OfflineMiningSummary } from "./offlineMiningSummary";
 import type { GameSection } from "./screens/BottomNav";
 import type { GameMainContentActions, GameMainContentView } from "./screens/GameMainContent";
 import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverlays";
@@ -45,6 +46,7 @@ export interface CreateGameViewModelsInput {
   clockNow: number;
   collectorPickerBuiltMine: BuiltMineState | null;
   completedMineTemplateIds: string[];
+  columnTacticHints: MinePixiColumnTacticHint[];
   constructionSupport: ConstructionSupportState;
   contentState: ContentState;
   currentMineTitle: string;
@@ -70,6 +72,7 @@ export interface CreateGameViewModelsInput {
   handleAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
   handleHireRandomGoblin: (archetypeId: string) => void;
   handleOpenRewardChest: () => void;
+  setOfflineSummary: (summary: OfflineMiningSummary | null) => void;
   handleLinkVkIdentity: () => void;
   handlePlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   handleStartNextMine: () => void;
@@ -87,6 +90,7 @@ export interface CreateGameViewModelsInput {
   mineRunStats: MineRunStats;
   nextMineTemplate: GameMainContentView["builtMines"]["nextMineTemplate"];
   nextMineTitle: string | null;
+  offlineSummary: OfflineMiningSummary | null;
   pendingRewardChest: PendingRewardChest | null;
   pendingRewardChestType: RewardChestTypeConfig | null;
   playerDbSyncState: PlayerDbSyncState;
@@ -175,6 +179,7 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
     mine: {
       activeCell: input.selectedCell,
       blockTypeById: input.blockTypeById,
+      columnHints: input.columnTacticHints,
       currentPlatformRow: input.currentPlatformRow,
       depthMarkerLabel: input.pixiDepthMarkerLabel,
       devOverlayEnabled: input.pixiDevOverlayEnabled,
@@ -193,6 +198,7 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       goblins: input.pixiGoblins,
       hitEffects: input.hitEffects,
       loading: input.loading,
+      offlineSummary: input.offlineSummary,
       progressStats: createMineRunProgressStatsView(
         input.mineRunStats,
         input.session,
@@ -221,6 +227,7 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
       input.setActiveSection("goblins");
     },
     onOpenCollectorPicker: input.setCollectorPickerMineId,
+    onDismissOfflineSummary: () => input.setOfflineSummary(null),
     onPlaceGoblin: input.handlePlaceGoblin,
     onRoleTabChange: input.setGoblinRoleTab,
     onRandomGoblinRevealClose: () => input.setRandomGoblinReveal(null),

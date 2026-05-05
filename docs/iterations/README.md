@@ -96,3 +96,7 @@
 - `0091_goblin_generation_render_pool` - moved random goblin render selection into generation archetypes and stored selected asset IDs on rolled goblin instances.
 - `0092_goblin_generation_template_cleanup` - removed template goblins from content/runtime, moved random goblin ability, leveling, specialization, and renders into generation archetypes, and rebuilt starter content with 10 mines plus 100+ names/nicknames.
 - `0093_legacy_cleanup_asset_upload` - removed remaining old-content fallbacks and raised nginx/backend upload body limits for 5 MB goblin render files.
+- `0094_foreman_offline_report` - added an in-mine foreman offline report with relocation count, destroyed blocks, elapsed time, rewards, and a focused unit test.
+- `0095_mine_column_tactics` - added per-column mine tactics hints showing current DPS, best miner DPS, tag bonuses, and whether a column needs a better miner.
+- `0096_goblin_screen_cards` - rebuilt hired random goblins as compact card-style UI with larger detail modal and admin-uploaded render requirements.
+- `0097_goblin_contract_reveal_cards` - rebuilt random goblin hire contracts and reveal modal into the same compact card-style UI with rarity odds and stat ranges.

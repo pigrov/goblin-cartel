@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { Coins, Gem, Hammer, Mountain, Pickaxe, Sparkles, Users, Warehouse, X, Zap } from "lucide-react";
 import type { ContentBundle, GoblinConfig, GoblinGenerationArchetypeConfig } from "@goblin-cartel/content-schemas";
 import type { ElevatorProgressionState } from "../elevatorState";
@@ -270,6 +270,7 @@ export function GoblinSection(props: {
         <OwnedRandomGoblins
           content={props.content}
           goblins={rolledGoblins}
+          hutLimit={props.hutLimit}
           labels={props.labels}
           onUpgradeGoblin={props.onUpgradeGoblin}
           resources={props.resources}
@@ -416,28 +417,59 @@ function GoblinContractPanel(props: {
         <small>имя и статы после найма</small>
       </header>
       <div className="goblin-contract-grid">
-        {props.previews.map((preview) => (
-          <article className={preview.canHire ? "goblin-contract-card" : "goblin-contract-card locked"} key={preview.archetype.id}>
-            <span className={`goblin-contract-icon ${preview.archetype.class}`}>{contractRoleIcon(preview.archetype.class)}</span>
-            <strong>{labelFromNameKey(preview.archetype.nameKey, preview.archetype.id, props.labels)}</strong>
-            <small>{goblinClassLabel(preview.archetype.class)}</small>
-            <div className="build-cost-list">
-              {preview.costRequirements.length > 0 ? (
-                preview.costRequirements.map((requirement) => (
-                  <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
-                    <ResourceIcon resourceId={requirement.resourceId} size={13} />
-                    {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+        {props.previews.map((preview) => {
+          const rarityChips = createContractRarityChips(preview.archetype.rarityWeights);
+          const statRanges = preview.archetype.statRanges;
+
+          return (
+            <article className={preview.canHire ? "goblin-contract-card" : "goblin-contract-card locked"} key={preview.archetype.id}>
+              <div className="goblin-contract-topline">
+                <span className={`goblin-contract-icon ${preview.archetype.class}`}>{contractRoleIcon(preview.archetype.class)}</span>
+                <strong>{goblinClassLabel(preview.archetype.class)}</strong>
+              </div>
+              <div className="goblin-contract-title">
+                <strong>{labelFromNameKey(preview.archetype.nameKey, preview.archetype.id, props.labels)}</strong>
+                <small>{collectorSpecializationLabel(preview.goblin)}</small>
+              </div>
+              <div className="goblin-contract-statline" aria-label="Возможные характеристики">
+                <span>
+                  <strong>{formatStatRange(statRanges.strength)}</strong>
+                  <small>сил</small>
+                </span>
+                <span>
+                  <strong>{formatStatRange(statRanges.speed)}</strong>
+                  <small>скр</small>
+                </span>
+                <span>
+                  <strong>{formatStatRange(statRanges.luck)}</strong>
+                  <small>удч</small>
+                </span>
+              </div>
+              <div className="goblin-contract-rarity-strip" aria-label="Шансы редкости">
+                {rarityChips.map((chip) => (
+                  <span className={chip.rarity} key={chip.rarity}>
+                    {chip.label} {chip.percent}
                   </span>
-                ))
-              ) : (
-                <span className="ok">бесплатно</span>
-              )}
-            </div>
-            <button disabled={!preview.canHire} onClick={() => props.onHireRandomGoblin(preview.archetype.id)} type="button">
-              {contractActionLabel(preview)}
-            </button>
-          </article>
-        ))}
+                ))}
+              </div>
+              <div className="build-cost-list">
+                {preview.costRequirements.length > 0 ? (
+                  preview.costRequirements.map((requirement) => (
+                    <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                      <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                      {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
+                    </span>
+                  ))
+                ) : (
+                  <span className="ok">бесплатно</span>
+                )}
+              </div>
+              <button disabled={!preview.canHire} onClick={() => props.onHireRandomGoblin(preview.archetype.id)} type="button">
+                {contractActionLabel(preview)}
+              </button>
+            </article>
+          );
+        })}
       </div>
     </section>
   );
@@ -446,6 +478,7 @@ function GoblinContractPanel(props: {
 function OwnedRandomGoblins(props: {
   content: ContentBundle;
   goblins: RuntimeGoblinConfig[];
+  hutLimit: number;
   labels: Record<string, string>;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
   resources: Record<string, number>;
@@ -457,12 +490,15 @@ function OwnedRandomGoblins(props: {
   return (
     <section className="owned-random-goblins" aria-label="Нанятые случайные гоблины">
       <header>
-        <strong>Личные гоблины</strong>
-        <span>{props.goblins.length}</span>
+        <div>
+          <span>Хижина</span>
+          <strong>Личные гоблины</strong>
+        </div>
+        <span>{props.goblins.length}/{props.hutLimit}</span>
       </header>
       <div className="owned-random-goblin-list">
         {props.goblins.map((goblin) => {
-          const name = runtimeGoblinDisplayName(goblin, props.labels);
+          const nameParts = runtimeGoblinNameParts(goblin, props.labels);
           const identity = createGoblinIdentity(goblin, props.labels);
           const preview = createGoblinUpgradePreview(goblin, props.roster, props.resources, props.content.goblinHut);
           const instance = {
@@ -475,7 +511,7 @@ function OwnedRandomGoblins(props: {
 
           return (
             <article
-              className={`owned-random-goblin ${goblin.rarity}`}
+              className={`owned-random-goblin ${goblin.rarity} ${preview.canUpgrade ? "can-upgrade" : ""}`}
               key={goblin.id}
               onClick={() => setSelectedGoblinId(goblin.id)}
               onKeyDown={(event) => {
@@ -487,21 +523,35 @@ function OwnedRandomGoblins(props: {
               role="button"
               tabIndex={0}
             >
+              <div className="owned-random-goblin-topline">
+                <span>ур. {preview.levelNow}</span>
+                <strong>{rarityLabel(instance.rarity)}</strong>
+              </div>
               <GoblinPortrait goblin={goblin} identity={{ ...identity, name: goblin.instanceName ?? identity.name }} />
-              <div>
-                <strong>{name}</strong>
-                <small>
-                  {rarityLabel(instance.rarity)} · {goblinClassLabel(goblin.class)}
-                </small>
+              <div className="owned-random-goblin-name">
+                <strong>{nameParts.name}</strong>
+                <small>{nameParts.nickname || goblinClassLabel(goblin.class)}</small>
               </div>
-              <div className="owned-random-goblin-level">
-                Ур. {preview.levelNow}/{preview.maxLevel}
+              <div className="owned-random-goblin-specialty">
+                <span>
+                  <SpecializationIcon goblin={goblin} size={13} />
+                </span>
+                <small>{collectorSpecializationLabel(goblin)}</small>
               </div>
-              <footer>
-                <span>СИЛ {instance.rolledStats.strength}</span>
-                <span>СКР {instance.rolledStats.speed}</span>
-                <span>УДЧ {instance.rolledStats.luck}</span>
-              </footer>
+              <div className="owned-random-goblin-statline" aria-label="Характеристики">
+                <span>
+                  <strong>{instance.rolledStats.strength}</strong>
+                  <small>сил</small>
+                </span>
+                <span>
+                  <strong>{instance.rolledStats.speed}</strong>
+                  <small>скр</small>
+                </span>
+                <span>
+                  <strong>{instance.rolledStats.luck}</strong>
+                  <small>удч</small>
+                </span>
+              </div>
               <button
                 className="owned-random-goblin-action"
                 disabled={!preview.canUpgrade}
@@ -511,7 +561,7 @@ function OwnedRandomGoblins(props: {
                 }}
                 type="button"
               >
-                {randomGoblinUpgradeActionLabel(preview)}
+                {preview.canUpgrade ? "Улучшить" : randomGoblinUpgradeActionLabel(preview)}
               </button>
             </article>
           );
@@ -542,7 +592,8 @@ function RandomGoblinDetailsModal(props: {
   roster: GoblinRosterState;
 }) {
   const identity = createGoblinIdentity(props.goblin, props.labels);
-  const name = runtimeGoblinDisplayName(props.goblin, props.labels);
+  const nameParts = runtimeGoblinNameParts(props.goblin, props.labels);
+  const name = nameParts.fullName;
   const preview = createGoblinUpgradePreview(props.goblin, props.roster, props.resources, props.content.goblinHut);
   const statsNow = calculateGoblinEffectiveBaseStats(props.goblin, preview.levelNow, props.goblin.baseStats);
   const statsAfter = calculateGoblinEffectiveBaseStats(props.goblin, preview.levelAfter, props.goblin.baseStats);
@@ -561,37 +612,42 @@ function RandomGoblinDetailsModal(props: {
         onClick={(event) => event.stopPropagation()}
       >
         <header>
-          <div className="goblin-modal-headline">
-            <GoblinPortrait goblin={props.goblin} identity={{ ...identity, name: props.goblin.instanceName ?? identity.name }} />
-            <div>
-              <p>{rarityLabel(props.goblin.rarity)} · {goblinClassLabel(props.goblin.class)}</p>
-              <strong>{name}</strong>
-              <span>{collectorSpecializationLabel(props.goblin)}</span>
-            </div>
+          <div>
+            <p>{rarityLabel(props.goblin.rarity)} · {goblinClassLabel(props.goblin.class)}</p>
+            <strong>{nameParts.name}</strong>
           </div>
           <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
             <X size={18} />
           </button>
         </header>
 
-        <p className="goblin-modal-description">{identity.description}</p>
-
-        <div className="goblin-modal-stats random-goblin-level-stats">
-          <GoblinStatDelta after={statsAfter.strength} before={statsNow.strength} label="Сила" />
-          <GoblinStatDelta after={statsAfter.speed} before={statsNow.speed} label="Скорость" />
-          <GoblinStatDelta after={statsAfter.luck} before={statsNow.luck} label="Удача" />
-          <GoblinStatDelta after={statsAfter.loyalty} before={statsNow.loyalty} label="Лояльность" />
+        <div className="random-goblin-details-hero">
+          <div className="random-goblin-details-portrait">
+            <GoblinPortrait goblin={props.goblin} identity={{ ...identity, name: props.goblin.instanceName ?? identity.name }} />
+          </div>
+          <div className="random-goblin-details-title">
+            <span>{nameParts.nickname || collectorSpecializationLabel(props.goblin)}</span>
+            <strong>{name}</strong>
+            <p>{identity.description}</p>
+            <div className="random-goblin-details-badges">
+              <span>
+                <SpecializationIcon goblin={props.goblin} size={13} />
+                {collectorSpecializationLabel(props.goblin)}
+              </span>
+              <span>ур. {preview.levelNow}/{preview.maxLevel}</span>
+            </div>
+          </div>
         </div>
 
-        <section className="goblin-modal-block">
-          <header>
-            <strong>
-              Уровень {preview.levelNow}/{preview.maxLevel}
-            </strong>
-            <span>
-              урон {preview.damagePerSecondNow}/сек{preview.levelAfter !== preview.levelNow ? ` -> ${preview.damagePerSecondAfter}/сек` : ""}
-            </span>
-          </header>
+        <section className="random-goblin-level-panel">
+          <div>
+            <span>Текущий вклад</span>
+            <strong>{preview.damagePerSecondNow}/сек</strong>
+          </div>
+          <div>
+            <span>После улучшения</span>
+            <strong>{preview.levelAfter !== preview.levelNow ? `${preview.damagePerSecondAfter}/сек` : "макс."}</strong>
+          </div>
           <div className="build-cost-list">
             {preview.costRequirements.length > 0 ? (
               preview.costRequirements.map((requirement) => (
@@ -603,6 +659,36 @@ function RandomGoblinDetailsModal(props: {
             ) : (
               <span className="ok">максимальный уровень</span>
             )}
+          </div>
+        </section>
+
+        <section className="goblin-modal-block random-goblin-stat-section">
+          <header>
+            <strong>Характеристики</strong>
+            <span>{preview.levelAfter !== preview.levelNow ? "следующий уровень" : "текущий уровень"}</span>
+          </header>
+          <div className="goblin-modal-stats random-goblin-level-stats">
+            <GoblinStatMeter after={statsAfter.strength} before={statsNow.strength} label="Сила" />
+            <GoblinStatMeter after={statsAfter.speed} before={statsNow.speed} label="Скорость" />
+            <GoblinStatMeter after={statsAfter.luck} before={statsNow.luck} label="Удача" />
+            <GoblinStatMeter after={statsAfter.loyalty} before={statsNow.loyalty} label="Лояльность" />
+          </div>
+        </section>
+
+        <section className="goblin-modal-block random-goblin-profile">
+          <header>
+            <strong>Профиль</strong>
+            <span>{goblinClassLabel(props.goblin.class)}</span>
+          </header>
+          <div className="random-goblin-profile-grid">
+            <div>
+              <span>Редкость</span>
+              <strong>{rarityLabel(props.goblin.rarity)}</strong>
+            </div>
+            <div>
+              <span>Специализация</span>
+              <strong>{collectorSpecializationLabel(props.goblin)}</strong>
+            </div>
           </div>
         </section>
 
@@ -639,12 +725,21 @@ function RandomGoblinDetailsModal(props: {
   );
 }
 
-function GoblinStatDelta(props: { after: number; before: number; label: string }) {
+function GoblinStatMeter(props: { after: number; before: number; label: string }) {
+  const ceiling = Math.max(20, props.after, props.before);
+  const fillPercent = Math.max(12, Math.min(100, Math.round((props.before / ceiling) * 100)));
+  const delta = Math.max(0, props.after - props.before);
+
   return (
-    <div className="goblin-stat-delta">
-      <span>{props.label}</span>
-      <strong>{formatInteger(props.before)}</strong>
-      {props.after > props.before ? <small>+{formatInteger(props.after - props.before)}</small> : null}
+    <div className="goblin-stat-meter" style={{ "--stat-fill": `${fillPercent}%` } as CSSProperties}>
+      <header>
+        <span>{props.label}</span>
+        <strong>{formatInteger(props.before)}</strong>
+        {delta > 0 ? <small>+{formatInteger(delta)}</small> : null}
+      </header>
+      <i aria-hidden="true">
+        <span />
+      </i>
     </div>
   );
 }
@@ -658,6 +753,7 @@ function RandomGoblinRevealModal(props: {
   const archetype = props.content.goblinGeneration.archetypes.find((item) => item.id === props.reveal.archetypeId) ?? null;
   const identity = createGoblinIdentity(props.reveal.goblin, props.labels);
   const name = randomGoblinDisplayName(props.reveal.instance, props.reveal.goblin, props.labels);
+  const equipmentSlots = archetype?.equipmentSlots ?? ["tool"];
 
   return (
     <div className="modal-backdrop" onClick={props.onClose} role="presentation">
@@ -669,28 +765,57 @@ function RandomGoblinRevealModal(props: {
         <header>
           <div>
             <p>{archetype ? labelFromNameKey(archetype.nameKey, archetype.id, props.labels) : "Контракт"}</p>
-            <strong>Новый гоблин</strong>
+            <strong>Контракт раскрыт</strong>
           </div>
           <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
             <X size={18} />
           </button>
         </header>
 
-        <div className="random-goblin-reveal-card">
-          <GoblinPortrait goblin={props.reveal.goblin} identity={{ ...identity, name: props.reveal.instance.name ?? identity.name }} />
-          <div>
-            <span>{rarityLabel(props.reveal.instance.rarity)} · {goblinClassLabel(props.reveal.instance.class)}</span>
+        <div className="random-goblin-reveal-hero">
+          <div className="random-goblin-reveal-portrait">
+            <GoblinPortrait goblin={props.reveal.goblin} identity={{ ...identity, name: props.reveal.instance.name ?? identity.name }} />
+          </div>
+          <div className="random-goblin-reveal-title">
+            <span className={`random-goblin-reveal-rarity ${props.reveal.instance.rarity}`}>
+              {rarityLabel(props.reveal.instance.rarity)}
+            </span>
             <strong>{name}</strong>
             <p>{identity.description}</p>
+            <div className="random-goblin-details-badges">
+              <span>
+                <SpecializationIcon goblin={props.reveal.goblin} size={13} />
+                {collectorSpecializationLabel(props.reveal.goblin)}
+              </span>
+              <span>{goblinClassLabel(props.reveal.instance.class)}</span>
+            </div>
           </div>
         </div>
 
-        <div className="goblin-modal-stats">
-          <GoblinStat label="Сила" value={props.reveal.instance.rolledStats.strength} />
-          <GoblinStat label="Скорость" value={props.reveal.instance.rolledStats.speed} />
-          <GoblinStat label="Удача" value={props.reveal.instance.rolledStats.luck} />
-          <GoblinStat label="Лояльность" value={props.reveal.instance.rolledStats.loyalty} />
-        </div>
+        <section className="goblin-modal-block random-goblin-stat-section">
+          <header>
+            <strong>Характеристики</strong>
+            <span>стартовые</span>
+          </header>
+          <div className="goblin-modal-stats random-goblin-level-stats">
+            <GoblinStatMeter
+              after={props.reveal.instance.rolledStats.strength}
+              before={props.reveal.instance.rolledStats.strength}
+              label="Сила"
+            />
+            <GoblinStatMeter
+              after={props.reveal.instance.rolledStats.speed}
+              before={props.reveal.instance.rolledStats.speed}
+              label="Скорость"
+            />
+            <GoblinStatMeter after={props.reveal.instance.rolledStats.luck} before={props.reveal.instance.rolledStats.luck} label="Удача" />
+            <GoblinStatMeter
+              after={props.reveal.instance.rolledStats.loyalty}
+              before={props.reveal.instance.rolledStats.loyalty}
+              label="Лояльность"
+            />
+          </div>
+        </section>
 
         <section className="goblin-modal-block">
           <header>
@@ -706,6 +831,18 @@ function RandomGoblinRevealModal(props: {
           </div>
         </section>
 
+        <section className="goblin-modal-block">
+          <header>
+            <strong>Предметы</strong>
+            <span>{equipmentSlots.length}</span>
+          </header>
+          <div className="random-goblin-equipment-slots">
+            {equipmentSlots.map((slot) => (
+              <span key={slot}>{equipmentSlotLabel(slot)}</span>
+            ))}
+          </div>
+        </section>
+
         <footer>
           <span>Гоблин добавлен в Хижину</span>
           <button onClick={props.onClose} type="button">
@@ -713,15 +850,6 @@ function RandomGoblinRevealModal(props: {
           </button>
         </footer>
       </section>
-    </div>
-  );
-}
-
-function GoblinStat(props: { label: string; value: number }) {
-  return (
-    <div>
-      <span>{props.label}</span>
-      <strong>{formatInteger(props.value)}</strong>
     </div>
   );
 }
@@ -829,11 +957,18 @@ function randomGoblinDisplayName(instance: GoblinRosterInstance, archetype: Gobl
   return [instance.name ?? fallback, instance.nickname].filter(Boolean).join(" ");
 }
 
-function runtimeGoblinDisplayName(goblin: RuntimeGoblinConfig, labels: Record<string, string>): string {
+function runtimeGoblinNameParts(
+  goblin: RuntimeGoblinConfig,
+  labels: Record<string, string>
+): { fullName: string; name: string; nickname: string } {
   const identity = createGoblinIdentity(goblin, labels);
   const name = goblin.instanceName?.trim() || identity.name;
   const nickname = goblin.instanceNickname?.trim() || identity.nickname;
-  return nickname ? `${name} ${nickname}` : name;
+  return {
+    fullName: nickname ? `${name} ${nickname}` : name,
+    name,
+    nickname
+  };
 }
 
 function randomGoblinUpgradeActionLabel(preview: GoblinUpgradePreview): string {
@@ -855,6 +990,64 @@ function rarityLabel(rarity: GoblinRosterInstance["rarity"]): string {
     default:
       return "Обычный";
   }
+}
+
+function rarityShortLabel(rarity: GoblinRosterInstance["rarity"]): string {
+  switch (rarity) {
+    case "rare":
+      return "ред";
+    case "epic":
+      return "эп";
+    case "legendary":
+      return "лег";
+    default:
+      return "об";
+  }
+}
+
+function createContractRarityChips(
+  rarityWeights: GoblinGenerationArchetypeConfig["rarityWeights"]
+): Array<{ label: string; percent: string; rarity: GoblinRosterInstance["rarity"] }> {
+  const totalWeight = rarityWeights.reduce((sum, item) => sum + item.weight, 0);
+
+  return [...rarityWeights]
+    .sort((left, right) => raritySortOrder(left.rarity) - raritySortOrder(right.rarity))
+    .map((item) => ({
+      label: rarityShortLabel(item.rarity),
+      percent: formatWeightPercent(item.weight, totalWeight),
+      rarity: item.rarity
+    }));
+}
+
+function raritySortOrder(rarity: GoblinRosterInstance["rarity"]): number {
+  switch (rarity) {
+    case "legendary":
+      return 3;
+    case "epic":
+      return 2;
+    case "rare":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function formatWeightPercent(weight: number, totalWeight: number): string {
+  if (totalWeight <= 0) {
+    return "0%";
+  }
+
+  const percent = (weight / totalWeight) * 100;
+
+  if (percent > 0 && percent < 1) {
+    return "<1%";
+  }
+
+  return `${Math.round(percent)}%`;
+}
+
+function formatStatRange(range: { max: number; min: number }): string {
+  return range.min === range.max ? formatInteger(range.min) : `${formatInteger(range.min)}-${formatInteger(range.max)}`;
 }
 
 function traitLabel(traitId: string, labels: Record<string, string>): string {

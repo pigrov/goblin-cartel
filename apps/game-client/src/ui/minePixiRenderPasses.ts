@@ -14,6 +14,7 @@ import {
   drawDragPreview,
   drawPlatform,
   type MinePixiAnimatedItem,
+  type MinePixiColumnTacticHint,
   type MinePixiDragState,
   type MinePixiPlatformGoblin
 } from "./minePixiPlatform";
@@ -117,6 +118,7 @@ export function renderMinePixiHitEffects(input: {
 export function renderMinePixiPlatform(input: {
   animatedGoblinsRef: MutableRefObject<MinePixiAnimatedItem[]>;
   blocks: MiningSession["blocks"];
+  columnHints: MinePixiColumnTacticHint[];
   currentPlatformRow: number;
   dragState: MinePixiDragState | null;
   elevatorVisualStage: 1 | 2 | 3 | 4 | 5;
@@ -136,6 +138,7 @@ export function renderMinePixiPlatform(input: {
   input.platformRef.current = drawPlatform({
     animatedGoblins: input.animatedGoblinsRef.current,
     blocks: input.blocks,
+    columnHints: input.columnHints,
     currentPlatformRow: input.currentPlatformRow,
     dragState: input.dragState,
     elevatorVisualStage: input.elevatorVisualStage,

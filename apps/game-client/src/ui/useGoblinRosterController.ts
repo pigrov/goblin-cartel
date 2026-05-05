@@ -59,6 +59,7 @@ export function useGoblinRosterController(input: {
     [input.completedMineTemplateIds, input.content, input.resources, input.roster, input.visibleBuiltMinesCount]
   );
   const {
+    columnTacticHints,
     goblinPlacements,
     handlePlaceGoblin,
     pixiGoblins,
@@ -180,6 +181,7 @@ export function useGoblinRosterController(input: {
 
   return {
     availableGoblins,
+    columnTacticHints,
     goblinHutProgression,
     goblinLevels,
     goblinPlacements,

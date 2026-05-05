@@ -9,6 +9,7 @@ import {
 import { type MinePixiHitEffect } from "./minePixiEffects";
 import {
   type MinePixiDragState,
+  type MinePixiColumnTacticHint,
   type MinePixiPlatformGoblin
 } from "./minePixiPlatform";
 import {
@@ -40,6 +41,7 @@ export interface MinePixiGoblin extends MinePixiPlatformGoblin {
 }
 
 export type { MinePixiForemanSlot };
+export type { MinePixiColumnTacticHint };
 
 interface MinePixiSceneProps {
   activeCell: {
@@ -47,6 +49,7 @@ interface MinePixiSceneProps {
     col: number;
   };
   blockTypeById: ReadonlyMap<string, BlockTypeConfig>;
+  columnHints: MinePixiColumnTacticHint[];
   currentPlatformRow: number;
   devOverlayEnabled: boolean;
   depthMarkerLabel: (row: number) => string;
@@ -251,6 +254,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     renderMinePixiPlatform({
       animatedGoblinsRef: runtime.animatedGoblinsRef,
       blocks: props.session.blocks,
+      columnHints: props.columnHints,
       currentPlatformRow: props.currentPlatformRow,
       dragState,
       elevatorVisualStage: props.elevatorVisualStage,
@@ -267,6 +271,7 @@ export function MinePixiScene(props: MinePixiSceneProps) {
     });
   }, [
     layout,
+    props.columnHints,
     props.currentPlatformRow,
     dragState?.goblinId,
     props.elevatorVisualStage,

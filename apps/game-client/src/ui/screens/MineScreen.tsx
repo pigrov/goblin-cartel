@@ -1,4 +1,4 @@
-import type { BlockTypeConfig, GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { BlockTypeConfig, ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
 import { getGoblinLevel, type MiningBlockState, type MiningSession } from "@goblin-cartel/game-core";
 import { ArrowDownUp, BarChart3, Coins, Gem, Gauge, Hammer, Mountain, Pickaxe, Plus, ShieldCheck, X, Zap } from "lucide-react";
 import { lazy, type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
@@ -6,7 +6,8 @@ import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import { createGoblinIdentity } from "../goblinHutClientState";
 import type { MineRunProgressStatsView, MineRunRewardSummary } from "../mineRunStats";
-import type { MinePixiForemanSlot, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import type { MinePixiColumnTacticHint, MinePixiForemanSlot, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import { formatOfflineDuration, type OfflineMiningSummary } from "../offlineMiningSummary";
 import type { PlatformDropEvent } from "../useMiningLoop";
 import {
   getGoblinOfflineAutoDamageMultiplier,
@@ -25,7 +26,9 @@ export function MineScreen(props: {
     col: number;
   };
   blockTypeById: ReadonlyMap<string, BlockTypeConfig>;
+  columnHints: MinePixiColumnTacticHint[];
   currentPlatformRow: number;
+  content: ContentBundle;
   depthMarkerLabel: (row: number) => string;
   devOverlayEnabled: boolean;
   elevatorLevel: number;
@@ -42,9 +45,11 @@ export function MineScreen(props: {
   hitEffects: MinePixiHitEffect[];
   labels: Record<string, string>;
   loading: boolean;
+  offlineSummary: OfflineMiningSummary | null;
   progressStats: MineRunProgressStatsView;
   onBlockHit: (block: MiningBlockState) => void;
   onAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
+  onDismissOfflineSummary: () => void;
   onOpenGoblins: () => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   onUpgradeElevator: () => void;
@@ -101,6 +106,7 @@ export function MineScreen(props: {
         <MinePixiScene
           activeCell={props.activeCell}
           blockTypeById={props.blockTypeById}
+          columnHints={props.columnHints}
           currentPlatformRow={props.currentPlatformRow}
           depthMarkerLabel={props.depthMarkerLabel}
           elevatorLevel={props.elevatorLevel}
@@ -141,6 +147,14 @@ export function MineScreen(props: {
         </div>
       ) : null}
       {props.platformDropEvent ? <MineDepthEventToast event={props.platformDropEvent} key={props.platformDropEvent.id} /> : null}
+      {props.offlineSummary && !mineModalOpen ? (
+        <ForemanOfflineReport
+          content={props.content}
+          labels={props.labels}
+          onClose={props.onDismissOfflineSummary}
+          summary={props.offlineSummary}
+        />
+      ) : null}
       {elevatorOpen ? (
         <ElevatorModal
           labels={props.labels}
@@ -208,6 +222,61 @@ function MineDepthEventToast(props: { event: PlatformDropEvent }) {
       <small>{rewardLabel}</small>
       <i aria-hidden="true" />
     </div>
+  );
+}
+
+function ForemanOfflineReport(props: {
+  content: ContentBundle;
+  labels: Record<string, string>;
+  onClose: () => void;
+  summary: OfflineMiningSummary;
+}) {
+  const rewards = rewardRowsFromMap(props.summary.rewards, props.content, props.labels);
+
+  return (
+    <aside className="foreman-offline-report" aria-label="Офлайн-работа бригадира">
+      <header>
+        <div>
+          <p>Пока тебя не было</p>
+          <strong>Бригадирская смена</strong>
+        </div>
+        <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть отчет">
+          <X size={17} />
+        </button>
+      </header>
+
+      <div className="foreman-offline-report-stats">
+        <ForemanOfflineStat icon={<Hammer size={16} />} label="перест." value={props.summary.relocationMoves} />
+        <ForemanOfflineStat icon={<Pickaxe size={16} />} label="блоков" value={props.summary.destroyedBlocks} />
+        <ForemanOfflineStat icon={<Zap size={16} />} label="офлайн" value={formatOfflineDuration(props.summary.seconds)} />
+      </div>
+
+      {props.summary.pendingFinalHit ? (
+        <p className="foreman-offline-report-note">Последний удар показываем прямо в руднике.</p>
+      ) : null}
+
+      {rewards.length > 0 ? (
+        <div className="foreman-offline-report-rewards">
+          {rewards.map((reward) => (
+            <span className={`foreman-offline-report-reward ${resourceClassName(reward.resourceId)}`} key={reward.resourceId}>
+              <ResourceIcon resourceId={reward.resourceId} size={13} />
+              <strong>+{formatInteger(reward.amount)}</strong>
+              <em>{reward.label}</em>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+function ForemanOfflineStat(props: { icon: ReactNode; label: string; value: number | string }) {
+  return (
+    <span>
+      <i aria-hidden="true">{props.icon}</i>
+      <strong>{typeof props.value === "number" ? formatInteger(props.value) : props.value}</strong>
+      <em>{props.label}</em>
+    </span>
   );
 }
 
@@ -532,6 +601,25 @@ function formatSeconds(value: number): string {
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
   return labels[nameKey] ?? fallback;
+}
+
+function rewardRowsFromMap(
+  rewards: Record<string, number>,
+  content: ContentBundle,
+  labels: Record<string, string>
+): MineRunRewardSummary[] {
+  return Object.entries(rewards)
+    .filter(([, amount]) => amount > 0)
+    .sort(([leftResourceId], [rightResourceId]) => leftResourceId.localeCompare(rightResourceId))
+    .map(([resourceId, amount]) => {
+      const resource = content.resources.find((item) => item.id === resourceId);
+
+      return {
+        amount,
+        label: resource ? labelFromNameKey(resource.nameKey, resource.id, labels) : resourceId,
+        resourceId
+      };
+    });
 }
 
 function resourceClassName(resourceId: string): string {

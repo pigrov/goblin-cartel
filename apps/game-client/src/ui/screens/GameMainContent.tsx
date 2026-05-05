@@ -10,8 +10,9 @@ import type { BuiltMineUpgradePreview, ConstructionSupportState } from "../built
 import type { ElevatorProgressionState } from "../elevatorState";
 import type { ForemanAssignments } from "../foremanTowerState";
 import type { GoblinHutProgressionState, GoblinHutRoleTabId } from "../goblinHutClientState";
-import type { MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
+import type { MinePixiColumnTacticHint, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
 import type { MineRunProgressStatsView } from "../mineRunStats";
+import type { OfflineMiningSummary } from "../offlineMiningSummary";
 import type { PlatformDropEvent } from "../useMiningLoop";
 import type { RandomGoblinReveal } from "../useGoblinRosterController";
 import type { GameSection } from "./BottomNav";
@@ -29,6 +30,7 @@ export interface GameMainContentActions {
   onHireRandomGoblin: (archetypeId: string) => void;
   onOpenGoblins: () => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
+  onDismissOfflineSummary: () => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
   onRandomGoblinRevealClose: () => void;
   onRoleTabChange: (roleTab: GoblinHutRoleTabId) => void;
@@ -80,6 +82,7 @@ export interface GameMainContentView {
       col: number;
     };
     blockTypeById: ReadonlyMap<string, BlockTypeConfig>;
+    columnHints: MinePixiColumnTacticHint[];
     currentPlatformRow: number;
     depthMarkerLabel: (row: number) => string;
     devOverlayEnabled: boolean;
@@ -96,6 +99,7 @@ export interface GameMainContentView {
     goblins: MinePixiGoblin[];
     hitEffects: MinePixiHitEffect[];
     loading: boolean;
+    offlineSummary: OfflineMiningSummary | null;
     progressStats: MineRunProgressStatsView;
     platformCellKeys: ReadonlySet<string>;
     platformDropAnimating: boolean;
@@ -189,6 +193,7 @@ export function GameMainContent(props: {
     <MineScreen
       activeCell={view.mine.activeCell}
       blockTypeById={view.mine.blockTypeById}
+      columnHints={view.mine.columnHints}
       currentPlatformRow={view.mine.currentPlatformRow}
       depthMarkerLabel={view.mine.depthMarkerLabel}
       devOverlayEnabled={view.mine.devOverlayEnabled}
@@ -201,9 +206,12 @@ export function GameMainContent(props: {
       hitEffects={view.mine.hitEffects}
       labels={common.labels}
       loading={view.mine.loading}
+      content={common.content}
+      offlineSummary={view.mine.offlineSummary}
       progressStats={view.mine.progressStats}
       onBlockHit={actions.onBlockHit}
       onAssignForemanSlot={actions.onAssignForemanSlot}
+      onDismissOfflineSummary={actions.onDismissOfflineSummary}
       onOpenGoblins={actions.onOpenGoblins}
       onPlaceGoblin={actions.onPlaceGoblin}
       onUpgradeElevator={actions.onUpgradeElevator}

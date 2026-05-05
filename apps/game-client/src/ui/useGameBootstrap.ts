@@ -33,6 +33,7 @@ import {
 import { getElevatorLevelConfig, normalizeElevatorLevel } from "./elevatorState";
 import { isMiningGoblin } from "./goblinHutClientState";
 import { addMineRunBlockRewards, createMineRunStats, restoreMineRunStats, type MineRunStats } from "./mineRunStats";
+import { createOfflineMiningSummary, type OfflineMiningSummary } from "./offlineMiningSummary";
 import { apiUrl } from "./apiClient";
 import { bootstrapPlayerDbSave } from "./playerDbSaveClient";
 import { createPlayerDbSyncState, type PlayerDbSyncState } from "./playerDbSyncState";
@@ -64,12 +65,7 @@ export interface ContentState {
   message: string;
 }
 
-export interface OfflineMiningSummary {
-  seconds: number;
-  destroyedBlocks: number;
-  rewards: Record<string, number>;
-  pendingFinalHit: boolean;
-}
+export type { OfflineMiningSummary } from "./offlineMiningSummary";
 
 interface RestoredMiningState {
   session: MiningSession;
@@ -464,6 +460,7 @@ function applyOfflineMining(
   );
   let nextPlacements = restoredPlacements;
   let relocationMovesLeft = offlineRelocationSlots;
+  let relocationMoves = 0;
 
   if (relocationMovesLeft > 0) {
     const relocation = relocateOfflineGoblinPlacements(
@@ -476,13 +473,22 @@ function applyOfflineMining(
     );
     nextPlacements = relocation.placements;
     relocationMovesLeft -= relocation.moves;
+    relocationMoves += relocation.moves;
   }
 
   if (assignGoblinWorkers(session, miningGoblins, nextPlacements, activePlatformRow, roster).length === 0) {
+    const offlineSummary = createOfflineMiningSummary({
+      destroyedBlocks: 0,
+      pendingFinalHit: false,
+      relocationMoves,
+      rewards: {},
+      seconds: offlineSeconds
+    });
+
     return {
       session,
       activeCell,
-      offlineSummary: null,
+      offlineSummary,
       pendingOfflineFinalHit: null,
       platformRow: activePlatformRow,
       goblinPlacements: nextPlacements,
@@ -534,6 +540,7 @@ function applyOfflineMining(
 
       nextPlacements = relocation.placements;
       relocationMovesLeft -= relocation.moves;
+      relocationMoves += relocation.moves;
       continue;
     }
 
@@ -593,18 +600,17 @@ function applyOfflineMining(
       );
       nextPlacements = relocation.placements;
       relocationMovesLeft -= relocation.moves;
+      relocationMoves += relocation.moves;
     }
   }
 
-  const hasOfflineProgress = destroyedBlocks > 0 || Boolean(pendingFinalHit);
-  const offlineSummary = hasOfflineProgress
-    ? {
-        seconds: offlineSeconds,
-        destroyedBlocks,
-        rewards,
-        pendingFinalHit: Boolean(pendingFinalHit)
-      }
-    : null;
+  const offlineSummary = createOfflineMiningSummary({
+    destroyedBlocks,
+    pendingFinalHit: Boolean(pendingFinalHit),
+    relocationMoves,
+    rewards,
+    seconds: offlineSeconds
+  });
 
   return {
     session: nextSession,

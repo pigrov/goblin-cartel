@@ -31,11 +31,21 @@ export interface MinePixiPlatformGoblin {
   working: boolean;
 }
 
+export interface MinePixiColumnTacticHint {
+  col: number;
+  detail: string;
+  hasTagBonus: boolean;
+  label: string;
+  row: number;
+  state: "empty" | "weak" | "good" | "best";
+}
+
 export type MinePixiElevatorVisualStage = 1 | 2 | 3 | 4 | 5;
 
 export function drawPlatform(input: {
   animatedGoblins: MinePixiAnimatedItem[];
   blocks: MiningSession["blocks"];
+  columnHints: MinePixiColumnTacticHint[];
   currentPlatformRow: number;
   dragState: MinePixiDragState | null;
   elevatorVisualStage: MinePixiElevatorVisualStage;
@@ -56,6 +66,7 @@ export function drawPlatform(input: {
 
   platform.addChild(drawPlatformDeck(input.layout, stage, platformSkin));
   drawGoblinTargetHighlights(input);
+  drawColumnTacticHints(input.root, input.layout, input.columnHints);
 
   for (let col = 0; col < input.mineWidth; col += 1) {
     const block = input.blocks[input.currentPlatformRow]?.[col];
@@ -138,6 +149,64 @@ export function drawPlatform(input: {
   };
 }
 
+function drawColumnTacticHints(root: Container, layout: MinePixiLayout, hints: readonly MinePixiColumnTacticHint[]) {
+  for (const hint of hints) {
+    const x = layout.gridX + hint.col * layout.rowStep + layout.cellSize / 2;
+    const y = layout.gridY + hint.row * layout.rowStep + 4;
+    const colors = tacticHintColors(hint.state, hint.hasTagBonus);
+    const hintNode = new Container();
+    const label = new Text({
+      style: {
+        fill: colors.text,
+        fontFamily: "Inter, Arial, sans-serif",
+        fontSize: 9,
+        fontWeight: "900"
+      },
+      text: hint.label
+    });
+    const detail = new Text({
+      style: {
+        fill: colors.detail,
+        fontFamily: "Inter, Arial, sans-serif",
+        fontSize: 7,
+        fontWeight: "800"
+      },
+      text: normalizeHintDetail(hint.detail)
+    });
+    const width = Math.max(30, Math.min(layout.cellSize - 2, Math.ceil(Math.max(label.width, detail.width)) + 10));
+    const height = detail.text ? 22 : 16;
+
+    hintNode.position.set(x - width / 2, y);
+    label.anchor.set(0.5, 0);
+    label.position.set(width / 2, 3);
+    detail.anchor.set(0.5, 0);
+    detail.position.set(width / 2, 13);
+    hintNode.addChild(
+      new Graphics()
+        .roundRect(0, 0, width, height, 6)
+        .fill({ color: colors.fill, alpha: 0.9 })
+        .stroke({ color: colors.stroke, alpha: 0.96, width: hint.state === "weak" ? 1.7 : 1.2 })
+    );
+    hintNode.addChild(label);
+
+    if (detail.text) {
+      hintNode.addChild(detail);
+    }
+
+    if (hint.hasTagBonus) {
+      hintNode.addChild(
+        new Graphics()
+          .circle(width - 4, 4, 3)
+          .fill({ color: 0xf2b84b, alpha: 0.98 })
+          .circle(width - 4, 4, 1.4)
+          .fill({ color: 0x1b2715, alpha: 0.72 })
+      );
+    }
+
+    root.addChild(hintNode);
+  }
+}
+
 function drawPlatformDeck(layout: MinePixiLayout, stage: MinePixiElevatorVisualStage, skin: PlatformSkin): Graphics {
   const deck = new Graphics()
     .rect(layout.gridX - 2, 0, 3, layout.platformHeight - 8)
@@ -181,6 +250,45 @@ function drawPlatformDeck(layout: MinePixiLayout, stage: MinePixiElevatorVisualS
   }
 
   return deck;
+}
+
+function tacticHintColors(
+  state: MinePixiColumnTacticHint["state"],
+  hasTagBonus: boolean
+): { detail: number; fill: number; stroke: number; text: number } {
+  if (state === "best") {
+    return {
+      detail: 0xdbffc9,
+      fill: hasTagBonus ? 0x274117 : 0x1f351c,
+      stroke: hasTagBonus ? 0xf2b84b : 0x91c86c,
+      text: 0xf6fff0
+    };
+  }
+
+  if (state === "good") {
+    return { detail: 0xffefbf, fill: 0x413718, stroke: 0xf0d386, text: 0xfff8df };
+  }
+
+  if (state === "weak") {
+    return { detail: 0xffd0b5, fill: 0x4a2018, stroke: 0xff8b5f, text: 0xfff1e7 };
+  }
+
+  return {
+    detail: 0xd8f5ff,
+    fill: hasTagBonus ? 0x29361c : 0x1c3143,
+    stroke: hasTagBonus ? 0xf2b84b : 0x68c6c8,
+    text: 0xffffff
+  };
+}
+
+function normalizeHintDetail(value: string): string {
+  const trimmed = value.trim();
+
+  if (trimmed.length <= 10) {
+    return trimmed;
+  }
+
+  return `${trimmed.slice(0, 9)}.`;
 }
 
 function drawPlatformCables(platform: Container, layout: MinePixiLayout, skin: PlatformSkin): Container[] {
