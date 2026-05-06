@@ -42,11 +42,6 @@ body,
   align-items: center;
   gap: 6px;
   padding: 6px 8px;
-  background:
-    linear-gradient(180deg, rgb(11 18 22 / 34%), rgb(11 18 22 / 10%)),
-    rgb(255 255 255 / 2%);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   pointer-events: auto;
 }
 
@@ -61,17 +56,17 @@ body,
   min-width: 0;
   height: 38px;
   display: grid;
-  grid-template-columns: 17px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   padding: 5px 6px;
-  border: 1px solid rgb(255 255 255 / 22%);
-  border-radius: var(--gc-radius-sm);
+  border: 0;
+  border-radius: 9px;
   background:
+    var(--resource-chip-frame) center / 100% 100% no-repeat,
     linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(255 255 255 / 6%)),
     rgb(28 20 14 / 46%);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 18%),
     0 8px 20px rgb(0 0 0 / 16%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
@@ -100,6 +95,13 @@ body,
 
 .resource-chip svg {
   color: var(--gc-muted);
+}
+
+.resource-icon-asset {
+  display: block;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 50%));
+  pointer-events: none;
 }
 
 .resource-chip.gold svg {
@@ -276,6 +278,26 @@ body,
     0 8px 20px rgb(0 0 0 / 16%);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+.resource-bar .icon-button.menu-button {
+  padding: 0;
+  border: 0;
+  background:
+    var(--settings-button-frame) center / 100% 100% no-repeat,
+    linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(255 255 255 / 6%)),
+    rgb(28 20 14 / 46%);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 16%);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.settings-button-icon {
+  width: 24px;
+  height: 24px;
+  display: block;
+  background: var(--settings-button-icon) center / contain no-repeat;
+  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 60%));
+  pointer-events: none;
 }
 
 .playfield-scroll {
@@ -2087,9 +2109,7 @@ body,
   min-height: 22px;
   padding: 3px 7px;
   border: 0;
-  background:
-    var(--hire-price-pill) center / 100% 100% no-repeat,
-    rgb(0 0 0 / 20%);
+  background: rgb(0 0 0 / 20%);
 }
 
 .goblin-contract-card .skin-asset-icon {
@@ -4833,7 +4853,6 @@ body,
   background:
     linear-gradient(180deg, rgb(255 255 255 / 18%), rgb(242 184 75 / 12%)),
     rgb(35 26 16 / 76%);
-  opacity: 0.76;
 }
 
 .boss-skill-button svg {
@@ -4847,6 +4866,25 @@ body,
 .boss-cards-button span,
 .boss-skill-button span {
   display: none;
+}
+
+.boss-cards-button strong,
+.boss-skill-button strong {
+  display: block;
+  max-width: 40px;
+  overflow: hidden;
+  font-size: 11px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.boss-cards-button strong {
+  color: #d9c1ff;
+}
+
+.boss-skill-button strong {
+  color: var(--gc-copper);
 }
 
 .boss-cards-modal {

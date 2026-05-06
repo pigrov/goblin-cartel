@@ -560,8 +560,10 @@ export function useGameController() {
     },
     bossPanel: {
       config: bossEnergyConfig,
+      copperAmount: visibleResourceAmounts.copper_ore ?? 0,
       displayedEnergy: displayedBossEnergy,
       energyPercent: bossEnergyPercent,
+      elixirAmount: visibleResourceAmounts.elixir ?? 0,
       feedback: bossEnergyFeedback,
       onOpenCards: () => setBossCardsOpen(true),
       onOpenDetails: () => setBossDetailsOpen(true),
@@ -582,6 +584,12 @@ export function useGameController() {
       onMenuOpen: () => setSettingsOpen(true),
       onResourceClick: showResourceTooltip,
       onTooltipClose: () => setResourceTooltip(null),
+      resourceChipFrameAssetId: contentState.content.goblinGeneration.hireCardSkin.resourceChipFrame ?? "ui_resource_chip_frame_v1",
+      resourceIconAssetIds:
+        contentState.content.uiIcons?.resources ??
+        Object.fromEntries(contentState.content.resources.map((resource) => [resource.id, resource.iconAssetId])),
+      settingsButtonFrameAssetId: contentState.content.uiIcons?.controls?.settingsButtonFrame ?? "ui_settings_button_frame_v1",
+      settingsIconAssetId: contentState.content.uiIcons?.controls?.settingsIcon ?? "ui_settings_gear_v1",
       tooltip: resourceTooltip,
       visibleResourceAmounts
     }

@@ -99,6 +99,12 @@ function contentRows(contentVersionId: string, content: ContentBundle): ContentE
     })),
     {
       contentVersionId,
+      entityType: "uiIcons",
+      entityId: "default",
+      data: content.uiIcons
+    },
+    {
+      contentVersionId,
       entityType: "goblinGeneration",
       entityId: "default",
       data: content.goblinGeneration

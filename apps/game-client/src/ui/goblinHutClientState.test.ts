@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultGoblinHireCardSkin, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
+import { defaultGoblinHireCardSkin, defaultUiIcons, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
   createGoblinHutProgressionState,
   createGoblinHutVisualStage,
@@ -113,6 +113,7 @@ const content: ContentBundle = {
   blockTypes: [],
   bossCards: [],
   builtMineTypes: [],
+  uiIcons: defaultUiIcons,
   goblinGeneration: {
     archetypes: availableGoblins.map((goblin) => ({
       ability: goblin.ability,

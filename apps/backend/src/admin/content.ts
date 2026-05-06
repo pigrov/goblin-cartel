@@ -15,11 +15,14 @@ export type ContentEntityType =
   | "rewardChestType"
   | "bossCard"
   | "mineTemplate"
+  | "uiIcons"
   | "goblinGeneration"
   | "goblinHut"
   | "elevator"
   | "localization";
 export type EditableContentEntityType =
+  | "resource"
+  | "uiIcons"
   | "blockType"
   | "bossCard"
   | "builtMineType"
@@ -436,6 +439,8 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   const goblinGeneration = goblinGenerationEntity?.data as ContentBundle["goblinGeneration"] | undefined;
   const elevatorEntity = entities.find((entity) => entity.entityType === "elevator" && entity.entityId === "default");
   const elevator = elevatorEntity?.data as ContentBundle["elevator"] | undefined;
+  const uiIconsEntity = entities.find((entity) => entity.entityType === "uiIcons" && entity.entityId === "default");
+  const uiIcons = uiIconsEntity?.data as ContentBundle["uiIcons"] | undefined;
 
   return {
     resources: sortContentItems(entities, "resource", starterContentBundle.resources),
@@ -445,6 +450,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     rewardChestTypes: sortContentItems(entities, "rewardChestType", starterContentBundle.rewardChestTypes),
     bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
+    uiIcons: uiIcons ?? starterContentBundle.uiIcons,
     ...(goblinGeneration ? { goblinGeneration } : {}),
     ...(goblinHut ? { goblinHut } : {}),
     ...(elevator ? { elevator } : {}),
@@ -500,6 +506,14 @@ function upsertEditableContentEntity(
     };
   }
 
+  if (input.entityType === "uiIcons") {
+    return {
+      ...content,
+      uiIcons: normalizedEntity as ContentBundle["uiIcons"],
+      localization: nextLocalization
+    };
+  }
+
   return {
     ...content,
     localization: nextLocalization,
@@ -513,6 +527,8 @@ function upsertEditableContentEntity(
 
 function collectionForEntityType(content: ContentBundle, entityType: EditableContentEntityType): Array<Record<string, unknown>> {
   switch (entityType) {
+    case "resource":
+      return content.resources;
     case "blockType":
       return content.blockTypes;
     case "builtMineType":
@@ -526,14 +542,17 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
     case "elevator":
     case "goblinHut":
     case "goblinGeneration":
+    case "uiIcons":
       return [];
   }
 }
 
 function collectionNameForEntityType(
-  entityType: Exclude<EditableContentEntityType, "elevator" | "goblinGeneration" | "goblinHut">
-): "blockTypes" | "bossCards" | "builtMineTypes" | "mineTemplates" | "rewardChestTypes" {
+  entityType: Exclude<EditableContentEntityType, "elevator" | "goblinGeneration" | "goblinHut" | "uiIcons">
+): "blockTypes" | "bossCards" | "builtMineTypes" | "mineTemplates" | "resources" | "rewardChestTypes" {
   switch (entityType) {
+    case "resource":
+      return "resources";
     case "blockType":
       return "blockTypes";
     case "bossCard":

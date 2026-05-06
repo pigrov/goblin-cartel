@@ -56,6 +56,7 @@ type CredentialType = "api_key" | "oauth" | "smtp" | "storage" | "analytics" | "
 type CredentialEnvironment = "production" | "staging" | "development";
 type AdminSection = "dashboard" | "content" | "credentials";
 type ContentEntityKind =
+  | "icons"
   | "blockTypes"
   | "bossCards"
   | "builtMineTypes"
@@ -65,6 +66,8 @@ type ContentEntityKind =
   | "mineTemplates"
   | "rewardChestTypes";
 type ContentEntityApiKind =
+  | "resource"
+  | "uiIcons"
   | "blockType"
   | "bossCard"
   | "builtMineType"
@@ -96,6 +99,7 @@ interface ContentBundle {
   rewardChestTypes?: ContentRecord[];
   bossCards?: ContentRecord[];
   mineTemplates: ContentRecord[];
+  uiIcons?: ContentRecord;
   goblinGeneration?: ContentRecord;
   goblinHut: ContentRecord;
   elevator: ContentRecord;
@@ -157,6 +161,7 @@ const credentialEnvironments: Array<{ value: CredentialEnvironment; label: strin
 ];
 
 const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind }> = [
+  { value: "icons", label: "Иконки" },
   { value: "blockTypes", label: "Блоки" },
   { value: "goblinGeneration", label: "Генерация" },
   { value: "goblinHut", label: "Хижина" },
@@ -197,6 +202,10 @@ const goblinScreenSkinFields = [
   { field: "skinScreenBackground", label: "Фон экрана Гоблины", path: ["screenBackground"], defaultAssetId: "ui_goblin_screen_pattern_v1" }
 ] as const;
 
+const resourceHudSkinFields = [
+  { field: "skinResourceChipFrame", label: "Подложка ресурса", path: ["resourceChipFrame"], defaultAssetId: "ui_resource_chip_frame_v1" }
+] as const;
+
 const ownedGoblinSkinFields = [
   { field: "skinOwnedCardBase", label: "Подложка личного гоблина", path: ["ownedCards", "base"], defaultAssetId: "ui_owned_goblin_card_base_v1" },
   {
@@ -216,16 +225,26 @@ const hireCardSkinFields = [
   { field: "skinButtonNormal", label: "Кнопка normal", path: ["buttons", "normal"], defaultAssetId: "ui_hire_button_normal_v1" },
   { field: "skinButtonHover", label: "Кнопка hover", path: ["buttons", "hover"], defaultAssetId: "ui_hire_button_hover_v1" },
   { field: "skinButtonPressed", label: "Кнопка pressed", path: ["buttons", "pressed"], defaultAssetId: "ui_hire_button_pressed_v1" },
-  { field: "skinButtonDisabled", label: "Кнопка disabled", path: ["buttons", "disabled"], defaultAssetId: "ui_hire_button_disabled_v1" },
-  { field: "skinPriceNormal", label: "Плашка цены normal", path: ["pricePills", "normal"], defaultAssetId: "ui_hire_price_normal_v1" },
-  { field: "skinPriceDisabled", label: "Плашка цены disabled", path: ["pricePills", "disabled"], defaultAssetId: "ui_hire_price_disabled_v1" },
-  { field: "skinIconCost", label: "Иконка цены", path: ["icons", "cost"], defaultAssetId: "ui_icon_coin_v1" },
-  { field: "skinIconStrength", label: "Иконка силы", path: ["icons", "strength"], defaultAssetId: "ui_icon_pickaxe_v1" },
-  { field: "skinIconSpeed", label: "Иконка скорости", path: ["icons", "speed"], defaultAssetId: "ui_icon_boot_v1" },
-  { field: "skinIconLuck", label: "Иконка удачи", path: ["icons", "luck"], defaultAssetId: "ui_icon_star_v1" },
-  { field: "skinIconLoyalty", label: "Иконка лояльности", path: ["icons", "loyalty"], defaultAssetId: "ui_icon_clock_v1" }
+  { field: "skinButtonDisabled", label: "Кнопка disabled", path: ["buttons", "disabled"], defaultAssetId: "ui_hire_button_disabled_v1" }
 ] as const;
-const goblinUiSkinFields = [...goblinScreenSkinFields, ...ownedGoblinSkinFields, ...hireCardSkinFields] as const;
+const goblinUiSkinFields = [...goblinScreenSkinFields, ...resourceHudSkinFields, ...ownedGoblinSkinFields, ...hireCardSkinFields] as const;
+
+const statIconFields = [
+  { field: "statIconStrength", key: "strength", label: "Иконка силы", defaultAssetId: "ui_icon_pickaxe_v1" },
+  { field: "statIconSpeed", key: "speed", label: "Иконка скорости", defaultAssetId: "ui_icon_boot_v1" },
+  { field: "statIconLuck", key: "luck", label: "Иконка удачи", defaultAssetId: "ui_icon_star_v1" },
+  { field: "statIconLoyalty", key: "loyalty", label: "Иконка лояльности", defaultAssetId: "ui_icon_clock_v1" }
+] as const;
+
+const controlIconFields = [
+  {
+    field: "controlSettingsButtonFrame",
+    key: "settingsButtonFrame",
+    label: "Подложка кнопки настроек",
+    defaultAssetId: "ui_settings_button_frame_v1"
+  },
+  { field: "controlSettingsIcon", key: "settingsIcon", label: "Иконка настроек", defaultAssetId: "ui_settings_gear_v1" }
+] as const;
 
 const specialBehaviorOptions = [
   { value: "none", label: "None" },
@@ -1398,6 +1417,17 @@ function renderEntityFields(
   updateFields: (values: EntityFormState) => void,
   sessionToken: string | null
 ) {
+  if (kind === "icons") {
+    return (
+      <ContentIconFields
+        content={content}
+        formState={formState}
+        sessionToken={sessionToken}
+        updateField={updateField}
+      />
+    );
+  }
+
   if (kind === "blockTypes") {
     return (
       <>
@@ -1796,6 +1826,15 @@ function ContentGoblinHireCardSkinFields(props: {
 
       <ContentNestedSection
         addLabel="Заполнить дефолтами"
+        onAdd={() => props.updateFields(Object.fromEntries(resourceHudSkinFields.map((item) => [item.field, item.defaultAssetId])))}
+        title="UI ресурсов"
+      >
+        <p className="content-form-note">Подложка используется в верхней шапке ресурсов. Сейчас игра растягивает PNG целиком; если будет заметная деформация, переведем на 9-slice.</p>
+        <div className="content-form-grid content-hire-card-skin-grid">{resourceHudSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+
+      <ContentNestedSection
+        addLabel="Заполнить дефолтами"
         onAdd={() => props.updateFields(Object.fromEntries(ownedGoblinSkinFields.map((item) => [item.field, item.defaultAssetId])))}
         title="UI личных гоблинов"
       >
@@ -1812,6 +1851,89 @@ function ContentGoblinHireCardSkinFields(props: {
           Эти Asset ID управляют визуальным скином карточек найма. PNG можно заменить загрузкой файла в нужный слот; игра берет картинки через `/api/assets`.
         </p>
         <div className="content-form-grid content-hire-card-skin-grid">{hireCardSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+    </>
+  );
+}
+
+function iconResourceField(resourceId: string): string {
+  return `iconResource_${resourceId.replace(/[^a-zA-Z0-9_]/gu, "_")}`;
+}
+
+function ContentIconFields(props: {
+  content: ContentBundle;
+  formState: EntityFormState;
+  sessionToken: string | null;
+  updateField: (field: string, value: string) => void;
+}) {
+  const ru = props.content.localization?.ru ?? {};
+
+  return (
+    <>
+      <ContentNestedSection title="Иконки ресурсов">
+        <p className="content-form-note">Эти PNG используются в шапке ресурсов и в ценах найма/улучшений.</p>
+        <div className="content-form-grid content-hire-card-skin-grid">
+          {props.content.resources.map((resource) => {
+            const resourceId = stringField(resource, "id");
+            const field = iconResourceField(resourceId);
+            const value = formValue(props.formState, field) || stringField(resource, "iconAssetId");
+
+            return (
+              <div className="content-list-row content-list-row-wide" key={resourceId}>
+                <ContentTextField label={contentEntityTitle(resource, ru)} name={field} onChange={props.updateField} value={value} />
+                <ContentAssetUploadField
+                  assetId={value}
+                  label={contentEntityTitle(resource, ru)}
+                  onAssetIdChange={(assetId) => props.updateField(field, assetId)}
+                  token={props.sessionToken}
+                  uploadLabel="Загрузить PNG"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </ContentNestedSection>
+
+      <ContentNestedSection title="Иконки параметров гоблина">
+        <div className="content-form-grid content-hire-card-skin-grid">
+          {statIconFields.map((item) => {
+            const value = formValue(props.formState, item.field) || item.defaultAssetId;
+
+            return (
+              <div className="content-list-row content-list-row-wide" key={item.field}>
+                <ContentTextField label={item.label} name={item.field} onChange={props.updateField} value={value} />
+                <ContentAssetUploadField
+                  assetId={value}
+                  label={item.label}
+                  onAssetIdChange={(assetId) => props.updateField(item.field, assetId)}
+                  token={props.sessionToken}
+                  uploadLabel="Загрузить PNG"
+                />
+              </div>
+            );
+          })}
+        </div>
+      </ContentNestedSection>
+
+      <ContentNestedSection title="Иконки интерфейса">
+        <div className="content-form-grid content-hire-card-skin-grid">
+          {controlIconFields.map((item) => {
+            const value = formValue(props.formState, item.field) || item.defaultAssetId;
+
+            return (
+              <div className="content-list-row content-list-row-wide" key={item.field}>
+                <ContentTextField label={item.label} name={item.field} onChange={props.updateField} value={value} />
+                <ContentAssetUploadField
+                  assetId={value}
+                  label={item.label}
+                  onAssetIdChange={(assetId) => props.updateField(item.field, assetId)}
+                  token={props.sessionToken}
+                  uploadLabel="Загрузить PNG"
+                />
+              </div>
+            );
+          })}
+        </div>
       </ContentNestedSection>
     </>
   );
@@ -1918,19 +2040,21 @@ function ContentSelectField(props: {
 }
 
 function ContentNestedSection(props: {
-  addLabel: string;
+  addLabel?: string;
   children: ReactNode;
-  onAdd: () => void;
+  onAdd?: () => void;
   title: string;
 }) {
   return (
     <section className="content-nested-section">
       <header>
         <strong>{props.title}</strong>
-        <button onClick={props.onAdd} type="button">
-          <PlusCircle size={15} />
-          {props.addLabel}
-        </button>
+        {props.onAdd ? (
+          <button onClick={props.onAdd} type="button">
+            <PlusCircle size={15} />
+            {props.addLabel}
+          </button>
+        ) : null}
       </header>
       {props.children}
     </section>
@@ -3457,6 +3581,8 @@ function addRuLocalization(
 
 function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind): ContentRecord[] {
   switch (kind) {
+    case "icons":
+      return [content.uiIcons ?? { id: "default", resources: {}, stats: {} }];
     case "blockTypes":
       return content.blockTypes;
     case "bossCards":
@@ -3486,6 +3612,10 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
 }
 
 function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, content: ContentBundle): EntityFormState {
+  if (kind === "icons") {
+    return createIconsFormState(entity, content);
+  }
+
   if (kind === "blockTypes") {
     return createBlockTypeFormState(entity, content);
   }
@@ -3515,6 +3645,32 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
   }
 
   return createBuiltMineTypeFormState(entity, content);
+}
+
+function createIconsFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const controls = recordField(entity, "controls");
+  const resources = recordField(entity, "resources");
+  const stats = recordField(entity, "stats");
+  const fallbackIcons = recordField(recordField(content.goblinGeneration ?? {}, "hireCardSkin"), "icons");
+  const state: EntityFormState = {
+    id: "default",
+    title: "Иконки"
+  };
+
+  for (const resource of content.resources) {
+    const resourceId = stringField(resource, "id");
+    state[iconResourceField(resourceId)] = stringField(resources, resourceId) || stringField(resource, "iconAssetId");
+  }
+
+  for (const item of statIconFields) {
+    state[item.field] = stringField(stats, item.key) || stringField(fallbackIcons, item.key) || item.defaultAssetId;
+  }
+
+  for (const item of controlIconFields) {
+    state[item.field] = stringField(controls, item.key) || item.defaultAssetId;
+  }
+
+  return state;
 }
 
 function createBlockTypeFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
@@ -3835,7 +3991,9 @@ function validateEntityForm(
     errors.push("Название RU обязательно.");
   }
 
-  if (kind === "blockTypes") {
+  if (kind === "icons") {
+    validateIconsForm(state, content, errors);
+  } else if (kind === "blockTypes") {
     validateBlockTypeForm(state, content, errors);
   } else if (kind === "bossCards") {
     validateBossCardForm(state, content, errors);
@@ -3857,6 +4015,27 @@ function validateEntityForm(
     errors,
     ok: errors.length === 0
   };
+}
+
+function validateIconsForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
+  for (const resource of content.resources) {
+    const resourceId = stringField(resource, "id");
+    if (!formValue(state, iconResourceField(resourceId)).trim()) {
+      errors.push(`${contentEntityTitle(resource, content.localization?.ru ?? {})}: Asset ID иконки обязателен.`);
+    }
+  }
+
+  for (const item of statIconFields) {
+    if (!formValue(state, item.field).trim()) {
+      errors.push(`${item.label}: Asset ID обязателен.`);
+    }
+  }
+
+  for (const item of controlIconFields) {
+    if (!formValue(state, item.field).trim()) {
+      errors.push(`${item.label}: Asset ID обязателен.`);
+    }
+  }
 }
 
 function validateBlockTypeForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
@@ -4319,6 +4498,10 @@ function applyEntityForm(
   selectedId: string,
   state: EntityFormState
 ): EntityDraftUpdate {
+  if (kind === "icons") {
+    return applyIconsForm(content, state);
+  }
+
   if (kind === "blockTypes") {
     return applyBlockTypeForm(content, selectedId, state);
   }
@@ -4348,6 +4531,30 @@ function applyEntityForm(
   }
 
   return applyBuiltMineTypeForm(content, selectedId, state);
+}
+
+function applyIconsForm(content: ContentBundle, state: EntityFormState): EntityDraftUpdate {
+  const resourceIcons = Object.fromEntries(
+    content.resources.map((resource) => {
+      const resourceId = stringField(resource, "id");
+      return [resourceId, formValue(state, iconResourceField(resourceId)).trim()];
+    })
+  );
+  const statIcons = Object.fromEntries(statIconFields.map((item) => [item.key, formValue(state, item.field).trim()]));
+  const controlIcons = Object.fromEntries(controlIconFields.map((item) => [item.key, formValue(state, item.field).trim()]));
+
+  return {
+    entity: {
+      controls: controlIcons,
+      id: "default",
+      resources: resourceIcons,
+      stats: statIcons
+    },
+    entityId: "default",
+    entityType: "uiIcons",
+    localization: {},
+    message: "Иконки сохранены как draft."
+  };
 }
 
 function applyBlockTypeForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
@@ -4406,7 +4613,7 @@ function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, s
         names: parseLineList(formValue(state, "namePoolNames")),
         nicknames: parseLineList(formValue(state, "namePoolNicknames"))
       },
-      hireCardSkin: createGoblinHireCardSkinFromForm(state),
+      hireCardSkin: createGoblinHireCardSkinFromForm(state, recordField(current, "hireCardSkin")),
       archetypes: archetypes.value
     },
     entityId: selectedId,
@@ -4418,7 +4625,10 @@ function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, s
   };
 }
 
-function createGoblinHireCardSkinFromForm(state: EntityFormState): ContentRecord {
+function createGoblinHireCardSkinFromForm(state: EntityFormState, currentSkin: ContentRecord): ContentRecord {
+  const currentIcons = recordField(currentSkin, "icons");
+  const currentPricePills = recordField(currentSkin, "pricePills");
+
   return {
     buttons: {
       disabled: formValue(state, "skinButtonDisabled").trim(),
@@ -4433,20 +4643,21 @@ function createGoblinHireCardSkinFromForm(state: EntityFormState): ContentRecord
       rare: formValue(state, "skinCardBaseRare").trim()
     },
     icons: {
-      cost: formValue(state, "skinIconCost").trim(),
-      loyalty: formValue(state, "skinIconLoyalty").trim(),
-      luck: formValue(state, "skinIconLuck").trim(),
-      speed: formValue(state, "skinIconSpeed").trim(),
-      strength: formValue(state, "skinIconStrength").trim()
+      cost: stringField(currentIcons, "cost") || "ui_icon_coin_v1",
+      loyalty: stringField(currentIcons, "loyalty") || "ui_icon_clock_v1",
+      luck: stringField(currentIcons, "luck") || "ui_icon_star_v1",
+      speed: stringField(currentIcons, "speed") || "ui_icon_boot_v1",
+      strength: stringField(currentIcons, "strength") || "ui_icon_pickaxe_v1"
     },
     ownedCards: {
       base: formValue(state, "skinOwnedCardBase").trim(),
       upgradeArrow: formValue(state, "skinOwnedUpgradeArrow").trim()
     },
     pricePills: {
-      disabled: formValue(state, "skinPriceDisabled").trim(),
-      normal: formValue(state, "skinPriceNormal").trim()
+      disabled: stringField(currentPricePills, "disabled") || "ui_hire_price_disabled_v1",
+      normal: stringField(currentPricePills, "normal") || "ui_hire_price_normal_v1"
     },
+    resourceChipFrame: formValue(state, "skinResourceChipFrame").trim(),
     screenBackground: formValue(state, "skinScreenBackground").trim(),
     titlePlate: formValue(state, "skinTitlePlate").trim()
   };

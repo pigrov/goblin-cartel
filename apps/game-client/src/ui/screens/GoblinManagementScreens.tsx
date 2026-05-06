@@ -17,6 +17,15 @@ import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "../goblinR
 import { assetUrl } from "../assetUrls";
 
 type GoblinHireCardSkin = NonNullable<ContentBundle["goblinGeneration"]["hireCardSkin"]>;
+type GoblinContractIconAssetIds = {
+  resources: Record<string, string>;
+  stats: {
+    loyalty: string;
+    luck: string;
+    speed: string;
+    strength: string;
+  };
+};
 
 const defaultGoblinHireCardSkin: GoblinHireCardSkin = {
   buttons: {
@@ -46,6 +55,7 @@ const defaultGoblinHireCardSkin: GoblinHireCardSkin = {
     disabled: "ui_hire_price_disabled_v1",
     normal: "ui_hire_price_normal_v1"
   },
+  resourceChipFrame: "ui_resource_chip_frame_v1",
   screenBackground: "ui_goblin_screen_pattern_v1",
   titlePlate: "ui_hire_title_plate_v1"
 };
@@ -245,6 +255,7 @@ export function GoblinSection(props: {
   const contractPreviews = allContractPreviews;
   const rolledGoblins = allRolledGoblins;
   const skin = createGoblinHireCardSkin(props.content.goblinGeneration);
+  const iconAssetIds = createGoblinContractIconAssetIds(props.content, skin);
 
   return (
     <section className="goblin-roster management-screen" style={createGoblinScreenStyle(skin)} aria-label="Гоблины">
@@ -252,6 +263,7 @@ export function GoblinSection(props: {
         <GoblinContractPanel
           labels={props.labels}
           onHireRandomGoblin={props.onHireRandomGoblin}
+          iconAssetIds={iconAssetIds}
           previews={contractPreviews}
           skin={skin}
         />
@@ -307,6 +319,7 @@ function createGoblinHireCardSkin(goblinGeneration: ContentBundle["goblinGenerat
       ...defaultGoblinHireCardSkin.pricePills,
       ...(skin?.pricePills ?? {})
     },
+    resourceChipFrame: skin?.resourceChipFrame ?? defaultGoblinHireCardSkin.resourceChipFrame,
     screenBackground: skin?.screenBackground ?? defaultGoblinHireCardSkin.screenBackground,
     titlePlate: skin?.titlePlate ?? defaultGoblinHireCardSkin.titlePlate
   };
@@ -314,16 +327,14 @@ function createGoblinHireCardSkin(goblinGeneration: ContentBundle["goblinGenerat
 
 function createGoblinHireCardStyle(
   skin: GoblinHireCardSkin,
-  rarity: GoblinRosterInstance["rarity"],
-  enabled: boolean
+  rarity: GoblinRosterInstance["rarity"]
 ): CSSProperties {
   return {
     "--hire-button-disabled": cssAssetUrl(skin.buttons.disabled),
     "--hire-button-hover": cssAssetUrl(skin.buttons.hover),
     "--hire-button-normal": cssAssetUrl(skin.buttons.normal),
     "--hire-button-pressed": cssAssetUrl(skin.buttons.pressed),
-    "--hire-card-base": cssAssetUrl(skin.cardBases[rarity]),
-    "--hire-price-pill": cssAssetUrl(enabled ? skin.pricePills.normal : skin.pricePills.disabled)
+    "--hire-card-base": cssAssetUrl(skin.cardBases[rarity])
   } as CSSProperties;
 }
 
@@ -348,6 +359,22 @@ function createGoblinHireTitlePlateStyle(skin: GoblinHireCardSkin): CSSPropertie
   return {
     "--hire-title-plate": cssAssetUrl(skin.titlePlate)
   } as CSSProperties;
+}
+
+function createGoblinContractIconAssetIds(content: ContentBundle, skin: GoblinHireCardSkin): GoblinContractIconAssetIds {
+  const uiIcons = content.uiIcons ?? { resources: {}, stats: {} };
+
+  return {
+    resources: Object.fromEntries(
+      content.resources.map((resource) => [resource.id, uiIcons.resources[resource.id] ?? resource.iconAssetId])
+    ),
+    stats: {
+      loyalty: uiIcons.stats.loyalty ?? skin.icons.loyalty,
+      luck: uiIcons.stats.luck ?? skin.icons.luck,
+      speed: uiIcons.stats.speed ?? skin.icons.speed,
+      strength: uiIcons.stats.strength ?? skin.icons.strength
+    }
+  };
 }
 
 function contractVisualRarity(goblinClass: GoblinGenerationArchetypeConfig["class"]): GoblinRosterInstance["rarity"] {
@@ -399,16 +426,16 @@ function contractStatLabel(stat: ContractStatKey): string {
   }
 }
 
-function contractStatIconAssetId(skin: GoblinHireCardSkin, stat: ContractStatKey): string {
+function contractStatIconAssetId(iconAssetIds: GoblinContractIconAssetIds["stats"], stat: ContractStatKey): string {
   switch (stat) {
     case "loyalty":
-      return skin.icons.loyalty;
+      return iconAssetIds.loyalty;
     case "luck":
-      return skin.icons.luck;
+      return iconAssetIds.luck;
     case "speed":
-      return skin.icons.speed;
+      return iconAssetIds.speed;
     default:
-      return skin.icons.strength;
+      return iconAssetIds.strength;
   }
 }
 
@@ -509,15 +536,12 @@ function OwnedGoblinUpgradeArrow(props: { skin: GoblinHireCardSkin }) {
   return <img className="owned-random-goblin-upgrade-arrow" src={url} alt="" />;
 }
 
-function HireCostIcon(props: { resourceId: string; skin: GoblinHireCardSkin }) {
-  if (props.resourceId.includes("gold")) {
-    return <SkinAssetIcon assetId={props.skin.icons.cost} fallback={<ResourceIcon resourceId={props.resourceId} size={13} />} />;
-  }
-
-  return <ResourceIcon resourceId={props.resourceId} size={13} />;
+function HireCostIcon(props: { assetId?: string; resourceId: string }) {
+  return <SkinAssetIcon assetId={props.assetId ?? ""} fallback={<ResourceIcon resourceId={props.resourceId} size={13} />} />;
 }
 
 function GoblinContractPanel(props: {
+  iconAssetIds: GoblinContractIconAssetIds;
   labels: Record<string, string>;
   onHireRandomGoblin: (archetypeId: string) => void;
   previews: RandomGoblinContractPreview[];
@@ -535,7 +559,7 @@ function GoblinContractPanel(props: {
           const goldRequirement = findCostRequirement(preview.costRequirements, "gold");
           const goldAmount = goldRequirement?.required ?? 0;
           const visualRarity = contractVisualRarity(preview.archetype.class);
-          const cardStyle = createGoblinHireCardStyle(props.skin, visualRarity, preview.canHire);
+          const cardStyle = createGoblinHireCardStyle(props.skin, visualRarity);
 
           return (
             <article
@@ -552,7 +576,7 @@ function GoblinContractPanel(props: {
                   <span key={stat.key}>
                     <small>{stat.label}</small>
                     <strong>
-                      <SkinAssetIcon assetId={contractStatIconAssetId(props.skin, stat.key)} />
+                      <SkinAssetIcon assetId={contractStatIconAssetId(props.iconAssetIds.stats, stat.key)} />
                       {formatStatRange(stat.range)}
                     </strong>
                   </span>
@@ -567,7 +591,7 @@ function GoblinContractPanel(props: {
               >
                 <span>НАНЯТЬ</span>
                 <span className="goblin-contract-button-cost">
-                  <HireCostIcon resourceId="gold" skin={props.skin} />
+                  <HireCostIcon assetId={props.iconAssetIds.resources.gold} resourceId="gold" />
                   {formatInteger(goldAmount)}
                 </span>
               </button>

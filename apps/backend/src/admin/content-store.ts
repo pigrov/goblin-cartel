@@ -104,6 +104,12 @@ export class DrizzleContentStore implements ContentStore {
         })),
         {
           contentVersionId,
+          entityType: "uiIcons",
+          entityId: "default",
+          data: content.uiIcons
+        },
+        {
+          contentVersionId,
           entityType: "goblinGeneration",
           entityId: "default",
           data: content.goblinGeneration

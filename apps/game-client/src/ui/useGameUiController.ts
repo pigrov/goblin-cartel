@@ -27,7 +27,10 @@ export function useGameUiController(input: {
   });
   const tooltipSequenceRef = useRef(0);
   const displayedResources = useMemo(
-    () => input.content.resources.filter((resource) => resource.id !== "boss_energy" && !isBossCardResourceId(resource.id)).slice(0, 5),
+    () =>
+      input.content.resources
+        .filter((resource) => !["boss_energy", "copper_ore", "elixir"].includes(resource.id) && !isBossCardResourceId(resource.id))
+        .slice(0, 5),
     [input.content.resources]
   );
 

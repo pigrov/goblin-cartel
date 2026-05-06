@@ -96,9 +96,12 @@ describe("content schemas", () => {
     expect(starterContentBundle.goblinGeneration.hireCardSkin.buttons.normal).toBe("ui_hire_button_normal_v1");
     expect(starterContentBundle.goblinGeneration.hireCardSkin.screenBackground).toBe("ui_goblin_screen_pattern_v1");
     expect(starterContentBundle.goblinGeneration.hireCardSkin.titlePlate).toBe("ui_hire_title_plate_v1");
+    expect(starterContentBundle.goblinGeneration.hireCardSkin.resourceChipFrame).toBe("ui_resource_chip_frame_v1");
     expect(starterContentBundle.goblinGeneration.hireCardSkin.ownedCards.base).toBe("ui_owned_goblin_card_base_v1");
     expect(starterContentBundle.goblinGeneration.hireCardSkin.ownedCards.upgradeArrow).toBe("ui_owned_goblin_upgrade_arrow_v1");
-    expect(starterContentBundle.goblinGeneration.hireCardSkin.icons.strength).toBe("ui_icon_pickaxe_v1");
+    expect(starterContentBundle.uiIcons.resources.gold).toBe("icon_gold_v1");
+    expect(starterContentBundle.uiIcons.stats.strength).toBe("ui_icon_pickaxe_v1");
+    expect(starterContentBundle.uiIcons.controls.settingsIcon).toBe("ui_settings_gear_v1");
     expect(starterContentBundle.goblinHut.levels.map((level) => [level.level, level.upgradeCost])).toEqual([
       [1, []],
       [

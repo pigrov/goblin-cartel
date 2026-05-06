@@ -1,5 +1,7 @@
 import type { ResourceConfig } from "@goblin-cartel/content-schemas";
-import { Coins, Gem, Hammer, Menu, Mountain, Pickaxe, Sparkles, Zap } from "lucide-react";
+import { Gem, Hammer, Mountain, Sparkles, Zap } from "lucide-react";
+import type { CSSProperties } from "react";
+import { assetUrl } from "../assetUrls";
 
 export interface ResourceTooltip {
   id: number;
@@ -21,12 +23,23 @@ export function ResourceHud(props: {
   onMenuOpen: () => void;
   onResourceClick: (tooltip: ResourceTooltipPayload) => void;
   onTooltipClose: () => void;
+  resourceChipFrameAssetId: string;
+  resourceIconAssetIds: Record<string, string>;
+  settingsButtonFrameAssetId: string;
+  settingsIconAssetId: string;
   tooltip: ResourceTooltip | null;
   visibleResourceAmounts: Record<string, number>;
 }) {
+  const resourceById = new Map(props.displayedResources.map((resource) => [resource.id, resource]));
+  const style = {
+    "--resource-chip-frame": cssAssetUrl(props.resourceChipFrameAssetId),
+    "--settings-button-frame": cssAssetUrl(props.settingsButtonFrameAssetId),
+    "--settings-button-icon": cssAssetUrl(props.settingsIconAssetId)
+  } as CSSProperties;
+
   return (
     <>
-      <header className="resource-bar">
+      <header className="resource-bar" style={style}>
         <div
           className="resource-list"
           style={{ gridTemplateColumns: `repeat(${Math.max(1, props.displayedResources.length)}, minmax(0, 1fr))` }}
@@ -36,6 +49,7 @@ export function ResourceHud(props: {
 
             return (
               <ResourceChip
+                assetId={props.resourceIconAssetIds[resource.id]}
                 flashing={props.flashingResourceIds.has(resource.id)}
                 key={resource.id}
                 labels={props.labels}
@@ -47,7 +61,7 @@ export function ResourceHud(props: {
           })}
         </div>
         <button className="icon-button menu-button" onClick={props.onMenuOpen} title="Меню" type="button" aria-label="Меню">
-          <Menu size={20} />
+          <span aria-hidden="true" className="settings-button-icon" />
         </button>
       </header>
 
@@ -58,7 +72,12 @@ export function ResourceHud(props: {
           onClick={props.onTooltipClose}
           type="button"
         >
-          <ResourceIcon resourceId={props.tooltip.resourceId} size={16} />
+          <ResourceIcon
+            assetId={props.resourceIconAssetIds[props.tooltip.resourceId]}
+            resource={resourceById.get(props.tooltip.resourceId)}
+            resourceId={props.tooltip.resourceId}
+            size={16}
+          />
           <span>{props.tooltip.label}</span>
           <strong>{formatNumber(props.tooltip.value)}</strong>
         </button>
@@ -68,6 +87,7 @@ export function ResourceHud(props: {
 }
 
 function ResourceChip(props: {
+  assetId?: string;
   flashing: boolean;
   labels: Record<string, string>;
   onClick: (tooltip: ResourceTooltipPayload) => void;
@@ -84,31 +104,28 @@ function ResourceChip(props: {
       title={label}
       type="button"
     >
-      <ResourceIcon resourceId={props.resource.id} size={17} />
+      <ResourceIcon assetId={props.assetId ?? props.resource.iconAssetId} resource={props.resource} resourceId={props.resource.id} size={24} />
       <strong>{formatNumber(props.value)}</strong>
     </button>
   );
 }
 
-function ResourceIcon(props: { resourceId: string; size: number }) {
+function ResourceIcon(props: { assetId?: string; resource?: ResourceConfig; resourceId: string; size: number }) {
   if (isBossCardResourceId(props.resourceId)) {
     return <BossCardResourceIcon resourceId={props.resourceId} size={props.size} />;
+  }
+
+  const iconUrl = assetUrl(props.assetId ?? props.resource?.iconAssetId);
+  if (iconUrl) {
+    return <img alt="" className="resource-icon-asset" src={iconUrl} style={{ height: props.size, width: props.size }} />;
   }
 
   if (props.resourceId.includes("elixir")) {
     return <Zap size={props.size} />;
   }
 
-  if (props.resourceId.includes("gold")) {
-    return <Coins size={props.size} />;
-  }
-
   if (props.resourceId.includes("copper")) {
     return <Gem size={props.size} />;
-  }
-
-  if (props.resourceId.includes("iron")) {
-    return <Pickaxe size={props.size} />;
   }
 
   if (props.resourceId.includes("energy")) {
@@ -188,6 +205,11 @@ function resourceLabel(resource: ResourceConfig | undefined, fallback: string, l
 
 function labelFromNameKey(nameKey: string, fallback: string, labels: Record<string, string>): string {
   return labels[nameKey] ?? fallback;
+}
+
+function cssAssetUrl(assetId: string): string {
+  const url = assetUrl(assetId);
+  return url ? `url("${url}")` : "none";
 }
 
 function formatNumber(value: number): string {

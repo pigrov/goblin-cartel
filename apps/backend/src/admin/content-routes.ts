@@ -16,6 +16,7 @@ const contentPayloadSchema = z.object({
 const contentEntityParamsSchema = z.object({
   id: z.string().uuid(),
   entityType: z.enum([
+    "resource",
     "blockType",
     "bossCard",
     "builtMineType",
@@ -23,7 +24,8 @@ const contentEntityParamsSchema = z.object({
     "goblinGeneration",
     "goblinHut",
     "mineTemplate",
-    "rewardChestType"
+    "rewardChestType",
+    "uiIcons"
   ]),
   entityId: z.string().min(1)
 });

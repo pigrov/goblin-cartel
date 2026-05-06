@@ -18,8 +18,10 @@ export function App() {
         {game.bossPanel.visible ? (
           <BossEnergyPanel
             config={game.bossPanel.config}
+            copperAmount={game.bossPanel.copperAmount}
             displayedEnergy={game.bossPanel.displayedEnergy}
             energyPercent={game.bossPanel.energyPercent}
+            elixirAmount={game.bossPanel.elixirAmount}
             feedback={game.bossPanel.feedback}
             onOpenCards={game.bossPanel.onOpenCards}
             onOpenDetails={game.bossPanel.onOpenDetails}

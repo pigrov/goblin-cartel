@@ -3,8 +3,10 @@ import { Bomb, Sparkles, X, Zap } from "lucide-react";
 
 export function BossEnergyPanel(props: {
   config: BossEnergyConfig;
+  copperAmount: number;
   displayedEnergy: number;
   energyPercent: number;
+  elixirAmount: number;
   feedback: boolean;
   onOpenCards: () => void;
   onOpenDetails: () => void;
@@ -34,11 +36,11 @@ export function BossEnergyPanel(props: {
       </button>
       <button className="boss-cards-button" onClick={props.onOpenCards} type="button" aria-label="Карты босса">
         <Sparkles size={20} />
-        <span>Карты</span>
+        <strong>{formatInteger(props.elixirAmount)}</strong>
       </button>
       <button className="boss-skill-button" type="button" disabled aria-label="Слот умения">
         <Bomb size={20} />
-        <span>Скилл</span>
+        <strong>{formatInteger(props.copperAmount)}</strong>
       </button>
     </section>
   );

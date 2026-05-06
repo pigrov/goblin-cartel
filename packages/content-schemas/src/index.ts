@@ -102,6 +102,7 @@ export const defaultGoblinHireCardSkin = {
     disabled: "ui_hire_price_disabled_v1",
     normal: "ui_hire_price_normal_v1"
   },
+  resourceChipFrame: "ui_resource_chip_frame_v1",
   screenBackground: "ui_goblin_screen_pattern_v1",
   titlePlate: "ui_hire_title_plate_v1"
 } as const;
@@ -146,8 +147,58 @@ export const goblinHireCardSkinSchema = z
       })
       .strict()
       .default(defaultGoblinHireCardSkin.ownedCards),
+    resourceChipFrame: z.string().min(1).default(defaultGoblinHireCardSkin.resourceChipFrame),
     screenBackground: z.string().min(1).default(defaultGoblinHireCardSkin.screenBackground),
     titlePlate: z.string().min(1).default(defaultGoblinHireCardSkin.titlePlate)
+  })
+  .strict();
+
+export const defaultUiIcons = {
+  controls: {
+    settingsButtonFrame: "ui_settings_button_frame_v1",
+    settingsIcon: "ui_settings_gear_v1"
+  },
+  id: "default",
+  resources: {
+    boss_card_crit_chance: "icon_boss_card_crit_chance_v1",
+    boss_card_crit_multiplier: "icon_boss_card_crit_multiplier_v1",
+    boss_card_hit_damage: "icon_boss_card_hit_damage_v1",
+    boss_card_max_energy: "icon_boss_card_max_energy_v1",
+    boss_energy: "icon_boss_energy_v1",
+    copper_ore: "icon_copper_ore_v1",
+    elixir: "icon_elixir_v1",
+    gold: "icon_gold_v1",
+    iron: "icon_iron_v1",
+    stone: "icon_stone_v1"
+  },
+  stats: {
+    loyalty: "ui_icon_clock_v1",
+    luck: "ui_icon_star_v1",
+    speed: "ui_icon_boot_v1",
+    strength: "ui_icon_pickaxe_v1"
+  }
+} as const;
+
+export const uiIconsSchema = z
+  .object({
+    controls: z
+      .object({
+        settingsButtonFrame: z.string().min(1),
+        settingsIcon: z.string().min(1)
+      })
+      .strict()
+      .default(defaultUiIcons.controls),
+    id: z.literal("default").default("default"),
+    resources: z.record(z.string().min(1), z.string().min(1)).default(defaultUiIcons.resources),
+    stats: z
+      .object({
+        strength: z.string().min(1),
+        speed: z.string().min(1),
+        luck: z.string().min(1),
+        loyalty: z.string().min(1)
+      })
+      .strict()
+      .default(defaultUiIcons.stats)
   })
   .strict();
 
@@ -536,6 +587,7 @@ export const contentBundleSchema = z
     rewardChestTypes: z.array(rewardChestTypeSchema),
     bossCards: z.array(bossCardSchema),
     mineTemplates: z.array(mineTemplateSchema).min(1),
+    uiIcons: uiIconsSchema.default(defaultUiIcons),
     goblinGeneration: goblinGenerationSchema,
     goblinHut: goblinHutSchema,
     elevator: elevatorSchema,
@@ -553,6 +605,7 @@ export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
 export type GoblinGenerationConfig = z.infer<typeof goblinGenerationSchema>;
+export type UiIconsConfig = z.infer<typeof uiIconsSchema>;
 export type GoblinGenerationArchetypeConfig = z.infer<typeof goblinGenerationArchetypeSchema>;
 export type GoblinHutConfig = z.infer<typeof goblinHutSchema>;
 export type GoblinHutLevelConfig = z.infer<typeof goblinHutLevelSchema>;
@@ -1101,6 +1154,7 @@ export const starterContentBundle: ContentBundle = {
     }
   ],
   mineTemplates: createStarterMineTemplates(),
+  uiIcons: defaultUiIcons,
   goblinGeneration: {
     id: "default",
     nameKey: "goblin_generation.name",
