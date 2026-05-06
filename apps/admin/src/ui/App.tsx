@@ -61,7 +61,7 @@ type ContentEntityKind =
   | "bossCards"
   | "builtMineTypes"
   | "elevator"
-  | "goblinGeneration"
+  | "goblins"
   | "goblinHut"
   | "mineTemplates"
   | "rewardChestTypes";
@@ -72,7 +72,7 @@ type ContentEntityApiKind =
   | "bossCard"
   | "builtMineType"
   | "elevator"
-  | "goblinGeneration"
+  | "goblins"
   | "goblinHut"
   | "mineTemplate"
   | "rewardChestType";
@@ -100,7 +100,7 @@ interface ContentBundle {
   bossCards?: ContentRecord[];
   mineTemplates: ContentRecord[];
   uiIcons?: ContentRecord;
-  goblinGeneration?: ContentRecord;
+  goblins?: ContentRecord;
   goblinHut: ContentRecord;
   elevator: ContentRecord;
   localization?: Record<string, Record<string, string>>;
@@ -163,7 +163,7 @@ const credentialEnvironments: Array<{ value: CredentialEnvironment; label: strin
 const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind }> = [
   { value: "icons", label: "Иконки" },
   { value: "blockTypes", label: "Блоки" },
-  { value: "goblinGeneration", label: "Генерация" },
+  { value: "goblins", label: "Гоблины" },
   { value: "goblinHut", label: "Хижина" },
   { value: "elevator", label: "Подъемник" },
   { value: "mineTemplates", label: "Рудники" },
@@ -173,30 +173,12 @@ const contentEntityKindOptions: Array<{ label: string; value: ContentEntityKind 
 ];
 const upgradeCostProductionResourceValue = "__production_resource__";
 
-const goblinClassOptions = [
-  { value: "miner", label: "Шахтер" },
-  { value: "builder", label: "Строитель" },
-  { value: "collector", label: "Сборщик" },
-  { value: "foreman", label: "Бригадир" }
-];
-
-const goblinSpecializationOptions = [
-  { value: "", label: "Без специализации" },
-  { value: "stonebreaker", label: "Камнелом" },
-  { value: "ore_sniffer", label: "Рудный нюх" },
-  { value: "heavy_striker", label: "Тяжеловес" },
-  { value: "warehouse_keeper", label: "Кладовщик" },
-  { value: "resource_expert", label: "Рудный эксперт" },
-  { value: "construction_foreman", label: "Бригадир стройки" },
-  { value: "event", label: "Event" }
-];
-
-const rarityOptions = [
-  { value: "common", label: "Common" },
-  { value: "rare", label: "Rare" },
-  { value: "epic", label: "Epic" },
-  { value: "legendary", label: "Legendary" }
-];
+const goblinRoleOptions = [
+  { value: "miner", label: "Шахтер", statKey: "power", statLabel: "Сила" },
+  { value: "collector", label: "Сборщик", statKey: "speed", statLabel: "Скорость" },
+  { value: "foreman", label: "Бригадир", statKey: "control", statLabel: "Контроль" }
+] as const;
+type AdminGoblinRole = (typeof goblinRoleOptions)[number]["value"];
 
 const goblinScreenSkinFields = [
   { field: "skinScreenBackground", label: "Фон экрана Гоблины", path: ["screenBackground"], defaultAssetId: "ui_goblin_screen_pattern_v1" }
@@ -213,27 +195,40 @@ const ownedGoblinSkinFields = [
     label: "Стрелка доступного апгрейда",
     path: ["ownedCards", "upgradeArrow"],
     defaultAssetId: "ui_owned_goblin_upgrade_arrow_v1"
+  },
+  {
+    field: "skinOwnedStarIcon",
+    label: "Иконка звезды",
+    path: ["ownedCards", "starIcon"],
+    defaultAssetId: "",
+    required: false
   }
 ] as const;
 
 const hireCardSkinFields = [
   { field: "skinTitlePlate", label: "Плашка заголовка", path: ["titlePlate"], defaultAssetId: "ui_hire_title_plate_v1" },
-  { field: "skinCardBaseCommon", label: "Подложка Common", path: ["cardBases", "common"], defaultAssetId: "ui_hire_card_base_common_v1" },
-  { field: "skinCardBaseRare", label: "Подложка Rare", path: ["cardBases", "rare"], defaultAssetId: "ui_hire_card_base_rare_v1" },
-  { field: "skinCardBaseEpic", label: "Подложка Epic", path: ["cardBases", "epic"], defaultAssetId: "ui_hire_card_base_epic_v1" },
-  { field: "skinCardBaseLegendary", label: "Подложка Legendary", path: ["cardBases", "legendary"], defaultAssetId: "ui_hire_card_base_legendary_v1" },
+  { field: "skinCardBase", label: "Подложка карточки", path: ["cardBase"], defaultAssetId: "ui_hire_card_base_common_v1" },
   { field: "skinButtonNormal", label: "Кнопка normal", path: ["buttons", "normal"], defaultAssetId: "ui_hire_button_normal_v1" },
   { field: "skinButtonHover", label: "Кнопка hover", path: ["buttons", "hover"], defaultAssetId: "ui_hire_button_hover_v1" },
   { field: "skinButtonPressed", label: "Кнопка pressed", path: ["buttons", "pressed"], defaultAssetId: "ui_hire_button_pressed_v1" },
   { field: "skinButtonDisabled", label: "Кнопка disabled", path: ["buttons", "disabled"], defaultAssetId: "ui_hire_button_disabled_v1" }
 ] as const;
-const goblinUiSkinFields = [...goblinScreenSkinFields, ...resourceHudSkinFields, ...ownedGoblinSkinFields, ...hireCardSkinFields] as const;
+
+const goblinDetailsModalSkinFields = [
+  {
+    field: "skinDetailsModalBackground",
+    label: "Фон модалки гоблина",
+    path: ["detailsModalBackground"],
+    defaultAssetId: "",
+    required: false
+  }
+] as const;
+const goblinUiSkinFields = [...goblinScreenSkinFields, ...resourceHudSkinFields, ...ownedGoblinSkinFields, ...hireCardSkinFields, ...goblinDetailsModalSkinFields] as const;
 
 const statIconFields = [
-  { field: "statIconStrength", key: "strength", label: "Иконка силы", defaultAssetId: "ui_icon_pickaxe_v1" },
+  { field: "statIconPower", key: "power", label: "Иконка силы", defaultAssetId: "ui_icon_pickaxe_v1" },
   { field: "statIconSpeed", key: "speed", label: "Иконка скорости", defaultAssetId: "ui_icon_boot_v1" },
-  { field: "statIconLuck", key: "luck", label: "Иконка удачи", defaultAssetId: "ui_icon_star_v1" },
-  { field: "statIconLoyalty", key: "loyalty", label: "Иконка лояльности", defaultAssetId: "ui_icon_clock_v1" }
+  { field: "statIconControl", key: "control", label: "Иконка контроля", defaultAssetId: "ui_icon_clock_v1" }
 ] as const;
 
 const controlIconFields = [
@@ -1009,7 +1004,7 @@ function ContentSection(props: {
   sessionToken: string | null;
 }) {
   const [draftToolMessage, setDraftToolMessage] = useState<string | null>(null);
-  const [entityEditorKind, setEntityEditorKind] = useState<ContentEntityKind>("goblinGeneration");
+  const [entityEditorKind, setEntityEditorKind] = useState<ContentEntityKind>("goblins");
   const [selectedEntityId, setSelectedEntityId] = useState("");
   const [showRawJson, setShowRawJson] = useState(false);
   const contentPreview = useMemo(() => parseContentPreview(props.contentJson), [props.contentJson]);
@@ -1251,7 +1246,7 @@ function ContentSection(props: {
             <ContentEntityKpi label="Типы шахт" value={contentEntityCount(contentPreview, "builtMineTypes")} />
             <ContentEntityKpi label="Рудники" value={contentEntityCount(contentPreview, "mineTemplates")} />
             <ContentEntityKpi label="Карты" value={contentEntityCount(contentPreview, "bossCards")} />
-            <ContentEntityKpi label="Генерация" value={contentPreview?.goblinGeneration ? 1 : 0} />
+            <ContentEntityKpi label="Гоблины" value={contentPreview?.goblins ? 1 : 0} />
             <ContentEntityKpi label="Хижина" value={contentPreview?.goblinHut ? 1 : 0} />
             <ContentEntityKpi label="Подъемник" value={contentPreview?.elevator ? 1 : 0} />
           </div>
@@ -1464,45 +1459,26 @@ function renderEntityFields(
     );
   }
 
-  if (kind === "goblinGeneration") {
+  if (kind === "goblins") {
     return (
       <>
         <ContentTextField disabled label="ID" name="id" onChange={updateField} value={formState.id} />
         <ContentTextField label="Название RU" name="title" onChange={updateField} value={formState.title} />
-        <ContentTextAreaField
-          label="Имена, по одному на строку"
-          name="namePoolNames"
-          onChange={updateField}
-          value={formState.namePoolNames}
-        />
-        <ContentTextAreaField
-          label="Прозвища, по одному на строку"
-          name="namePoolNicknames"
-          onChange={updateField}
-          value={formState.namePoolNicknames}
-        />
         <ContentGoblinHireCardSkinFields
           formState={formState}
           sessionToken={sessionToken}
           updateField={updateField}
           updateFields={updateFields}
         />
-        <ContentGoblinGenerationArchetypeRows
+        <ContentGoblinsRoleRows
           content={content}
           formState={formState}
           sessionToken={sessionToken}
           updateFields={updateFields}
         />
-        <ContentTextAreaField
-          label="Архетипы найма JSON"
-          name="archetypesJson"
-          onChange={updateField}
-          value={formState.archetypesJson}
-        />
       </>
     );
   }
-
   if (kind === "elevator") {
     return (
       <>
@@ -1838,7 +1814,7 @@ function ContentGoblinHireCardSkinFields(props: {
         onAdd={() => props.updateFields(Object.fromEntries(ownedGoblinSkinFields.map((item) => [item.field, item.defaultAssetId])))}
         title="UI личных гоблинов"
       >
-        <p className="content-form-note">Эти Asset ID управляют подложкой личного гоблина и стрелкой доступного улучшения.</p>
+        <p className="content-form-note">Эти Asset ID управляют подложкой личного гоблина, стрелкой доступного улучшения и иконкой звезд. Если иконка звезды пустая, игра покажет стандартную звездочку.</p>
         <div className="content-form-grid content-hire-card-skin-grid">{ownedGoblinSkinFields.map(renderSkinField)}</div>
       </ContentNestedSection>
 
@@ -1851,6 +1827,15 @@ function ContentGoblinHireCardSkinFields(props: {
           Эти Asset ID управляют визуальным скином карточек найма. PNG можно заменить загрузкой файла в нужный слот; игра берет картинки через `/api/assets`.
         </p>
         <div className="content-form-grid content-hire-card-skin-grid">{hireCardSkinFields.map(renderSkinField)}</div>
+      </ContentNestedSection>
+
+      <ContentNestedSection
+        addLabel="Заполнить дефолтами"
+        onAdd={() => props.updateFields(Object.fromEntries(goblinDetailsModalSkinFields.map((item) => [item.field, item.defaultAssetId])))}
+        title="UI модалки гоблина"
+      >
+        <p className="content-form-note">Фон используется в окне подробной информации о личном гоблине. Если Asset ID пустой, игра покажет стандартный фон модалки.</p>
+        <div className="content-form-grid content-hire-card-skin-grid">{goblinDetailsModalSkinFields.map(renderSkinField)}</div>
       </ContentNestedSection>
     </>
   );
@@ -1976,44 +1961,6 @@ function ContentTextAreaField(props: {
     <label>
       {props.label}
       <textarea onChange={(event) => props.onChange(props.name, event.target.value)} rows={3} value={props.value ?? ""} />
-    </label>
-  );
-}
-
-function ContentJsonObjectField(props: {
-  label: string;
-  name: string;
-  onChange: (value: ContentRecord) => void;
-  rows?: number;
-  value: ContentRecord;
-}) {
-  const serializedValue = useMemo(() => JSON.stringify(props.value, null, 2), [props.value]);
-  const [draft, setDraft] = useState(serializedValue);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setDraft(serializedValue);
-    setError(null);
-  }, [serializedValue]);
-
-  function handleChange(value: string) {
-    setDraft(value);
-
-    const parsed = parseJsonRecord(value);
-    if (!parsed.ok) {
-      setError("Нужен валидный JSON-объект.");
-      return;
-    }
-
-    setError(null);
-    props.onChange(parsed.value);
-  }
-
-  return (
-    <label>
-      {props.label}
-      <textarea onChange={(event) => handleChange(event.target.value)} rows={props.rows ?? 6} value={draft} />
-      {error ? <span className="content-form-note">{error}</span> : null}
     </label>
   );
 }
@@ -2188,375 +2135,186 @@ function ContentMineUpgradeCostRows(props: {
   );
 }
 
-function ContentGoblinGenerationArchetypeRows(props: {
+function ContentGoblinsRoleRows(props: {
   content: ContentBundle;
   formState: EntityFormState;
   sessionToken: string | null;
   updateFields: (values: EntityFormState) => void;
 }) {
-  const parsed = parseJsonRecordArray(formValue(props.formState, "archetypesJson"));
-  const archetypes = parsed.ok ? parsed.value : [];
-  const resourceOptions = resourceSelectOptions(props.content);
+  const parsed = parseJsonRecordArray(formValue(props.formState, "rolesJson"));
+  const roles = parsed.ok ? normalizeGoblinRoles(parsed.value) : createDefaultGoblinRoles();
 
-  function writeArchetypes(next: ContentRecord[]) {
-    props.updateFields({
-      archetypesJson: JSON.stringify(next, null, 2)
-    });
+  function writeRoles(next: ContentRecord[]) {
+    props.updateFields({ rolesJson: JSON.stringify(normalizeGoblinRoles(next), null, 2) });
   }
 
-  function updateArchetype(index: number, patch: ContentRecord) {
-    const next = [...archetypes];
+  function updateRole(index: number, patch: ContentRecord) {
+    const next = [...roles];
     next[index] = {
       ...(next[index] ?? {}),
       ...patch
     };
-    writeArchetypes(next);
+    writeRoles(next);
   }
 
-  function updateStat(index: number, stat: string, edge: "max" | "min", value: string) {
-    const archetype = archetypes[index] ?? {};
-    const statRanges = recordField(archetype, "statRanges");
-    const currentRange = recordField(statRanges, stat);
-    updateArchetype(index, {
-      statRanges: {
-        ...statRanges,
-        [stat]: {
-          ...currentRange,
-          [edge]: toInteger(value)
-        }
-      }
-    });
+  function updateHireCost(index: number, value: string) {
+    const amount = toInteger(value);
+    updateRole(index, { hireCost: amount > 0 ? [{ amount, resourceId: "gold" }] : [] });
   }
 
-  function updateRarity(index: number, rarity: string, field: "statMultiplier" | "weight", value: string) {
-    const weights = [...arrayField(archetypes[index] ?? {}, "rarityWeights")];
-    const rowIndex = weights.findIndex((row) => stringField(row, "rarity") === rarity);
-    const row = rowIndex >= 0 ? weights[rowIndex] ?? {} : { rarity };
-    const nextRow = {
-      ...row,
-      rarity,
-      [field]: toNumber(value)
+  function updateLevelUpgradeCost(index: number, levelIndex: number, value: string) {
+    updateStar(index, levelIndex, 5, "upgradeCost", value);
+  }
+
+  function updateStar(index: number, levelIndex: number, starIndex: number, field: "statValue" | "upgradeCost", value: string) {
+    const role = roles[index] ?? {};
+    const levels = [...arrayField(role, "levels")];
+    const level = {
+      ...recordAt(levels, levelIndex)
+    };
+    const stars = [...arrayField(level, "stars")];
+    const star: ContentRecord = {
+      ...recordAt(stars, starIndex),
+      stars: starIndex
     };
 
-    if (rowIndex >= 0) {
-      weights[rowIndex] = nextRow;
+    if (field === "statValue") {
+      star.statValue = toInteger(value);
     } else {
-      weights.push(nextRow);
+      const amount = toInteger(value);
+      star.upgradeCost = starIndex === 5 && amount > 0 ? [{ amount, resourceId: "gold" }] : [];
     }
 
-    updateArchetype(index, { rarityWeights: weights });
+    stars[starIndex] = star;
+    level.stars = stars;
+    levels[levelIndex] = level;
+    updateRole(index, { levels });
   }
 
-  function updateHireCost(index: number, costIndex: number, field: "amount" | "resourceId", value: string) {
-    const costs = [...arrayField(archetypes[index] ?? {}, "hireCost")];
-    const row = costs[costIndex] ?? {};
-    costs[costIndex] = {
-      ...row,
-      [field]: field === "amount" ? toInteger(value) : value
-    };
-    updateArchetype(index, { hireCost: costs });
-  }
-
-  function addHireCost(index: number) {
-    const costs = [...arrayField(archetypes[index] ?? {}, "hireCost")];
-    costs.push({
-      amount: 100,
-      resourceId: resourceOptions[0]?.value ?? "gold"
-    });
-    updateArchetype(index, { hireCost: costs });
-  }
-
-  function removeHireCost(index: number, costIndex: number) {
-    const costs = arrayField(archetypes[index] ?? {}, "hireCost").filter((_, itemIndex) => itemIndex !== costIndex);
-    updateArchetype(index, { hireCost: costs });
-  }
-
-  function updateRender(index: number, renderIndex: number, field: "assetId" | "rarity" | "weight", value: string) {
-    const renders = [...arrayField(archetypes[index] ?? {}, "renderPool")];
-    const row = renders[renderIndex] ?? {};
-    const nextRow: ContentRecord = {
-      ...row,
-      [field]: field === "weight" ? toNumber(value) : value
-    };
-
-    if (field === "rarity" && !value) {
-      Reflect.deleteProperty(nextRow, "rarity");
-    }
-
-    renders[renderIndex] = nextRow;
-    updateArchetype(index, { renderPool: renders });
-  }
-
-  function updateSpecialization(index: number, value: string) {
-    const next = [...archetypes];
-    const nextArchetype = {
-      ...(next[index] ?? {})
-    };
-
-    if (value) {
-      nextArchetype.specialization = value;
-    } else {
-      Reflect.deleteProperty(nextArchetype, "specialization");
-    }
-
-    next[index] = nextArchetype;
-    writeArchetypes(next);
-  }
-
-  function addRender(index: number) {
-    const renders = [...arrayField(archetypes[index] ?? {}, "renderPool")];
-    renders.push({
-      assetId: "",
-      weight: 10
-    });
-    updateArchetype(index, { renderPool: renders });
-  }
-
-  function removeRender(index: number, renderIndex: number) {
-    const renders = arrayField(archetypes[index] ?? {}, "renderPool").filter((_, itemIndex) => itemIndex !== renderIndex);
-    updateArchetype(index, { renderPool: renders });
-  }
-
-  function addArchetype() {
-    const goblinClass = "miner";
-    const id = uniqueContentId(`random_${goblinClass}_contract`, archetypes);
-    const nextArchetype: ContentRecord = {
-      ability: defaultGoblinGenerationAbility(goblinClass),
-      class: goblinClass,
-      equipmentSlots: defaultGoblinGenerationEquipmentSlots(goblinClass),
-      hireCost: [{ amount: 100, resourceId: resourceOptions[0]?.value ?? "gold" }],
-      id,
-      leveling: defaultGoblinGenerationLeveling(goblinClass),
-      nameKey: `goblin_generation.${id}.name`,
-      rarityWeights: defaultGoblinGenerationRarityWeights(),
-      renderPool: [],
-      sortOrder: nextSortOrder(archetypes),
-      statRanges: defaultGoblinGenerationStatRanges(),
-      traitPool: []
-    };
-
-    writeArchetypes([
-      ...archetypes,
-      nextArchetype
-    ]);
+  function addLevel(index: number) {
+    const role = roles[index] ?? {};
+    const levels = [...arrayField(role, "levels")];
+    const previousLevel = recordAt(levels, levels.length - 1);
+    const previousStars = arrayField(previousLevel, "stars");
+    const previousStat = numberField(recordAt(previousStars, previousStars.length - 1), "statValue", 5);
+    const nextLevel = levels.length + 1;
+    levels.push(createGoblinRoleLevel(nextLevel, previousStat + 2, 250 * nextLevel * nextLevel));
+    updateRole(index, { levels });
   }
 
   if (!parsed.ok) {
     return (
-      <ContentNestedSection addLabel="Добавить контракт" onAdd={addArchetype} title="Контракты случайных гоблинов">
-        <p className="content-form-note">JSON архетипов сейчас невалидный. Исправь JSON ниже или добавь новый контракт.</p>
+      <ContentNestedSection title="Роли гоблинов">
+        <p className="content-form-note">JSON ролей сейчас невалидный. Пересоздай роли дефолтом или исправь draft.</p>
+        <button onClick={() => writeRoles(createDefaultGoblinRoles())} type="button">Пересоздать роли</button>
       </ContentNestedSection>
     );
   }
 
   return (
-    <ContentNestedSection addLabel="Добавить контракт" onAdd={addArchetype} title="Контракты случайных гоблинов">
-      {archetypes.map((archetype, index) => {
-        const hireCosts = arrayField(archetype, "hireCost");
-        const rarityWeights = normalizedGoblinGenerationRarityWeights(archetype);
-        const statRanges = recordField(archetype, "statRanges");
+    <ContentNestedSection title="Роли гоблинов">
+      {roles.map((role, index) => {
+        const roleId = stringField(role, "role") as AdminGoblinRole;
+        const roleOption = goblinRoleOption(roleId);
+        const levels = arrayField(role, "levels");
+        const hireCost = resourceAmountField(arrayField(role, "hireCost"), "gold");
 
         return (
-          <div className="content-list-row content-list-row-wide content-generation-archetype" key={`${stringField(archetype, "id") || "archetype"}-${index}`}>
+          <div className="content-list-row content-list-row-wide content-goblins-role" key={roleOption.value}>
             <div className="content-form-grid">
+              <ContentTextField disabled label="ID" name={`goblinRoleId_${index}`} onChange={() => undefined} value={stringField(role, "id") || roleOption.value} />
+              <ContentTextField disabled label="Роль" name={`goblinRole_${index}`} onChange={() => undefined} value={roleOption.label} />
               <ContentTextField
-                label="ID"
-                name={`goblinGenerationArchetypeId_${index}`}
-                onChange={(_, value) => updateArchetype(index, { id: value })}
-                value={stringField(archetype, "id")}
+                label="Asset ID"
+                name={`goblinRoleAsset_${index}`}
+                onChange={(_, value) => updateRole(index, { assetId: value })}
+                value={stringField(role, "assetId")}
               />
-              <ContentSelectField
-                label="Класс"
-                name={`goblinGenerationArchetypeClass_${index}`}
-                onChange={(_, value) =>
-                  updateArchetype(index, {
-                    ability: defaultGoblinGenerationAbility(value),
-                    class: value,
-                    equipmentSlots: defaultGoblinGenerationEquipmentSlots(value),
-                    leveling: defaultGoblinGenerationLeveling(value)
-                  })
-                }
-                options={goblinClassOptions}
-                value={stringField(archetype, "class") || "miner"}
-              />
-              <ContentSelectField
-                label="Специализация"
-                name={`goblinGenerationArchetypeSpecialization_${index}`}
-                onChange={(_, value) => updateSpecialization(index, value)}
-                options={goblinSpecializationOptions}
-                value={stringField(archetype, "specialization")}
-              />
-              <ContentTextField
-                label="Порядок"
-                name={`goblinGenerationArchetypeSort_${index}`}
-                onChange={(_, value) => updateArchetype(index, { sortOrder: toInteger(value) })}
-                type="number"
-                value={numberString(numberField(archetype, "sortOrder", 0))}
+              <ContentTextField disabled label="Основной стат" name={`goblinRoleStatKey_${index}`} onChange={() => undefined} value={`${roleOption.statLabel} · ${roleOption.statKey}`} />
+              <ContentAssetUploadField
+                assetId={stringField(role, "assetId")}
+                label={`${roleOption.label}: картинка`}
+                onAssetIdChange={(assetId) => updateRole(index, { assetId })}
+                token={props.sessionToken}
+                uploadLabel="Загрузить PNG"
               />
             </div>
 
-            <div className="content-form-grid">
-              {["strength", "speed", "luck", "loyalty"].map((stat) => {
-                const range = recordField(statRanges, stat);
+            <ContentNestedSection addLabel="Добавить уровень" onAdd={() => addLevel(index)} title={`${roleOption.label}: уровни и звезды`}>
+              <div className="content-goblins-level-table-wrap">
+                <table className="content-goblins-level-table">
+                  <thead>
+                    <tr>
+                      <th>Уровень</th>
+                      <th>Найм</th>
+                      <th>Улучшение</th>
+                      <th>0★</th>
+                      <th>1★</th>
+                      <th>2★</th>
+                      <th>3★</th>
+                      <th>4★</th>
+                      <th>5★</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {levels.map((level, levelIndex) => {
+                      const stars = arrayField(level, "stars");
+                      const fiveStar = recordAt(stars, 5);
+                      const levelNumber = numberField(level, "level", levelIndex + 1);
 
-                return (
-                  <div className="content-generation-stat" key={stat}>
-                    <strong>{statLabel(stat)}</strong>
-                    <ContentTextField
-                      label="От"
-                      name={`goblinGeneration${stat}Min_${index}`}
-                      onChange={(_, value) => updateStat(index, stat, "min", value)}
-                      type="number"
-                      value={numberString(numberField(range, "min", 1))}
-                    />
-                    <ContentTextField
-                      label="До"
-                      name={`goblinGeneration${stat}Max_${index}`}
-                      onChange={(_, value) => updateStat(index, stat, "max", value)}
-                      type="number"
-                      value={numberString(numberField(range, "max", 1))}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+                      return (
+                        <tr key={`${roleOption.value}-${levelNumber}`}>
+                          <td>
+                            <strong>{levelNumber}</strong>
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`${roleOption.label}: найм ${levelNumber} уровня`}
+                              disabled={levelIndex > 0}
+                              min="0"
+                              onChange={(event) => updateHireCost(index, event.target.value)}
+                              type="number"
+                              value={levelIndex === 0 ? numberString(hireCost) : "0"}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              aria-label={`${roleOption.label}: улучшение до ${levelNumber + 1} уровня`}
+                              disabled={levelIndex >= levels.length - 1}
+                              min="0"
+                              onChange={(event) => updateLevelUpgradeCost(index, levelIndex, event.target.value)}
+                              type="number"
+                              value={levelIndex >= levels.length - 1 ? "0" : numberString(resourceAmountField(arrayField(fiveStar, "upgradeCost"), "gold"))}
+                            />
+                          </td>
+                          {Array.from({ length: 6 }, (_, starIndex) => {
+                            const star = recordAt(stars, starIndex);
 
-            <div className="content-form-grid">
-              {rarityWeights.map((rarity) => (
-                <div className="content-generation-rarity" key={stringField(rarity, "rarity")}>
-                  <strong>{stringField(rarity, "rarity")}</strong>
-                  <ContentTextField
-                    label="Вес"
-                    name={`goblinGenerationRarityWeight_${index}_${stringField(rarity, "rarity")}`}
-                    onChange={(_, value) => updateRarity(index, stringField(rarity, "rarity"), "weight", value)}
-                    type="number"
-                    value={numberString(numberField(rarity, "weight", 0))}
-                  />
-                  <ContentTextField
-                    label="Множитель статов"
-                    name={`goblinGenerationRarityMultiplier_${index}_${stringField(rarity, "rarity")}`}
-                    onChange={(_, value) => updateRarity(index, stringField(rarity, "rarity"), "statMultiplier", value)}
-                    type="number"
-                    value={numberString(numberField(rarity, "statMultiplier", 1))}
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="content-form-grid">
-              <ContentJsonObjectField
-                label="Умение JSON"
-                name={`goblinGenerationAbility_${index}`}
-                onChange={(value) => updateArchetype(index, { ability: value })}
-                rows={7}
-                value={recordField(archetype, "ability")}
-              />
-              <ContentJsonObjectField
-                label="Прокачка JSON"
-                name={`goblinGenerationLeveling_${index}`}
-                onChange={(value) => updateArchetype(index, { leveling: value })}
-                rows={7}
-                value={recordField(archetype, "leveling")}
-              />
-            </div>
-
-            <ContentNestedSection addLabel="Добавить рендер" onAdd={() => addRender(index)} title="Пул рендеров">
-              {arrayField(archetype, "renderPool").length > 0 ? (
-                arrayField(archetype, "renderPool").map((render, renderIndex) => (
-                  <div className="content-list-row content-list-row-wide content-generation-render" key={`${index}-render-${renderIndex}`}>
-                    <ContentTextField
-                      label="Asset ID"
-                      name={`goblinGenerationRenderAsset_${index}_${renderIndex}`}
-                      onChange={(_, value) => updateRender(index, renderIndex, "assetId", value)}
-                      value={stringField(render, "assetId")}
-                    />
-                    <ContentSelectField
-                      label="Редкость"
-                      name={`goblinGenerationRenderRarity_${index}_${renderIndex}`}
-                      onChange={(_, value) => updateRender(index, renderIndex, "rarity", value)}
-                      options={[{ value: "", label: "Любая" }, ...rarityOptions]}
-                      value={stringField(render, "rarity")}
-                    />
-                    <ContentTextField
-                      label="Вес"
-                      name={`goblinGenerationRenderWeight_${index}_${renderIndex}`}
-                      onChange={(_, value) => updateRender(index, renderIndex, "weight", value)}
-                      type="number"
-                      value={numberString(numberField(render, "weight", 10))}
-                    />
-                    <button onClick={() => removeRender(index, renderIndex)} type="button">
-                      Убрать
-                    </button>
-                    <ContentAssetUploadField
-                      assetId={stringField(render, "assetId")}
-                      label="Загрузка рендера"
-                      onAssetIdChange={(assetId) => updateRender(index, renderIndex, "assetId", assetId)}
-                      token={props.sessionToken}
-                    />
-                  </div>
-                ))
-              ) : (
-                <p className="content-form-note">Пул рендеров обязателен: добавь хотя бы один Asset ID перед публикацией.</p>
-              )}
+                            return (
+                              <td key={`${levelNumber}-${starIndex}`}>
+                                <input
+                                  aria-label={`${roleOption.label}: ${roleOption.statLabel}, ${levelNumber} уровень, ${starIndex} звезд`}
+                                  min="1"
+                                  onChange={(event) => updateStar(index, levelIndex, starIndex, "statValue", event.target.value)}
+                                  type="number"
+                                  value={numberString(numberField(star, "statValue", 5))}
+                                />
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </ContentNestedSection>
-
-            <ContentNestedSection addLabel="Добавить цену" onAdd={() => addHireCost(index)} title="Стоимость контракта">
-              {hireCosts.length > 0 ? (
-                hireCosts.map((cost, costIndex) => (
-                  <div className="content-list-row" key={`${index}-hire-cost-${costIndex}`}>
-                    <ContentSelectField
-                      label="Ресурс"
-                      name={`goblinGenerationHireCostResource_${index}_${costIndex}`}
-                      onChange={(_, value) => updateHireCost(index, costIndex, "resourceId", value)}
-                      options={resourceOptions}
-                      value={stringField(cost, "resourceId")}
-                    />
-                    <ContentTextField
-                      label="Кол-во"
-                      name={`goblinGenerationHireCostAmount_${index}_${costIndex}`}
-                      onChange={(_, value) => updateHireCost(index, costIndex, "amount", value)}
-                      type="number"
-                      value={numberString(numberField(cost, "amount", 0))}
-                    />
-                    <button onClick={() => removeHireCost(index, costIndex)} type="button">
-                      Убрать
-                    </button>
-                  </div>
-                ))
-              ) : (
-                <p className="content-form-note">Первый найм нового игрока все равно будет бесплатным.</p>
-              )}
-            </ContentNestedSection>
-
-            <ContentTextField
-              label="Слоты предметов через запятую"
-              name={`goblinGenerationEquipmentSlots_${index}`}
-              onChange={(_, value) =>
-                updateArchetype(index, {
-                  equipmentSlots: value
-                    .split(",")
-                    .map((item) => item.trim())
-                    .filter(Boolean)
-                })
-              }
-              value={arrayStringField(archetype, "equipmentSlots").join(", ")}
-            />
-            <ContentTextAreaField
-              label="Черты, формат id:weight:nameKey"
-              name={`goblinGenerationTraits_${index}`}
-              onChange={(_, value) => updateArchetype(index, { traitPool: parseGoblinGenerationTraitLines(value) })}
-              value={goblinGenerationTraitLines(arrayField(archetype, "traitPool"))}
-            />
-            <button onClick={() => writeArchetypes(archetypes.filter((_, itemIndex) => itemIndex !== index))} type="button">
-              Удалить контракт
-            </button>
           </div>
         );
       })}
     </ContentNestedSection>
   );
 }
-
 function ContentGoblinHutLevelRows(props: {
   content: ContentBundle;
   formState: EntityFormState;
@@ -2570,7 +2328,7 @@ function ContentGoblinHutLevelRows(props: {
       addLabel="Добавить уровень"
       onAdd={() =>
         props.updateFields({
-          [`levelClasses_${count}`]: "miner, builder, collector",
+          [`levelRoles_${count}`]: "miner, collector, foreman",
           [`levelCostCopper_${count}`]: "0",
           [`levelCostGold_${count}`]: "0",
           [`levelCostIron_${count}`]: "0",
@@ -2592,7 +2350,7 @@ function ContentGoblinHutLevelRows(props: {
           <ContentTextField label="Ур." name={`levelLevel_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelLevel_${index}`]} />
           <ContentTextField label="Название RU" name={`levelTitle_${index}`} onChange={props.updateField} value={props.formState[`levelTitle_${index}`]} />
           <ContentTextField label="Лимит" name={`levelMaxHired_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelMaxHired_${index}`]} />
-          <ContentTextField label="Роли" name={`levelClasses_${index}`} onChange={props.updateField} value={props.formState[`levelClasses_${index}`]} />
+          <ContentTextField label="Роли" name={`levelRoles_${index}`} onChange={props.updateField} value={props.formState[`levelRoles_${index}`]} />
           <ContentTextField label="Скидка найма %" name={`levelHireDiscountPercent_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelHireDiscountPercent_${index}`]} />
           <ContentTextField label="Скидка прокачки %" name={`levelUpgradeDiscountPercent_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelUpgradeDiscountPercent_${index}`]} />
           <ContentTextField label="Золото" name={`levelCostGold_${index}`} onChange={props.updateField} type="number" value={props.formState[`levelCostGold_${index}`]} />
@@ -3124,13 +2882,13 @@ function ContentEntityKpi(props: { label: string; value: number }) {
 
 function ContentEntityPreview(props: { content: ContentBundle }) {
   const ru = props.content.localization?.ru ?? {};
-  const archetypes = arrayField(props.content.goblinGeneration ?? {}, "archetypes").slice(-3).reverse();
+  const goblins = arrayField(props.content.goblins ?? {}, "roles").slice(-3).reverse();
   const mines = props.content.mineTemplates.slice(-3).reverse();
   const builtMineTypes = (props.content.builtMineTypes ?? []).slice(-3).reverse();
 
   return (
     <div className="content-entity-preview">
-      <ContentEntityColumn items={archetypes} label="Контракты гоблинов" localization={ru} />
+      <ContentEntityColumn items={goblins} label="Гоблины" localization={ru} />
       <ContentEntityColumn items={mines} label="Последние рудники" localization={ru} />
       <ContentEntityColumn items={builtMineTypes} label="Типы шахт" localization={ru} />
     </div>
@@ -3305,7 +3063,7 @@ export function addDraftBlockTypeTemplate(content: ContentBundle): DraftContentT
     specialBehavior: "none"
   };
   const localization = {
-    [nameKey]: "Новый блок"
+    [nameKey]: "\u041d\u043e\u0432\u044b\u0439 \u0431\u043b\u043e\u043a"
   };
 
   return {
@@ -3352,7 +3110,7 @@ export function addDraftMineTemplate(content: ContentBundle): DraftContentToolRe
     entity.depthProgressReward = sourceDepthProgressReward;
   }
   const localization = {
-    [displayNameKey]: "Новый рудник"
+    [displayNameKey]: "\u041d\u043e\u0432\u044b\u0439 \u0440\u0443\u0434\u043d\u0438\u043a"
   };
 
   return {
@@ -3399,7 +3157,7 @@ function addDraftBuiltMineTypeTemplate(content: ContentBundle): DraftContentTool
     assetId: `built_mine_${id}_v1`
   };
   const localization = {
-    [nameKey]: "Новая постоянная шахта"
+    [nameKey]: "\u041d\u043e\u0432\u0430\u044f \u043f\u043e\u0441\u0442\u043e\u044f\u043d\u043d\u0430\u044f \u0448\u0430\u0445\u0442\u0430"
   };
 
   return {
@@ -3434,7 +3192,7 @@ export function addDraftRewardChestTypeTemplate(content: ContentBundle): DraftCo
     assetId: `reward_chest_${id}_v1`
   };
   const localization = {
-    [nameKey]: "Новый сундук"
+    [nameKey]: "\u041d\u043e\u0432\u044b\u0439 \u0441\u0443\u043d\u0434\u0443\u043a"
   };
 
   return {
@@ -3473,8 +3231,8 @@ export function addDraftBossCardTemplate(content: ContentBundle): DraftContentTo
     sortOrder: nextSortOrder(bossCards)
   };
   const localization = {
-    [nameKey]: "Новая карта босса",
-    [descriptionKey]: "Черновая карта для настройки бонуса босса."
+    [nameKey]: "\u041d\u043e\u0432\u0430\u044f \u043a\u0430\u0440\u0442\u0430 \u0431\u043e\u0441\u0441\u0430",
+    [descriptionKey]: "\u0427\u0435\u0440\u043d\u043e\u0432\u0430\u044f \u043a\u0430\u0440\u0442\u0430 \u0434\u043b\u044f \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438 \u0431\u043e\u043d\u0443\u0441\u0430 \u0431\u043e\u0441\u0441\u0430."
   };
 
   return {
@@ -3498,7 +3256,7 @@ function isContentBundleLike(value: unknown): value is ContentBundle {
     Array.isArray(value.resources) &&
     Array.isArray(value.blockTypes) &&
     Array.isArray(value.mineTemplates) &&
-    isRecord(value.goblinGeneration) &&
+    isRecord(value.goblins) &&
     isRecord(value.goblinHut) &&
     isRecord(value.elevator)
   );
@@ -3591,13 +3349,13 @@ function getContentEntityItems(content: ContentBundle, kind: ContentEntityKind):
       return content.builtMineTypes ?? [];
     case "elevator":
       return [content.elevator ?? { id: "default", nameKey: "elevator.name", levels: [] }];
-    case "goblinGeneration":
+    case "goblins":
       return [
-        content.goblinGeneration ?? {
-          archetypes: [],
+        content.goblins ?? {
           id: "default",
-          nameKey: "goblin_generation.name",
-          namePool: { names: [], nicknames: [] }
+          nameKey: "goblins.name",
+          roles: createDefaultGoblinRoles(),
+          skin: {}
         }
       ];
     case "goblinHut":
@@ -3624,8 +3382,8 @@ function createEntityFormState(kind: ContentEntityKind, entity: ContentRecord, c
     return createBossCardFormState(entity, content);
   }
 
-  if (kind === "goblinGeneration") {
-    return createGoblinGenerationFormState(entity, content);
+  if (kind === "goblins") {
+    return createGoblinsFormState(entity, content);
   }
 
   if (kind === "goblinHut") {
@@ -3651,7 +3409,6 @@ function createIconsFormState(entity: ContentRecord, content: ContentBundle): En
   const controls = recordField(entity, "controls");
   const resources = recordField(entity, "resources");
   const stats = recordField(entity, "stats");
-  const fallbackIcons = recordField(recordField(content.goblinGeneration ?? {}, "hireCardSkin"), "icons");
   const state: EntityFormState = {
     id: "default",
     title: "Иконки"
@@ -3663,7 +3420,7 @@ function createIconsFormState(entity: ContentRecord, content: ContentBundle): En
   }
 
   for (const item of statIconFields) {
-    state[item.field] = stringField(stats, item.key) || stringField(fallbackIcons, item.key) || item.defaultAssetId;
+    state[item.field] = stringField(stats, item.key) || item.defaultAssetId;
   }
 
   for (const item of controlIconFields) {
@@ -3688,17 +3445,14 @@ function createBlockTypeFormState(entity: ContentRecord, content: ContentBundle)
   };
 }
 
-function createGoblinGenerationFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
-  const namePool = recordField(entity, "namePool");
-  const hireCardSkin = recordField(entity, "hireCardSkin");
+function createGoblinsFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
+  const skin = recordField(entity, "skin");
 
   return {
-    archetypesJson: JSON.stringify(arrayField(entity, "archetypes"), null, 2),
     id: stringField(entity, "id") || "default",
-    namePoolNames: arrayStringField(namePool, "names").join("\n"),
-    namePoolNicknames: arrayStringField(namePool, "nicknames").join("\n"),
+    rolesJson: JSON.stringify(normalizeGoblinRoles(arrayField(entity, "roles")), null, 2),
     title: localizationValue(content, stringField(entity, "nameKey")),
-    ...createGoblinHireCardSkinFormState(hireCardSkin)
+    ...createGoblinHireCardSkinFormState(skin)
   };
 }
 
@@ -3706,6 +3460,84 @@ function createGoblinHireCardSkinFormState(hireCardSkin: ContentRecord): EntityF
   return Object.fromEntries(
     goblinUiSkinFields.map((item) => [item.field, stringFieldAtPath(hireCardSkin, item.path) || item.defaultAssetId])
   );
+}
+
+function createDefaultGoblinRoles(): ContentRecord[] {
+  return goblinRoleOptions.map((role, index) => ({
+    assetId: `goblin_hire_${role.value}_v1`,
+    descriptionKey: `goblin.${role.value}.description`,
+    hireCost: role.value === "miner" ? [] : [{ amount: role.value === "collector" ? 300 : 900, resourceId: "gold" }],
+    id: role.value,
+    levels: [
+      createGoblinRoleLevel(1, 5, 100 + index * 40),
+      createGoblinRoleLevel(2, 12, 500 + index * 120),
+      createGoblinRoleLevel(3, 26, 1400 + index * 220)
+    ],
+    nameKey: `goblin.${role.value}.name`,
+    role: role.value,
+    sortOrder: (index + 1) * 10,
+    statKey: role.statKey,
+    statNameKey: `goblin.stat.${role.statKey}`,
+    unlockRequirements: role.value === "miner" ? [] : role.value === "collector" ? [{ type: "built_mines_count", value: 1 }] : [{ type: "built_mines_count", value: 2 }]
+  }));
+}
+
+function createGoblinRoleLevel(level: number, baseStat: number, baseUpgradeCost: number): ContentRecord {
+  return {
+    level,
+    stars: Array.from({ length: 6 }, (_, star) => ({
+      modifiers: [],
+      stars: star,
+      statValue: baseStat + star * Math.max(1, Math.ceil(level / 2)),
+      upgradeCost: star === 5 ? [{ amount: Math.round(baseUpgradeCost * level), resourceId: "gold" }] : []
+    }))
+  };
+}
+
+function normalizeGoblinRoles(roles: ContentRecord[]): ContentRecord[] {
+  const byRole = new Map(roles.map((role) => [stringField(role, "role"), role]));
+
+  return goblinRoleOptions.map((role, index) => {
+    const current = byRole.get(role.value) ?? {};
+    const currentLevels = normalizeGoblinRoleLevels(arrayField(current, "levels"));
+
+    return {
+      ...createDefaultGoblinRoles()[index],
+      ...current,
+      id: role.value,
+      levels: currentLevels.length > 0 ? currentLevels : arrayField(recordAt(createDefaultGoblinRoles(), index), "levels"),
+      role: role.value,
+      sortOrder: numberField(current, "sortOrder", (index + 1) * 10),
+      statKey: role.statKey,
+      statNameKey: stringField(current, "statNameKey") || `goblin.stat.${role.statKey}`
+    };
+  });
+}
+
+function normalizeGoblinRoleLevels(levels: ContentRecord[]): ContentRecord[] {
+  return levels
+    .map((level, index) => ({
+      ...level,
+      level: numberField(level, "level", index + 1),
+      stars: normalizeGoblinStars(arrayField(level, "stars"))
+    }))
+    .sort((left, right) => numberField(left, "level", 0) - numberField(right, "level", 0));
+}
+
+function normalizeGoblinStars(stars: ContentRecord[]): ContentRecord[] {
+  const byRank = new Map(stars.map((star) => [numberField(star, "stars", 0), star]));
+
+  return Array.from({ length: 6 }, (_, rank) => ({
+    modifiers: [],
+    ...(byRank.get(rank) ?? {}),
+    stars: rank,
+    statValue: Math.max(1, numberField(byRank.get(rank) ?? {}, "statValue", 5)),
+    upgradeCost: rank === 5 ? arrayField(byRank.get(rank) ?? {}, "upgradeCost") : []
+  }));
+}
+
+function goblinRoleOption(role: string): (typeof goblinRoleOptions)[number] {
+  return goblinRoleOptions.find((option) => option.value === role) ?? goblinRoleOptions[0];
 }
 
 function createGoblinHutFormState(entity: ContentRecord, content: ContentBundle): EntityFormState {
@@ -3727,7 +3559,7 @@ function createGoblinHutFormState(entity: ContentRecord, content: ContentBundle)
     state[`levelLevel_${index}`] = numberString(numberField(level, "level", index + 1));
     state[`levelTitle_${index}`] = localizationValue(content, stringField(level, "nameKey"));
     state[`levelMaxHired_${index}`] = numberString(numberField(level, "maxHiredGoblins", 1));
-    state[`levelClasses_${index}`] = arrayStringField(level, "unlockedClasses").join(", ");
+    state[`levelRoles_${index}`] = arrayStringField(level, "unlockedRoles").join(", ");
     state[`levelHireDiscountPercent_${index}`] = numberString(multiplierReductionToPercent(numberField(level, "hireCostMultiplier", 1)));
     state[`levelUpgradeDiscountPercent_${index}`] = numberString(multiplierReductionToPercent(numberField(level, "upgradeCostMultiplier", 1)));
     state[`levelCostGold_${index}`] = numberString(resourceAmountField(upgradeCost, "gold"));
@@ -3997,8 +3829,8 @@ function validateEntityForm(
     validateBlockTypeForm(state, content, errors);
   } else if (kind === "bossCards") {
     validateBossCardForm(state, content, errors);
-  } else if (kind === "goblinGeneration") {
-    validateGoblinGenerationForm(state, content, errors);
+  } else if (kind === "goblins") {
+    validateGoblinsForm(state, content, errors);
   } else if (kind === "goblinHut") {
     validateGoblinHutForm(state, content, errors);
   } else if (kind === "elevator") {
@@ -4054,129 +3886,115 @@ function validateBlockTypeForm(state: EntityFormState, content: ContentBundle, e
   validateRewardRows(state, "reward", content, errors);
 }
 
-function validateGoblinGenerationForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
-  const names = parseLineList(formValue(state, "namePoolNames"));
-  const nicknames = parseLineList(formValue(state, "namePoolNicknames"));
-  const archetypes = parseJsonRecordArray(formValue(state, "archetypesJson"));
-  const resources = resourceIdSet(content);
-
-  if (names.length === 0) {
-    errors.push("Пул имен должен содержать хотя бы одно имя.");
-  }
-
-  if (nicknames.length === 0) {
-    errors.push("Пул прозвищ должен содержать хотя бы одно прозвище.");
-  }
-
+function validateGoblinsForm(state: EntityFormState, _content: ContentBundle, errors: string[]) {
   for (const field of goblinUiSkinFields) {
+    if ("required" in field && field.required === false) {
+      continue;
+    }
+
     if (!formValue(state, field.field).trim()) {
       errors.push(`${field.label}: Asset ID обязателен.`);
     }
   }
 
-  if (!archetypes.ok) {
-    errors.push("Архетипы найма должны быть валидным JSON-массивом.");
+  const parsed = parseJsonRecordArray(formValue(state, "rolesJson"));
+  if (!parsed.ok) {
+    errors.push("Роли гоблинов должны быть валидным JSON-массивом.");
     return;
   }
 
-  for (const archetype of archetypes.value) {
-    const id = stringField(archetype, "id");
-    const specialization = stringField(archetype, "specialization");
+  const roles = normalizeGoblinRoles(parsed.value);
+  const seenRoles = new Set<string>();
 
-    if (!id) {
-      errors.push("У каждого архетипа должен быть id.");
+  for (const role of roles) {
+    const roleId = stringField(role, "role");
+    const roleOption = goblinRoleOption(roleId);
+
+    if (seenRoles.has(roleId)) {
+      errors.push(`Роль ${roleId}: дубль роли.`);
+    }
+    seenRoles.add(roleId);
+
+    if (stringField(role, "id") !== roleOption.value) {
+      errors.push(`${roleOption.label}: ID должен совпадать с ролью.`);
     }
 
-    if (specialization && !goblinSpecializationOptions.some((option) => option.value === specialization)) {
-      errors.push(`Архетип ${id || "без id"}: специализация ${specialization} не найдена.`);
+    if (stringField(role, "statKey") !== roleOption.statKey) {
+      errors.push(`${roleOption.label}: основной параметр должен быть ${roleOption.statKey}.`);
     }
 
-    validateGoblinGenerationAbility(archetype, id, resources, errors);
-    validateGoblinGenerationLeveling(archetype, id, resources, errors);
+    if (!stringField(role, "assetId")) {
+      errors.push(`${roleOption.label}: Asset ID картинки обязателен.`);
+    }
 
-    for (const cost of arrayField(archetype, "hireCost")) {
-      const resourceId = stringField(cost, "resourceId");
-
-      if (resourceId && !resources.has(resourceId)) {
-        errors.push(`Архетип ${id || "без id"}: ресурс найма ${resourceId} не найден.`);
+    for (const cost of arrayField(role, "hireCost")) {
+      if (stringField(cost, "resourceId") !== "gold") {
+        errors.push(`${roleOption.label}: найм должен стоить только золото.`);
       }
     }
 
-    for (const render of arrayField(archetype, "renderPool")) {
-      const assetId = stringField(render, "assetId");
-      const renderRarity = stringField(render, "rarity");
+    validateGoblinRoleLevels(roleOption, arrayField(role, "levels"), errors);
+  }
+}
 
-      if (!assetId) {
-        errors.push(`Архетип ${id || "без id"}: у рендера должен быть Asset ID.`);
+function validateGoblinRoleLevels(roleOption: (typeof goblinRoleOptions)[number], levels: ContentRecord[], errors: string[]) {
+  const seenLevels = new Set<number>();
+
+  for (let levelIndex = 0; levelIndex < levels.length; levelIndex += 1) {
+    const level = recordAt(levels, levelIndex);
+    const levelNumber = numberField(level, "level", levelIndex + 1);
+    const stars = arrayField(level, "stars");
+
+    if (seenLevels.has(levelNumber)) {
+      errors.push(`${roleOption.label}: уровень ${levelNumber} повторяется.`);
+    }
+    seenLevels.add(levelNumber);
+
+    if (stars.length !== 6) {
+      errors.push(`${roleOption.label}: уровень ${levelNumber} должен иметь 6 рангов звезд.`);
+    }
+
+    const seenStars = new Set<number>();
+    for (const star of stars) {
+      const rank = numberField(star, "stars", 0);
+      seenStars.add(rank);
+
+      if (rank < 0 || rank > 5) {
+        errors.push(`${roleOption.label}: уровень ${levelNumber} имеет некорректную звезду ${rank}.`);
       }
 
-      if (numberField(render, "weight", 0) <= 0) {
-        errors.push(`Архетип ${id || "без id"}: вес рендера должен быть больше 0.`);
+      if (numberField(star, "statValue", 0) <= 0) {
+        errors.push(`${roleOption.label}: уровень ${levelNumber}, звезда ${rank}: ${roleOption.statLabel} должен быть больше 0.`);
       }
 
-      if (renderRarity && !rarityOptions.some((option) => option.value === renderRarity)) {
-        errors.push(`Архетип ${id || "без id"}: редкость рендера ${renderRarity} не найдена.`);
+      if (rank < 5 && arrayField(star, "upgradeCost").length > 0) {
+        errors.push(`${roleOption.label}: уровень ${levelNumber}, звезда ${rank}: стоимость должна быть пустой, звезды получаются объединением.`);
+      }
+
+      for (const cost of arrayField(star, "upgradeCost")) {
+        if (stringField(cost, "resourceId") !== "gold") {
+          errors.push(`${roleOption.label}: улучшение должно стоить только золото.`);
+        }
+      }
+    }
+
+    for (let rank = 0; rank <= 5; rank += 1) {
+      if (!seenStars.has(rank)) {
+        errors.push(`${roleOption.label}: уровень ${levelNumber} пропускает звезду ${rank}.`);
       }
     }
   }
 }
-
-function validateGoblinGenerationAbility(archetype: ContentRecord, id: string, resources: Set<string>, errors: string[]) {
-  const ability = recordField(archetype, "ability");
-  const label = `Архетип ${id || "без id"}`;
-
-  if (Object.keys(ability).length === 0) {
-    errors.push(`${label}: ability обязателен в генерации.`);
-    return;
-  }
-
-  for (const field of ["id", "nameKey", "descriptionKey"]) {
-    if (!stringField(ability, field)) {
-      errors.push(`${label}: ability.${field} обязателен.`);
-    }
-  }
-
-  for (const effect of arrayField(ability, "effects")) {
-    const effectResourceId = stringField(effect, "resourceId");
-
-    if (effectResourceId && !resources.has(effectResourceId)) {
-      errors.push(`${label}: ability ссылается на неизвестный ресурс ${effectResourceId}.`);
-    }
-  }
-}
-
-function validateGoblinGenerationLeveling(archetype: ContentRecord, id: string, resources: Set<string>, errors: string[]) {
-  const leveling = recordField(archetype, "leveling");
-  const label = `Архетип ${id || "без id"}`;
-
-  if (Object.keys(leveling).length === 0) {
-    errors.push(`${label}: leveling обязателен в генерации.`);
-    return;
-  }
-
-  if (numberField(leveling, "maxLevel", 0) <= 0) {
-    errors.push(`${label}: leveling.maxLevel должен быть больше 0.`);
-  }
-
-  for (const cost of arrayField(leveling, "cost")) {
-    const resourceId = stringField(cost, "resourceId");
-
-    if (resourceId && !resources.has(resourceId)) {
-      errors.push(`${label}: leveling ссылается на неизвестный ресурс ${resourceId}.`);
-    }
-  }
-}
-
 function validateGoblinHutForm(state: EntityFormState, content: ContentBundle, errors: string[]) {
   const count = formCount(state, "levelCount", 1);
   const seenLevels = new Set<number>();
-  const validClasses = new Set(goblinClassOptions.map((option) => option.value));
+  const validRoles = new Set(goblinRoleOptions.map((option) => option.value));
   const validMineTemplateIds = new Set(content.mineTemplates.map((mineTemplate) => stringField(mineTemplate, "id")));
 
   for (let index = 0; index < count; index += 1) {
     const rowLabel = `Уровень Хижины ${index + 1}`;
     const level = toInteger(state[`levelLevel_${index}`]);
-    const classes = formValue(state, `levelClasses_${index}`)
+    const roles = formValue(state, `levelRoles_${index}`)
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
@@ -4201,8 +4019,8 @@ function validateGoblinHutForm(state: EntityFormState, content: ContentBundle, e
     }
     seenLevels.add(level);
 
-    if (classes.length === 0 || classes.some((item) => !validClasses.has(item))) {
-      errors.push(`${rowLabel}: роли должны быть из списка miner, builder, collector, foreman.`);
+    if (roles.length === 0 || roles.some((item) => !validRoles.has(item as AdminGoblinRole))) {
+      errors.push(`${rowLabel}: роли должны быть из списка miner, collector, foreman.`);
     }
 
     if (requiredMineTemplateId && !validMineTemplateIds.has(requiredMineTemplateId)) {
@@ -4510,8 +4328,8 @@ function applyEntityForm(
     return applyBossCardForm(content, selectedId, state);
   }
 
-  if (kind === "goblinGeneration") {
-    return applyGoblinGenerationForm(content, selectedId, state);
+  if (kind === "goblins") {
+    return applyGoblinsForm(content, selectedId, state);
   }
 
   if (kind === "goblinHut") {
@@ -4595,40 +4413,33 @@ function applyBlockTypeForm(content: ContentBundle, selectedId: string, state: E
   };
 }
 
-function applyGoblinGenerationForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
-  const current = content.goblinGeneration ?? {};
+function applyGoblinsForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
+  const current = content.goblins ?? {};
   const id = formValue(state, "id") || "default";
-  const nameKey = stringField(current, "nameKey") || "goblin_generation.name";
-  const archetypes = parseJsonRecordArray(formValue(state, "archetypesJson"));
+  const nameKey = stringField(current, "nameKey") || "goblins.name";
+  const parsed = parseJsonRecordArray(formValue(state, "rolesJson"));
 
-  if (!archetypes.ok) {
-    throw new Error("Архетипы найма должны быть валидным JSON-массивом.");
+  if (!parsed.ok) {
+    throw new Error("Роли гоблинов должны быть валидным JSON-массивом.");
   }
 
   return {
     entity: {
       id,
       nameKey,
-      namePool: {
-        names: parseLineList(formValue(state, "namePoolNames")),
-        nicknames: parseLineList(formValue(state, "namePoolNicknames"))
-      },
-      hireCardSkin: createGoblinHireCardSkinFromForm(state, recordField(current, "hireCardSkin")),
-      archetypes: archetypes.value
+      roles: normalizeGoblinRoles(parsed.value),
+      skin: createGoblinSkinFromForm(state)
     },
     entityId: selectedId,
-    entityType: "goblinGeneration",
+    entityType: "goblins",
     localization: {
       [nameKey]: formValue(state, "title").trim()
     },
-    message: `Генерация гоблинов ${id} сохранена как draft.`
+    message: `Гоблины ${id} сохранены как draft.`
   };
 }
 
-function createGoblinHireCardSkinFromForm(state: EntityFormState, currentSkin: ContentRecord): ContentRecord {
-  const currentIcons = recordField(currentSkin, "icons");
-  const currentPricePills = recordField(currentSkin, "pricePills");
-
+function createGoblinSkinFromForm(state: EntityFormState): ContentRecord {
   return {
     buttons: {
       disabled: formValue(state, "skinButtonDisabled").trim(),
@@ -4636,33 +4447,18 @@ function createGoblinHireCardSkinFromForm(state: EntityFormState, currentSkin: C
       normal: formValue(state, "skinButtonNormal").trim(),
       pressed: formValue(state, "skinButtonPressed").trim()
     },
-    cardBases: {
-      common: formValue(state, "skinCardBaseCommon").trim(),
-      epic: formValue(state, "skinCardBaseEpic").trim(),
-      legendary: formValue(state, "skinCardBaseLegendary").trim(),
-      rare: formValue(state, "skinCardBaseRare").trim()
-    },
-    icons: {
-      cost: stringField(currentIcons, "cost") || "ui_icon_coin_v1",
-      loyalty: stringField(currentIcons, "loyalty") || "ui_icon_clock_v1",
-      luck: stringField(currentIcons, "luck") || "ui_icon_star_v1",
-      speed: stringField(currentIcons, "speed") || "ui_icon_boot_v1",
-      strength: stringField(currentIcons, "strength") || "ui_icon_pickaxe_v1"
-    },
+    cardBase: formValue(state, "skinCardBase").trim(),
+    detailsModalBackground: formValue(state, "skinDetailsModalBackground").trim(),
     ownedCards: {
       base: formValue(state, "skinOwnedCardBase").trim(),
+      starIcon: formValue(state, "skinOwnedStarIcon").trim(),
       upgradeArrow: formValue(state, "skinOwnedUpgradeArrow").trim()
-    },
-    pricePills: {
-      disabled: stringField(currentPricePills, "disabled") || "ui_hire_price_disabled_v1",
-      normal: stringField(currentPricePills, "normal") || "ui_hire_price_normal_v1"
     },
     resourceChipFrame: formValue(state, "skinResourceChipFrame").trim(),
     screenBackground: formValue(state, "skinScreenBackground").trim(),
     titlePlate: formValue(state, "skinTitlePlate").trim()
   };
 }
-
 function applyGoblinHutForm(content: ContentBundle, selectedId: string, state: EntityFormState): EntityDraftUpdate {
   const current = content.goblinHut;
   const id = formValue(state, "id") || "default";
@@ -4899,7 +4695,7 @@ function createGoblinHutLevelsFromForm(state: EntityFormState, currentLevels: Co
     const level = toInteger(state[`levelLevel_${index}`]) || index + 1;
     const current = currentLevels.find((item) => numberField(item, "level", 0) === level) ?? currentLevels[index] ?? {};
     const nameKey = stringField(current, "nameKey") || `goblin_hut.level.${level}.name`;
-    const unlockedClasses = formValue(state, `levelClasses_${index}`)
+    const unlockedRoles = formValue(state, `levelRoles_${index}`)
       .split(",")
       .map((item) => item.trim())
       .filter(Boolean);
@@ -4912,7 +4708,7 @@ function createGoblinHutLevelsFromForm(state: EntityFormState, currentLevels: Co
       maxHiredGoblins: toInteger(state[`levelMaxHired_${index}`]),
       nameKey,
       unlockRequirements,
-      unlockedClasses,
+      unlockedRoles,
       upgradeCost,
       upgradeCostMultiplier: percentToReductionMultiplier(toNumber(state[`levelUpgradeDiscountPercent_${index}`]))
     };
@@ -5145,103 +4941,6 @@ function createCellMapFromForm(state: EntityFormState, content: ContentBundle): 
   return cells;
 }
 
-function defaultGoblinGenerationEquipmentSlots(goblinClass: string): string[] {
-  if (goblinClass === "collector") {
-    return ["ledger"];
-  }
-
-  if (goblinClass === "builder" || goblinClass === "foreman") {
-    return ["whistle"];
-  }
-
-  return ["tool"];
-}
-
-function defaultGoblinGenerationRarityWeights(): ContentRecord[] {
-  return [
-    { rarity: "common", statMultiplier: 1, weight: 78 },
-    { rarity: "rare", statMultiplier: 1.15, weight: 18 },
-    { rarity: "epic", statMultiplier: 1.35, weight: 3.5 },
-    { rarity: "legendary", statMultiplier: 1.6, weight: 0.5 }
-  ];
-}
-
-function defaultGoblinGenerationAbility(goblinClass: string): ContentRecord {
-  return {
-    descriptionKey: `ability.random_${goblinClass}_contract.description`,
-    effects: [],
-    id: `random_${goblinClass}_ability`,
-    nameKey: `ability.random_${goblinClass}_contract.name`
-  };
-}
-
-function defaultGoblinGenerationLeveling(goblinClass: string): ContentRecord {
-  const isCollector = goblinClass === "collector";
-  const isForeman = goblinClass === "foreman";
-
-  return {
-    autoCollectSlotsPerLevel: isCollector ? 1 : 0,
-    buildCostMultiplierPerLevel: isForeman ? -0.01 : 0,
-    buildTimeMultiplierPerLevel: isForeman ? -0.02 : 0,
-    cost: [],
-    maxLevel: 5,
-    mineCapacityMultiplierPerLevel: isCollector ? 0.03 : 0,
-    mineProductionMultiplierPerLevel: isCollector ? 0.02 : 0,
-    offlineRelocationSlotsPerLevel: isForeman ? 1 : 0,
-    statGrowthPerLevel: {
-      loyalty: 0.4,
-      luck: 0.25,
-      speed: 0.35,
-      strength: goblinClass === "miner" ? 0.7 : 0.3
-    }
-  };
-}
-
-function defaultGoblinGenerationStatRanges(): ContentRecord {
-  return {
-    loyalty: { max: 6, min: 3 },
-    luck: { max: 4, min: 1 },
-    speed: { max: 6, min: 3 },
-    strength: { max: 8, min: 4 }
-  };
-}
-
-function normalizedGoblinGenerationRarityWeights(archetype: ContentRecord): ContentRecord[] {
-  const rows = arrayField(archetype, "rarityWeights");
-
-  return rarityOptions.map((option) => {
-    const existing = rows.find((row) => stringField(row, "rarity") === option.value);
-
-    return existing ?? { rarity: option.value, statMultiplier: 1, weight: 0 };
-  });
-}
-
-function goblinGenerationTraitLines(traits: ContentRecord[]): string {
-  return traits
-    .map((trait) => [stringField(trait, "id"), numberString(numberField(trait, "weight", 1)), stringField(trait, "nameKey")].filter(Boolean).join(":"))
-    .join("\n");
-}
-
-function parseGoblinGenerationTraitLines(value: string): ContentRecord[] {
-  return value
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [id = "", weight = "1", nameKey = ""] = line.split(":").map((part) => part.trim());
-      const trait: ContentRecord = {
-        id,
-        weight: toNumber(weight) || 1
-      };
-
-      if (nameKey) {
-        trait.nameKey = nameKey;
-      }
-
-      return trait;
-    });
-}
-
 function setOptionalField(record: ContentRecord, key: string, value: string) {
   if (value) {
     record[key] = value;
@@ -5470,32 +5169,11 @@ function parsePositiveIntegerList(value: string): number[] {
     .filter((item) => Number.isInteger(item) && item > 0);
 }
 
-function parseLineList(value: string): string[] {
-  return value
-    .split(/\r?\n/gu)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
 function parseJsonRecordArray(value: string): { ok: true; value: ContentRecord[] } | { ok: false } {
   try {
     const parsed: unknown = JSON.parse(value);
 
     if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) {
-      return { ok: false };
-    }
-
-    return { ok: true, value: parsed };
-  } catch {
-    return { ok: false };
-  }
-}
-
-function parseJsonRecord(value: string): { ok: true; value: ContentRecord } | { ok: false } {
-  try {
-    const parsed: unknown = JSON.parse(value);
-
-    if (!isRecord(parsed)) {
       return { ok: false };
     }
 
@@ -5527,19 +5205,6 @@ function veinIdSet(content: ContentBundle): Set<string> {
 
 function rewardChestIdSet(content: ContentBundle): Set<string> {
   return new Set((content.rewardChestTypes ?? []).map((chestType) => stringField(chestType, "id")));
-}
-
-function statLabel(field: string): string {
-  switch (field) {
-    case "loyalty":
-      return "Лояльность";
-    case "luck":
-      return "Удача";
-    case "speed":
-      return "Скорость";
-    default:
-      return "Сила";
-  }
 }
 
 function CredentialsSection(props: {

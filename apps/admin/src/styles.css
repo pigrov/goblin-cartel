@@ -906,7 +906,7 @@
   grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(86px, 0.7fr)) auto;
 }
 
-.content-generation-archetype {
+.content-goblins-role {
   grid-template-columns: minmax(0, 1fr);
   align-items: stretch;
   border: 1px solid rgb(255 255 255 / 8%);
@@ -915,8 +915,8 @@
   background: rgb(0 0 0 / 10%);
 }
 
-.content-generation-stat,
-.content-generation-rarity {
+.content-goblins-stat,
+.content-goblins-star {
   min-width: 0;
   display: grid;
   gap: 7px;
@@ -926,17 +926,86 @@
   background: rgb(255 255 255 / 4%);
 }
 
-.content-generation-stat strong,
-.content-generation-rarity strong {
+.content-goblins-stat strong,
+.content-goblins-star strong {
   font-size: 12px;
 }
 
-.content-generation-render {
+.content-goblins-render {
   align-items: end;
 }
 
-.content-generation-render .content-asset-upload {
+.content-goblins-render .content-asset-upload {
   grid-column: 1 / -1;
+}
+
+.content-goblins-level-table-wrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: var(--gc-radius-sm);
+  background: rgb(255 255 255 / 4%);
+}
+
+.content-goblins-level-table {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+}
+
+.content-goblins-level-table th,
+.content-goblins-level-table td {
+  border-right: 1px solid rgb(255 255 255 / 6%);
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+  padding: 7px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.content-goblins-level-table th:last-child,
+.content-goblins-level-table td:last-child {
+  border-right: 0;
+}
+
+.content-goblins-level-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.content-goblins-level-table th {
+  color: var(--gc-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.content-goblins-level-table td:first-child {
+  width: 72px;
+  color: var(--gc-text);
+  text-align: center;
+}
+
+.content-goblins-level-table th:nth-child(2),
+.content-goblins-level-table td:nth-child(2),
+.content-goblins-level-table th:nth-child(3),
+.content-goblins-level-table td:nth-child(3) {
+  width: 108px;
+}
+
+.content-goblins-level-table input {
+  width: 100%;
+  min-width: 64px;
+  min-height: 32px;
+  box-sizing: border-box;
+  border: 1px solid var(--gc-border);
+  border-radius: var(--gc-radius-sm);
+  padding: 0 7px;
+  color: var(--gc-text);
+  background: rgb(0 0 0 / 18%);
+  font: inherit;
+}
+
+.content-goblins-level-table input:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 
 .content-hire-card-skin-grid {

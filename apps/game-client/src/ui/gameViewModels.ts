@@ -23,7 +23,6 @@ import type { GameOverlaysActions, GameOverlaysView } from "./screens/GameOverla
 import type { VkIdentityLinkStatus } from "./screens/SettingsModal";
 import type { ContentState } from "./useGameBootstrap";
 import type { PlayerDbSyncState } from "./playerDbSyncState";
-import type { RandomGoblinReveal } from "./useGoblinRosterController";
 import type { FoundVeinView } from "./useMineUiController";
 import type { PlatformDropEvent } from "./useMiningLoop";
 import type { ChestRewardFlyout, PendingRewardChest, RewardChestStage } from "./useRewardChestFlow";
@@ -70,7 +69,8 @@ export interface CreateGameViewModelsInput {
   handleContinueRewardChest: () => void;
   handleDismissMineCompletionNotice: () => void;
   handleAssignForemanSlot: (slotIndex: number, goblinId: string | null) => void;
-  handleHireRandomGoblin: (archetypeId: string) => void;
+  handleHireGoblin: (goblinId: string) => void;
+  handleMergeGoblins: (sourceGoblinId: string, targetGoblinId: string) => void;
   handleOpenRewardChest: () => void;
   setOfflineSummary: (summary: OfflineMiningSummary | null) => void;
   handleLinkVkIdentity: () => void;
@@ -81,6 +81,7 @@ export interface CreateGameViewModelsInput {
   handleUpgradeElevator: () => void;
   handleUpgradeGoblin: (goblin: GoblinConfig) => void;
   handleUpgradeGoblinHut: () => void;
+  hiredGoblins: GoblinConfig[];
   hiredCollectorGoblins: GoblinConfig[];
   hitEffects: MinePixiHitEffect[];
   labels: Record<string, string>;
@@ -101,7 +102,6 @@ export interface CreateGameViewModelsInput {
   platformDropAnimating: boolean;
   platformDropEvent: PlatformDropEvent | null;
   resources: Record<string, number>;
-  randomGoblinReveal: RandomGoblinReveal | null;
   rewardChestStage: RewardChestStage;
   roster: GoblinRosterState;
   rosterMessage: string | null;
@@ -113,7 +113,6 @@ export interface CreateGameViewModelsInput {
   setCollectorPickerMineId: (builtMineId: string | null) => void;
   setFoundVeinNotice: (notice: MiningFoundVein | null) => void;
   setGoblinRoleTab: (roleTab: GoblinHutRoleTabId) => void;
-  setRandomGoblinReveal: (reveal: RandomGoblinReveal | null) => void;
   setPixiDevOverlayEnabled: (enabled: boolean) => void;
   setSettingsOpen: (open: boolean) => void;
   settingsOpen: boolean;
@@ -173,7 +172,6 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       hutLevel: input.goblinHutProgression.levelNow,
       hutLimit: input.goblinHutProgression.maxHiredGoblins,
       roster: input.roster,
-      randomGoblinReveal: input.randomGoblinReveal,
       rosterMessage: input.rosterMessage
     },
     mine: {
@@ -188,11 +186,9 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
       elevatorVisualStage: input.elevatorProgression.visualStage,
       exposedCellKeys: input.exposedCellKeys,
       foremanTower: {
-        assignedForemen: getAssignedForemen(input.availableGoblins, input.roster, input.foremanAssignments),
+        assignedForemen: getAssignedForemen(input.hiredGoblins, input.roster, input.foremanAssignments),
         assignments: input.foremanAssignments,
-        availableForemen: input.availableGoblins.filter(
-          (goblin) => goblin.class === "foreman" && input.roster.hiredGoblinIds.includes(goblin.id)
-        ),
+        availableForemen: input.hiredGoblins.filter((goblin) => goblin.role === "foreman"),
         goblinLevels: input.goblinLevels
       },
       goblins: input.pixiGoblins,
@@ -221,16 +217,16 @@ function createMainContentActions(input: CreateGameViewModelsInput): GameMainCon
     onCollectAllMines: input.handleCollectAllBuiltMines,
     onCollectMine: input.handleCollectBuiltMine,
     onAssignForemanSlot: input.handleAssignForemanSlot,
-    onHireRandomGoblin: input.handleHireRandomGoblin,
+    onHireGoblin: input.handleHireGoblin,
+    onMergeGoblins: input.handleMergeGoblins,
     onOpenGoblins: () => {
-      input.setGoblinRoleTab("builders");
+      input.setGoblinRoleTab("foremen");
       input.setActiveSection("goblins");
     },
     onOpenCollectorPicker: input.setCollectorPickerMineId,
     onDismissOfflineSummary: () => input.setOfflineSummary(null),
     onPlaceGoblin: input.handlePlaceGoblin,
     onRoleTabChange: input.setGoblinRoleTab,
-    onRandomGoblinRevealClose: () => input.setRandomGoblinReveal(null),
     onStartNextMine: input.handleStartNextMine,
     onUpgradeGoblin: input.handleUpgradeGoblin,
     onUpgradeGoblinHut: input.handleUpgradeGoblinHut,

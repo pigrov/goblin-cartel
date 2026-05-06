@@ -1,26 +1,19 @@
 import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
   getGoblinLevel,
-  hireRandomGoblin,
-  isGoblinHired,
+  getGoblinStars,
+  hireGoblin,
+  mergeGoblins,
   upgradeGoblin,
   upgradeGoblinHut,
-  type GoblinRosterInstance,
   type GoblinRosterState,
   type MiningSession
 } from "@goblin-cartel/game-core";
 import { type Dispatch, type SetStateAction, useMemo, useState } from "react";
-import {
-  createGoblinHutProgressionState,
-  createGoblinIdentity,
-  isMiningGoblin
-} from "./goblinHutClientState";
-import {
-  placeGoblinInFirstFreeColumn,
-  useGoblinPlacement
-} from "./useGoblinPlacement";
+import { createGoblinHutProgressionState, createGoblinIdentity, isMiningGoblin } from "./goblinHutClientState";
+import { placeGoblinInFirstFreeColumn, useGoblinPlacement } from "./useGoblinPlacement";
 import { createAvailableGoblins } from "./goblinContent";
-import { createInstanceBackedGoblinConfig, createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "./goblinRuntimeUnits";
+import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 
 export function useGoblinRosterController(input: {
   completedMineTemplateIds: string[];
@@ -38,14 +31,13 @@ export function useGoblinRosterController(input: {
   visibleBuiltMinesCount: number;
 }) {
   const [rosterMessage, setRosterMessage] = useState<string | null>(null);
-  const [randomGoblinReveal, setRandomGoblinReveal] = useState<RandomGoblinReveal | null>(null);
   const availableGoblins = useMemo(() => createAvailableGoblins(input.content), [input.content]);
-  const hiredGoblins = useMemo(
-    () => availableGoblins.filter((goblin) => isGoblinHired(input.roster, goblin.id)),
-    [availableGoblins, input.roster]
-  );
-  const goblinLevels = input.roster.goblinLevels ?? {};
   const runtimeGoblins = useMemo(() => createRuntimeGoblinConfigs(availableGoblins, input.roster), [availableGoblins, input.roster]);
+  const hiredGoblins = runtimeGoblins;
+  const goblinLevels = useMemo(
+    () => Object.fromEntries((input.roster.instances ?? []).map((instance) => [instance.id, instance.level])),
+    [input.roster.instances]
+  );
   const miningGoblins = useMemo(() => runtimeGoblins.filter(isMiningGoblin), [runtimeGoblins]);
   const goblinHutProgression = useMemo(
     () =>
@@ -96,7 +88,34 @@ export function useGoblinRosterController(input: {
       resources: result.resources,
       lastRewards: {}
     }));
-    setRosterMessage(`${goblinName(goblin, input.labels)} уровень ${getGoblinLevel(result.roster, goblin.id)}.`);
+    setRosterMessage(
+      `${goblinName(goblin, input.labels)}: ${getGoblinLevel(result.roster, result.instance.id)} ур., ${getGoblinStars(result.roster, result.instance.id)} зв.`
+    );
+  }
+
+  function handleMergeGoblins(sourceGoblinId: string, targetGoblinId: string) {
+    const result = mergeGoblins({
+      goblins: availableGoblins,
+      roster: input.roster,
+      sourceGoblinId,
+      targetGoblinId
+    });
+
+    if (!result.ok) {
+      setRosterMessage(messageForGoblinMergeFailure(result.reason));
+      return;
+    }
+
+    input.setRoster(result.roster);
+    setGoblinPlacements((current) => {
+      const next = { ...current };
+      delete next[result.consumedInstanceId];
+      return next;
+    });
+    const mergedGoblin = availableGoblins.find((goblin) => goblin.id === result.instance.goblinId);
+    setRosterMessage(
+      `${mergedGoblin ? goblinName(mergedGoblin, input.labels) : "Гоблин"}: ${result.instance.level} ур., ${result.instance.stars} зв.`
+    );
   }
 
   function handleUpgradeGoblinHut() {
@@ -121,30 +140,22 @@ export function useGoblinRosterController(input: {
       resources: result.resources,
       lastRewards: {}
     }));
-    setRosterMessage(`Хижина уровень ${result.roster.hutLevel ?? 1}.`);
+    setRosterMessage(`Хижина: ${result.roster.hutLevel ?? 1} уровень.`);
   }
 
-  function handleHireRandomGoblin(archetypeId: string) {
-    const generation = input.content.goblinGeneration;
-
-    if (!generation) {
-      setRosterMessage("Контракты гоблинов еще не настроены.");
-      return;
-    }
-
-    const result = hireRandomGoblin({
-      archetypeId,
-      archetypes: generation.archetypes,
+  function handleHireGoblin(goblinId: string) {
+    const result = hireGoblin({
+      builtMinesCount: input.visibleBuiltMinesCount,
+      completedMineTemplateIds: input.completedMineTemplateIds,
+      goblinId,
       goblinHut: input.content.goblinHut,
       goblins: availableGoblins,
-      namePool: generation.namePool,
       resources: input.resources,
-      roster: input.roster,
-      seed: input.session.mine.seed
+      roster: input.roster
     });
 
     if (!result.ok) {
-      setRosterMessage(messageForRandomHireFailure(result.reason));
+      setRosterMessage(messageForHireFailure(result.reason));
       return;
     }
 
@@ -155,28 +166,17 @@ export function useGoblinRosterController(input: {
       resources: result.resources,
       lastRewards: {}
     }));
-    const archetypeGoblin = availableGoblins.find((goblin) => goblin.id === result.instance.archetypeId) ?? null;
 
-    if (!archetypeGoblin) {
-      setRosterMessage("Найм прошел, но контракт гоблина не найден.");
-      return;
-    }
-
-    const revealGoblin = createInstanceBackedGoblinConfig(archetypeGoblin, result.instance);
-
-    setRandomGoblinReveal({
-      archetypeId,
-      goblin: revealGoblin,
-      instance: result.instance
-    });
-    if (isMiningGoblin(revealGoblin)) {
+    const hiredGoblin = availableGoblins.find((goblin) => goblin.id === result.instance.goblinId);
+    if (hiredGoblin && isMiningGoblin(hiredGoblin)) {
       setGoblinPlacements((current) =>
         placeGoblinInFirstFreeColumn(input.session, current, result.instance.id, input.currentPlatformRow, {
           maxPlacements: input.platformSlots
         })
       );
     }
-    setRosterMessage(`${randomGoblinName(result.instance, revealGoblin, input.labels)} нанят.`);
+
+    setRosterMessage(`${hiredGoblin ? goblinName(hiredGoblin, input.labels) : "Гоблин"} нанят.`);
   }
 
   return {
@@ -185,7 +185,8 @@ export function useGoblinRosterController(input: {
     goblinHutProgression,
     goblinLevels,
     goblinPlacements,
-    handleHireRandomGoblin,
+    handleHireGoblin,
+    handleMergeGoblins,
     handlePlaceGoblin,
     handleUpgradeGoblin,
     handleUpgradeGoblinHut,
@@ -193,32 +194,13 @@ export function useGoblinRosterController(input: {
     miningGoblins,
     pixiGoblins,
     platformCellKeys,
-    randomGoblinReveal,
     rosterMessage,
-    setRandomGoblinReveal,
     setGoblinPlacements
   };
 }
 
-export interface RandomGoblinReveal {
-  archetypeId: string;
-  goblin: GoblinConfig;
-  instance: GoblinRosterInstance;
-}
-
 function goblinName(goblin: GoblinConfig | RuntimeGoblinConfig, labels: Record<string, string>): string {
-  const identity = createGoblinIdentity(goblin, labels);
-  const name = "instanceName" in goblin ? goblin.instanceName?.trim() || identity.name : identity.name;
-  const nickname = "instanceNickname" in goblin ? goblin.instanceNickname?.trim() || identity.nickname : identity.nickname;
-  return nickname ? `${name} ${nickname}` : name;
-}
-
-function randomGoblinName(instance: GoblinRosterInstance, goblin: GoblinConfig, labels: Record<string, string>): string {
-  const identity = createGoblinIdentity(goblin, labels);
-  const name = instance.name?.trim() || identity.name;
-  const nickname = instance.nickname?.trim() || identity.nickname;
-
-  return nickname ? `${name} ${nickname}` : name;
+  return createGoblinIdentity(goblin, labels).fullName;
 }
 
 function messageForGoblinHutUpgradeFailure(reason: string): string {
@@ -234,16 +216,18 @@ function messageForGoblinHutUpgradeFailure(reason: string): string {
   }
 }
 
-function messageForRandomHireFailure(reason: string): string {
+function messageForHireFailure(reason: string): string {
   switch (reason) {
     case "hut_limit":
       return "Лимит Хижины заполнен. Улучши Хижину, чтобы нанять больше.";
-    case "missing_archetype":
-      return "Контракт найма настроен некорректно.";
+    case "missing_goblin":
+      return "Гоблин настроен некорректно.";
     case "not_enough_resources":
-      return "Не хватает ресурсов для контракта.";
+      return "Не хватает золота для найма.";
     case "role_locked":
       return "Эта роль еще не открыта уровнем Хижины.";
+    case "locked":
+      return "Условия найма еще не выполнены.";
     default:
       return "Найм не прошел.";
   }
@@ -253,11 +237,29 @@ function messageForGoblinUpgradeFailure(reason: string): string {
   switch (reason) {
     case "max_level":
       return "Гоблин уже на максимальном уровне.";
+    case "needs_stars":
+      return "Сначала объедини одинаковых гоблинов до 5 звезд.";
     case "not_enough_resources":
-      return "Не хватает ресурсов для прокачки.";
+      return "Не хватает золота для прокачки.";
     case "not_hired":
       return "Сначала найми этого гоблина.";
     default:
       return "Прокачка не прошла.";
+  }
+}
+
+function messageForGoblinMergeFailure(reason: string): string {
+  switch (reason) {
+    case "max_stars":
+      return "Пятизвездочного гоблина можно только улучшить.";
+    case "mismatch":
+      return "Для объединения нужны одинаковые гоблины с тем же уровнем и звездами.";
+    case "same_instance":
+      return "Выбери второго такого же гоблина.";
+    case "missing_goblin":
+    case "not_hired":
+      return "Гоблин для объединения не найден.";
+    default:
+      return "Объединение не прошло.";
   }
 }

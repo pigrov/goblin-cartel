@@ -1,58 +1,42 @@
-import type {
-  ContentBundle,
-  GoblinConfig,
-  GoblinGenerationArchetypeConfig,
-  GoblinHutConfig,
-  GoblinHutLevelConfig
-} from "@goblin-cartel/content-schemas";
+import type { ContentBundle, GoblinConfig, GoblinHutConfig, GoblinHutLevelConfig, GoblinRole } from "@goblin-cartel/content-schemas";
 import {
-  calculateGoblinGenerationHireCost,
+  calculateGoblinHireCost,
   calculateGoblinHutMaxHired,
-  calculateCrewAutoDamagePerSecond,
   calculateGoblinMaxLevel,
+  calculateGoblinPrimaryStat,
   calculateGoblinUpgradeCost,
   getHiredGoblinCount,
-  getGoblinLevel,
   getGoblinHutLevel,
+  getGoblinLevel,
+  getGoblinStars,
   isGoblinHired,
-  isGoblinClassUnlockedByHut,
+  isGoblinRoleUnlockedByHut,
+  isGoblinUnlocked,
   upgradeGoblinHut,
   type GoblinRosterState,
-  type HireRandomGoblinFailureReason,
-  type UpgradeGoblinHutFailureReason,
-  type UpgradeGoblinFailureReason
+  type HireGoblinFailureReason,
+  type UpgradeGoblinFailureReason,
+  type UpgradeGoblinHutFailureReason
 } from "@goblin-cartel/game-core";
-import {
-  createBuildCostRequirements,
-  getGoblinAutoCollectSlots,
-  getGoblinBuildCostMultiplier,
-  getGoblinBuildTimeMultiplier,
-  type BuildCostRequirement
-} from "./builtMineClientState";
-import { createGoblinConfigFromArchetype } from "./goblinContent";
+import { createBuildCostRequirements, getGoblinAutoCollectSlots, type BuildCostRequirement } from "./builtMineClientState";
 
 export interface GoblinUpgradePreview {
-  autoCollectSlotsAfter: number;
-  autoCollectSlotsNow: number;
-  buildCostMultiplierAfter: number;
-  buildCostMultiplierNow: number;
-  buildTimeMultiplierAfter: number;
-  buildTimeMultiplierNow: number;
   canUpgrade: boolean;
   costRequirements: BuildCostRequirement[];
-  damagePerSecondAfter: number;
-  damagePerSecondNow: number;
   failureReason: UpgradeGoblinFailureReason | null;
   levelAfter: number;
   levelNow: number;
   maxLevel: number;
+  primaryStatAfter: number;
+  primaryStatNow: number;
+  starsAfter: number;
+  starsNow: number;
 }
 
-export interface RandomGoblinContractPreview {
-  archetype: GoblinGenerationArchetypeConfig;
+export interface GoblinHirePreview {
   canHire: boolean;
   costRequirements: BuildCostRequirement[];
-  failureReason: HireRandomGoblinFailureReason | null;
+  failureReason: HireGoblinFailureReason | null;
   goblin: GoblinConfig;
 }
 
@@ -70,14 +54,14 @@ export interface GoblinHutProgressionState {
 }
 
 export interface GoblinRoleSummary {
-  builderCount: number;
   collectorCount: number;
+  foremanCount: number;
   hiredCount: number;
   minerCount: number;
   totalAutoCollectSlots: number;
 }
 
-export type GoblinHutRoleTabId = "all" | "builders" | "collectors" | "miners";
+export type GoblinHutRoleTabId = "all" | "collectors" | "foremen" | "miners";
 
 export interface GoblinHutRoleTab {
   count: number;
@@ -98,7 +82,7 @@ const goblinHutRoleTabs: Array<{ id: GoblinHutRoleTabId; label: string }> = [
   { id: "all", label: "Все" },
   { id: "miners", label: "Шахтеры" },
   { id: "collectors", label: "Сборщики" },
-  { id: "builders", label: "Стройка" }
+  { id: "foremen", label: "Бригадиры" }
 ];
 
 export function createGoblinUpgradePreview(
@@ -109,73 +93,71 @@ export function createGoblinUpgradePreview(
 ): GoblinUpgradePreview {
   const hired = isGoblinHired(roster, goblin.id);
   const levelNow = getGoblinLevel(roster, goblin.id);
+  const starsNow = getGoblinStars(roster, goblin.id);
   const maxLevel = calculateGoblinMaxLevel(goblin);
-  const isMaxLevel = levelNow >= maxLevel;
-  const cost = calculateGoblinUpgradeCost(goblin, levelNow, goblinHut, getGoblinHutLevel(roster));
+  const isMaxLevel = levelNow >= maxLevel && starsNow >= 5;
+  const needsStars = starsNow < 5;
+  const cost = needsStars ? [] : calculateGoblinUpgradeCost(goblin, levelNow, goblinHut, getGoblinHutLevel(roster), 5);
   const costRequirements = createBuildCostRequirements(cost, resources);
   const hasEnoughResources = costRequirements.every((requirement) => requirement.ok);
   const failureReason =
-    !hired ? "not_hired" : isMaxLevel ? "max_level" : !hasEnoughResources ? "not_enough_resources" : null;
-  const levelAfter = isMaxLevel ? levelNow : levelNow + 1;
+    !hired ? "not_hired" : isMaxLevel ? "max_level" : needsStars ? "needs_stars" : !hasEnoughResources ? "not_enough_resources" : null;
+  const nextProgress = createNextGoblinLevelProgress(levelNow, starsNow, maxLevel);
 
   return {
-    autoCollectSlotsAfter: getGoblinAutoCollectSlots(goblin, levelAfter),
-    autoCollectSlotsNow: getGoblinAutoCollectSlots(goblin, levelNow),
-    buildCostMultiplierAfter: getGoblinBuildCostMultiplier(goblin, levelAfter),
-    buildCostMultiplierNow: getGoblinBuildCostMultiplier(goblin, levelNow),
-    buildTimeMultiplierAfter: getGoblinBuildTimeMultiplier(goblin, levelAfter),
-    buildTimeMultiplierNow: getGoblinBuildTimeMultiplier(goblin, levelNow),
     canUpgrade: failureReason === null,
     costRequirements,
-    damagePerSecondAfter: calculateCrewAutoDamagePerSecond({
-      goblins: [goblin],
-      roster: {
-        goblinLevels: {
-          [goblin.id]: levelAfter
-        },
-        hiredGoblinIds: [goblin.id]
-      }
-    }),
-    damagePerSecondNow: calculateCrewAutoDamagePerSecond({
-      goblins: [goblin],
-      roster: {
-        goblinLevels: {
-          [goblin.id]: levelNow
-        },
-        hiredGoblinIds: [goblin.id]
-      }
-    }),
     failureReason,
-    levelAfter,
+    levelAfter: nextProgress.level,
     levelNow,
-    maxLevel
+    maxLevel,
+    primaryStatAfter: calculateGoblinPrimaryStat(goblin, nextProgress.level, nextProgress.stars),
+    primaryStatNow: calculateGoblinPrimaryStat(goblin, levelNow, starsNow),
+    starsAfter: nextProgress.stars,
+    starsNow
   };
 }
 
-export function createRandomGoblinContractPreview(input: {
-  archetype: GoblinGenerationArchetypeConfig;
+export function createGoblinHirePreview(input: {
+  builtMinesCount: number;
+  completedMineTemplateIds: string[];
+  goblin: GoblinConfig;
   goblinHut?: GoblinHutConfig;
   goblins: GoblinConfig[];
   resources: Record<string, number>;
   roster: GoblinRosterState;
-}): RandomGoblinContractPreview {
-  const goblin = input.goblins.find((item) => item.id === input.archetype.id) ?? createGoblinConfigFromArchetype(input.archetype);
-  const cost = calculateGoblinGenerationHireCost(input.archetype, input.roster, input.goblinHut);
+}): GoblinHirePreview {
+  const cost = calculateGoblinHireCost(input.goblin, input.roster, input.goblinHut);
   const costRequirements = createBuildCostRequirements(cost, input.resources);
 
-  if (!isGoblinClassUnlockedByHut(input.archetype.class, input.roster, input.goblinHut)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "role_locked", goblin };
+  if (!isGoblinRoleUnlockedByHut(input.goblin.role, input.roster, input.goblinHut)) {
+    return { canHire: false, costRequirements, failureReason: "role_locked", goblin: input.goblin };
   }
 
   if (getHiredGoblinCount(input.roster) >= calculateGoblinHutMaxHired(input.roster, input.goblinHut)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "hut_limit", goblin };
+    return { canHire: false, costRequirements, failureReason: "hut_limit", goblin: input.goblin };
+  }
+
+  if (
+    !isGoblinUnlocked({
+      goblin: input.goblin,
+      goblins: input.goblins,
+      progress: {
+        builtMinesCount: input.builtMinesCount,
+        completedMineTemplateIds: input.completedMineTemplateIds,
+        resources: input.resources
+      },
+      roster: input.roster
+    })
+  ) {
+    return { canHire: false, costRequirements, failureReason: "locked", goblin: input.goblin };
   }
 
   if (!costRequirements.every((requirement) => requirement.ok)) {
-    return { archetype: input.archetype, canHire: false, costRequirements, failureReason: "not_enough_resources", goblin };
+    return { canHire: false, costRequirements, failureReason: "not_enough_resources", goblin: input.goblin };
   }
 
-  return { archetype: input.archetype, canHire: true, costRequirements, failureReason: null, goblin };
+  return { canHire: true, costRequirements, failureReason: null, goblin: input.goblin };
 }
 
 export function createGoblinHutProgressionState(input: {
@@ -195,7 +177,7 @@ export function createGoblinHutProgressionState(input: {
         builtMinesCount: input.builtMinesCount,
         completedMineTemplateIds: input.completedMineTemplateIds,
         goblinHut: input.content.goblinHut,
-        goblins: input.content.goblinGeneration.archetypes.map(createGoblinConfigFromArchetype),
+        goblins: input.content.goblins.roles,
         resources: input.resources,
         roster: input.roster
       })
@@ -235,6 +217,91 @@ export function createGoblinHutVisualStage(levelNow: number, maxLevel: number): 
   return 4;
 }
 
+export function createGoblinIdentity(goblin: GoblinConfig, labels: Record<string, string>): GoblinIdentity {
+  const name = labels[goblin.nameKey] ?? roleLabel(goblin.role);
+
+  return {
+    description: labels[goblin.descriptionKey] ?? "",
+    fullName: name,
+    name,
+    nickname: ""
+  };
+}
+
+export function createGoblinRoleSummary(goblins: readonly GoblinConfig[], roster: GoblinRosterState): GoblinRoleSummary {
+  const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
+  const hiredInstances = roster.instances ?? [];
+  const hiredGoblins = hiredInstances.flatMap((instance) => {
+    const goblin = goblinById.get(instance.goblinId);
+    return goblin ? [{ goblin, instance }] : [];
+  });
+
+  return {
+    collectorCount: hiredGoblins.filter(({ goblin }) => goblin.role === "collector").length,
+    foremanCount: hiredGoblins.filter(({ goblin }) => goblin.role === "foreman").length,
+    hiredCount: hiredGoblins.length,
+    minerCount: hiredGoblins.filter(({ goblin }) => goblin.role === "miner").length,
+    totalAutoCollectSlots: hiredGoblins.reduce(
+      (total, { goblin, instance }) => total + getGoblinAutoCollectSlots({ ...goblin, id: instance.id } as GoblinConfig, instance.level),
+      0
+    )
+  };
+}
+
+export function createGoblinHutRoleTabs(
+  goblins: readonly GoblinConfig[],
+  roster: GoblinRosterState,
+  goblinHut?: GoblinHutConfig
+): GoblinHutRoleTab[] {
+  return goblinHutRoleTabs.map((tab) => {
+    const tabGoblins = filterGoblinsByHutRole(goblins, tab.id);
+    const locked = tab.id !== "all" && !tabGoblins.some((goblin) => isGoblinRoleUnlockedByHut(goblin.role, roster, goblinHut));
+
+    return {
+      ...tab,
+      count: tabGoblins.length,
+      hiredCount: (roster.instances ?? []).filter((instance) => tabGoblins.some((goblin) => goblin.id === instance.goblinId)).length,
+      locked
+    };
+  });
+}
+
+export function filterGoblinsByHutRole(goblins: readonly GoblinConfig[], role: GoblinHutRoleTabId): GoblinConfig[] {
+  switch (role) {
+    case "collectors":
+      return goblins.filter(isCollectorGoblin);
+    case "foremen":
+      return goblins.filter(isBuilderGoblin);
+    case "miners":
+      return goblins.filter(isMiningGoblin);
+    default:
+      return [...goblins];
+  }
+}
+
+export function isBuilderGoblin(goblin: GoblinConfig): boolean {
+  return goblin.role === "foreman";
+}
+
+export function isCollectorGoblin(goblin: GoblinConfig): boolean {
+  return goblin.role === "collector";
+}
+
+export function isMiningGoblin(goblin: GoblinConfig): boolean {
+  return goblin.role === "miner";
+}
+
+export function roleLabel(role: GoblinRole): string {
+  switch (role) {
+    case "collector":
+      return "Сборщик";
+    case "foreman":
+      return "Бригадир";
+    case "miner":
+      return "Шахтер";
+  }
+}
+
 function getContentGoblinHutLevel(goblinHut: GoblinHutConfig, level: number): GoblinHutLevelConfig {
   const levels = [...goblinHut.levels].sort((left, right) => right.level - left.level);
   const fallbackLevel = levels[levels.length - 1];
@@ -250,112 +317,16 @@ function getNextContentGoblinHutLevel(goblinHut: GoblinHutConfig, currentLevel: 
   return [...goblinHut.levels].sort((left, right) => left.level - right.level).find((item) => item.level > currentLevel) ?? null;
 }
 
-export function createGoblinIdentity(goblin: GoblinConfig, labels: Record<string, string>): GoblinIdentity {
-  const rawName = labels[goblin.nameKey] ?? goblin.id;
-  const nickname = goblin.nicknameKey ? labels[goblin.nicknameKey] ?? "" : "";
-  const fallbackSplit = splitGoblinName(rawName);
-  const name = fallbackSplit.name;
-  const resolvedNickname = nickname || fallbackSplit.nickname;
-  const fullName = resolvedNickname ? `${name} ${resolvedNickname}` : name;
-
-  return {
-    description: labels[goblin.descriptionKey] ?? goblin.id,
-    fullName,
-    name,
-    nickname: resolvedNickname
-  };
-}
-
-export function createGoblinRoleSummary(goblins: readonly GoblinConfig[], roster: GoblinRosterState): GoblinRoleSummary {
-  const hiredGoblins = goblins.filter((goblin) => isGoblinHired(roster, goblin.id));
-  const hiredInstances = roster.instances ?? [];
-
-  if (hiredInstances.length > 0) {
-    const goblinById = new Map(goblins.map((goblin) => [goblin.id, goblin]));
-    const instanceGoblins = hiredInstances
-      .map((instance) => {
-        const goblin = goblinById.get(instance.archetypeId);
-
-        return goblin ? { goblin, instance } : null;
-      })
-      .filter((item): item is { goblin: GoblinConfig; instance: (typeof hiredInstances)[number] } => Boolean(item));
-
+function createNextGoblinLevelProgress(level: number, stars: number, maxLevel: number): { level: number; stars: 0 | 1 | 2 | 3 | 4 | 5 } {
+  if (stars < 5 || level >= maxLevel) {
     return {
-      builderCount: instanceGoblins.filter(({ goblin }) => goblin.class === "builder" || goblin.class === "foreman").length,
-      collectorCount: instanceGoblins.filter(({ goblin }) => goblin.class === "collector").length,
-      hiredCount: hiredInstances.length,
-      minerCount: instanceGoblins.filter(({ goblin }) => goblin.class === "miner").length,
-      totalAutoCollectSlots: instanceGoblins.reduce(
-        (total, { goblin, instance }) => total + getGoblinAutoCollectSlots(goblin, instance.level),
-        0
-      )
+      level,
+      stars: Math.min(5, Math.max(0, stars)) as 0 | 1 | 2 | 3 | 4 | 5
     };
   }
 
   return {
-    builderCount: hiredGoblins.filter((goblin) => goblin.class === "builder" || goblin.class === "foreman").length,
-    collectorCount: hiredGoblins.filter((goblin) => goblin.class === "collector").length,
-    hiredCount: hiredGoblins.length,
-    minerCount: hiredGoblins.filter((goblin) => goblin.class === "miner").length,
-    totalAutoCollectSlots: hiredGoblins.reduce(
-      (total, goblin) => total + getGoblinAutoCollectSlots(goblin, getGoblinLevel(roster, goblin.id)),
-      0
-    )
-  };
-}
-
-export function createGoblinHutRoleTabs(
-  goblins: readonly GoblinConfig[],
-  roster: GoblinRosterState,
-  goblinHut?: GoblinHutConfig
-): GoblinHutRoleTab[] {
-  return goblinHutRoleTabs.map((tab) => {
-    const tabGoblins = filterGoblinsByHutRole(goblins, tab.id);
-    const locked =
-      tab.id !== "all" && !tabGoblins.some((goblin) => isGoblinClassUnlockedByHut(goblin.class, roster, goblinHut));
-
-    return {
-      ...tab,
-      count: tabGoblins.length,
-      hiredCount: tabGoblins.filter((goblin) => isGoblinHired(roster, goblin.id)).length,
-      locked
-    };
-  });
-}
-
-export function filterGoblinsByHutRole(
-  goblins: readonly GoblinConfig[],
-  role: GoblinHutRoleTabId
-): GoblinConfig[] {
-  switch (role) {
-    case "builders":
-      return goblins.filter(isBuilderGoblin);
-    case "collectors":
-      return goblins.filter(isCollectorGoblin);
-    case "miners":
-      return goblins.filter(isMiningGoblin);
-    default:
-      return [...goblins];
-  }
-}
-
-export function isBuilderGoblin(goblin: GoblinConfig): boolean {
-  return goblin.class === "builder" || goblin.class === "foreman";
-}
-
-export function isCollectorGoblin(goblin: GoblinConfig): boolean {
-  return goblin.class === "collector";
-}
-
-export function isMiningGoblin(goblin: GoblinConfig): boolean {
-  return goblin.class === "miner";
-}
-
-function splitGoblinName(value: string): { name: string; nickname: string } {
-  const [name = value, ...nicknameParts] = value.trim().split(/\s+/u);
-
-  return {
-    name,
-    nickname: nicknameParts.join(" ")
+    level: level + 1,
+    stars: 0
   };
 }

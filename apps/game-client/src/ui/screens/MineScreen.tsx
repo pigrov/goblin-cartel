@@ -1,5 +1,5 @@
 import type { BlockTypeConfig, ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
-import { getGoblinLevel, type MiningBlockState, type MiningSession } from "@goblin-cartel/game-core";
+import type { MiningBlockState, MiningSession } from "@goblin-cartel/game-core";
 import { ArrowDownUp, BarChart3, Coins, Gem, Gauge, Hammer, Mountain, Pickaxe, Plus, ShieldCheck, X, Zap } from "lucide-react";
 import { lazy, type CSSProperties, type ReactNode, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { ElevatorProgressionState } from "../elevatorState";
@@ -76,7 +76,7 @@ export function MineScreen(props: {
       return {
         id: foreman.id,
         name: createGoblinIdentity(foreman, props.labels).name,
-        rarity: foreman.rarity
+        rarity: foreman.role
       };
     });
   }, [props.foremanTower.assignments, props.foremanTower.availableForemen, props.labels]);
@@ -508,7 +508,7 @@ function ForemanTowerModal(props: {
                 {foreman ? (
                   <>
                     <strong>{createGoblinIdentity(foreman, props.labels).name}</strong>
-                    <span>{getGoblinLevel({ goblinLevels: props.foremanTower.goblinLevels, hiredGoblinIds: [foreman.id] }, foreman.id)} ур.</span>
+                    <span>{((foreman as { instanceLevel?: number }).instanceLevel ?? props.foremanTower.goblinLevels[foreman.id] ?? 1)} ур.</span>
                   </>
                 ) : (
                   <>

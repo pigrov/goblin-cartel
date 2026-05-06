@@ -54,9 +54,28 @@ function createRosterSave(contentVersion = "0.0.15"): StoredGoblinRoster {
   return {
     contentVersion,
     roster: {
-      goblinLevels: { miner_1: 2 },
-      hiredGoblinIds: ["miner_1", "collector_1"],
-      hutLevel: 2
+      hiredGoblinIds: ["goblin:miner:1", "goblin:collector:1"],
+      hutLevel: 2,
+      instances: [
+        {
+          equipment: [],
+          goblinId: "miner",
+          id: "goblin:miner:1",
+          level: 2,
+          lifetimeStats: {},
+          role: "miner",
+          stars: 1
+        },
+        {
+          equipment: [],
+          goblinId: "collector",
+          id: "goblin:collector:1",
+          level: 1,
+          lifetimeStats: {},
+          role: "collector",
+          stars: 0
+        }
+      ]
     }
   };
 }
@@ -139,25 +158,18 @@ describe("player save", () => {
     const roster: StoredGoblinRoster = {
       contentVersion: "0.0.15",
       roster: {
-        hiredGoblinIds: ["miner_1"],
+        hiredGoblinIds: ["goblin:miner:1"],
         instances: [
           {
-            class: "miner",
             equipment: [],
-            id: "contract:miner_1",
+            goblinId: "miner",
+            id: "goblin:miner:1",
             level: 2,
             lifetimeStats: {
               blocksDestroyed: 12
             },
-            rarity: "rare",
-            rolledStats: {
-              loyalty: 5,
-              luck: 4,
-              speed: 6,
-              strength: 8
-            },
-            archetypeId: "miner_1",
-            traits: []
+            role: "miner",
+            stars: 3
           }
         ]
       }

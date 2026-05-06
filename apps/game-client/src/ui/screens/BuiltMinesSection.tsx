@@ -1,6 +1,6 @@
 import { Coins, Gem, Hammer, Mountain, Pickaxe, Sparkles, X, Zap } from "lucide-react";
 import type { BuiltMineTypeConfig, ContentBundle, GoblinConfig, MineTemplateConfig } from "@goblin-cartel/content-schemas";
-import type { BuiltMineState, MiningFoundVein } from "@goblin-cartel/game-core";
+import { calculateGoblinPrimaryStat, type BuiltMineState, type MiningFoundVein } from "@goblin-cartel/game-core";
 import {
   canBuildFoundVein,
   createBuiltMineDashboardState,
@@ -394,9 +394,9 @@ export function CollectorAssignmentModal(props: {
                   <div className="collector-card-main">
                     <strong>{goblinName(collector, props.labels)}</strong>
                     <span>
-                      {collectorSpecializationLabel(collector)} · {usedSlots}/{totalSlots} слотов
+                      {collectorRoleLabel(collector)} · {usedSlots}/{totalSlots} слотов
                     </span>
-                    <p>{collectorEffectLabel(collector, props.labels, props.content)}</p>
+                    <p>{collectorEffectLabel(collector, props.goblinLevels[collector.id] ?? 1)}</p>
                   </div>
                   <button disabled={!isAssigned && !canAssign} onClick={() => props.onAssign(isAssigned ? null : collector.id)} type="button">
                     {isAssigned ? "Снять" : canAssign ? "Назначить" : "Занят"}
@@ -559,10 +559,8 @@ function goblinName(goblin: GoblinConfig, labels: Record<string, string>): strin
   return createGoblinIdentity(goblin, labels).fullName;
 }
 
-function goblinClassLabel(goblinClass: GoblinConfig["class"]): string {
-  switch (goblinClass) {
-    case "builder":
-      return "Строитель";
+function goblinRoleLabel(goblinRole: string): string {
+  switch (goblinRole) {
     case "collector":
       return "Сборщик";
     case "foreman":
@@ -584,72 +582,13 @@ function automationHint(
   return collectors.length > 0 ? "Все сборщики заняты" : "Нужен нанятый гоблин-сборщик";
 }
 
-function collectorSpecializationLabel(goblin: GoblinConfig): string {
-  switch (goblin.specialization) {
-    case "construction_foreman":
-      return "Бригадир";
-    case "event":
-      return "Редкий";
-    case "heavy_striker":
-      return "Тяжеловес";
-    case "ore_sniffer":
-      return "Рудный нюх";
-    case "resource_expert":
-      return "Рудный эксперт";
-    case "stonebreaker":
-      return "Камнелом";
-    case "warehouse_keeper":
-      return "Кладовщик";
-    default:
-      return goblinClassLabel(goblin.class);
-  }
+function collectorRoleLabel(goblin: GoblinConfig): string {
+  return goblinRoleLabel(goblin.role);
 }
 
-function collectorEffectLabel(goblin: GoblinConfig, labels: Record<string, string>, content: ContentBundle): string {
-  const effectLabels = goblin.ability.effects.map((effect) => {
-    switch (effect.type) {
-      case "auto_collect_slots":
-        return `${effect.value} ${pluralRu(effect.value, "шахта", "шахты", "шахт")} автосбора`;
-      case "mine_capacity_multiplier":
-        return `вместимость ${formatMultiplierBonus(effect.value)}`;
-      case "mine_production_multiplier":
-        return effect.resourceId
-          ? `${resourceLabelById(effect.resourceId, labels, content)} ${formatMultiplierBonus(effect.value)}`
-          : `добыча ${formatMultiplierBonus(effect.value)}`;
-      case "build_time_multiplier":
-        return `стройка ${formatMultiplierReduction(effect.value)}`;
-      default:
-        return null;
-    }
-  });
-
-  return effectLabels.filter((label): label is string => Boolean(label)).join(" · ") || labelFromNameKey(goblin.ability.descriptionKey, goblin.id, labels);
-}
-
-function formatMultiplierBonus(value: number): string {
-  const percent = Math.round((value - 1) * 100);
-  return percent >= 0 ? `+${percent}%` : `${percent}%`;
-}
-
-function formatMultiplierReduction(value: number): string {
-  const percent = Math.round((1 - value) * 100);
-  return percent >= 0 ? `-${percent}% времени` : `+${Math.abs(percent)}% времени`;
-}
-
-function pluralRu(value: number, one: string, few: string, many: string): string {
-  const absolute = Math.abs(value);
-  const mod10 = absolute % 10;
-  const mod100 = absolute % 100;
-
-  if (mod10 === 1 && mod100 !== 11) {
-    return one;
-  }
-
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
-    return few;
-  }
-
-  return many;
+function collectorEffectLabel(goblin: GoblinConfig, level: number): string {
+  const speed = calculateGoblinPrimaryStat(goblin, level);
+  return `Автосбор · добыча +${Math.round(speed)}%/ч`;
 }
 
 function resourceLabelById(resourceId: string, labels: Record<string, string>, content: ContentBundle): string {

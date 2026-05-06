@@ -25,11 +25,10 @@ const baseContent = {
   veinTypes: [{ id: "gold_vein", nameKey: "vein.gold.name" }],
   bossCards: [],
   mineTemplates: [],
-  goblinGeneration: {
-    archetypes: [],
+  goblins: {
     id: "default",
-    nameKey: "goblin_generation.name",
-    namePool: { names: [], nicknames: [] }
+    nameKey: "goblins.name",
+    roles: []
   },
   goblinHut: {
     id: "default",
@@ -39,7 +38,7 @@ const baseContent = {
         level: 1,
         maxHiredGoblins: 2,
         nameKey: "goblin_hut.level.1.name",
-        unlockedClasses: ["miner"],
+        unlockedRoles: ["miner"],
         upgradeCost: [],
         upgradeCostMultiplier: 1,
         unlockRequirements: []

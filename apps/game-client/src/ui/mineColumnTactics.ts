@@ -1,5 +1,5 @@
 import type { MiningSession } from "@goblin-cartel/game-core";
-import { calculateCrewAutoDamagePerSecond, getGoblinLevel, type GoblinRosterState } from "@goblin-cartel/game-core";
+import { calculateGoblinPrimaryStat, type GoblinRosterState } from "@goblin-cartel/game-core";
 import { createGoblinIdentity, isMiningGoblin } from "./goblinHutClientState";
 import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
 import type { GoblinPlacementMap } from "./useGoblinPlacement";
@@ -100,16 +100,9 @@ function findBestGoblinForBlock(
 }
 
 function calculateGoblinDps(goblin: RuntimeGoblinConfig, blockTags: string[], roster: GoblinRosterState): number {
-  return calculateCrewAutoDamagePerSecond({
-    blockTags,
-    goblins: [goblin],
-    roster: {
-      goblinLevels: {
-        [goblin.id]: Math.max(1, Math.floor(goblin.instanceLevel ?? getGoblinLevel(roster, goblin.id)))
-      },
-      hiredGoblinIds: [goblin.id]
-    }
-  });
+  void blockTags;
+  void roster;
+  return calculateGoblinPrimaryStat(goblin, goblin.instanceLevel ?? 1, goblin.instanceStars ?? 0);
 }
 
 function createPlacedGoblinIdByColumn(placements: GoblinPlacementMap): Map<number, string> {
@@ -161,8 +154,5 @@ function columnTacticDetail(state: MineColumnTacticState, currentDps: number, be
 }
 
 function goblinDisplayName(goblin: RuntimeGoblinConfig, labels: Record<string, string>): string {
-  const identity = createGoblinIdentity(goblin, labels);
-  const name = goblin.instanceName?.trim() || identity.name;
-  const nickname = goblin.instanceNickname?.trim() || identity.nickname;
-  return nickname ? `${name} ${nickname}` : name;
+  return createGoblinIdentity(goblin, labels).fullName;
 }

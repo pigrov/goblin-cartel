@@ -4,7 +4,8 @@ import {
   builtMineMaxLevel,
   calculateBuiltMineUpgradeCost,
   calculateBuiltMineUpgradeStats,
-  calculateGoblinEffectiveAbilityEffects,
+  calculateGoblinEffectiveModifiers,
+  calculateGoblinPrimaryStat,
   canBuildMineFromVein,
   collectBuiltMineIncome,
   type BuiltMineUpgradeConfig,
@@ -230,16 +231,7 @@ export function createBuiltMineUpgradePreview(
 }
 
 export function getGoblinAutoCollectSlots(goblin: GoblinConfig, level = 1): number {
-  if (goblin.class !== "collector") {
-    return 0;
-  }
-
-  return Math.max(
-    0,
-    calculateGoblinEffectiveAbilityEffects(goblin, level)
-      .filter((effect) => effect.type === "auto_collect_slots")
-      .reduce((total, effect) => total + effect.value, 0)
-  );
+  return goblin.role === "collector" && calculateGoblinPrimaryStat(goblin, level, getGoblinStarsFromConfig(goblin)) > 0 ? 1 : 0;
 }
 
 export function createConstructionSupportState(
@@ -289,22 +281,20 @@ export function createBuildCostWithMultiplier(
 }
 
 export function getGoblinBuildCostMultiplier(goblin: GoblinConfig, level = 1): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level)
-    .filter((effect) => effect.type === "build_cost_multiplier")
-    .reduce((multiplier, effect) => multiplier * effect.value, 1);
+  return calculateGoblinEffectiveModifiers(goblin, level, getGoblinStarsFromConfig(goblin)).reduce((multiplier, effect) => {
+    return effect.type === "build_time_multiplier" ? multiplier : multiplier;
+  }, 1);
 }
 
 export function getGoblinBuildTimeMultiplier(goblin: GoblinConfig, level = 1): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level)
+  return calculateGoblinEffectiveModifiers(goblin, level, getGoblinStarsFromConfig(goblin))
     .filter((effect) => effect.type === "build_time_multiplier")
     .reduce((multiplier, effect) => multiplier * effect.value, 1);
 }
 
 export function isConstructionSupportGoblin(goblin: GoblinConfig): boolean {
-  return (
-    goblin.class === "builder" ||
-    goblin.class === "foreman" ||
-    goblin.ability.effects.some((effect) => effect.type === "build_cost_multiplier" || effect.type === "build_time_multiplier")
+  return calculateGoblinEffectiveModifiers(goblin, getGoblinLevelFromConfig(goblin), getGoblinStarsFromConfig(goblin)).some(
+    (effect) => effect.type === "build_time_multiplier"
   );
 }
 
@@ -425,19 +415,20 @@ function createEffectiveBuiltMine(builtMine: BuiltMineState, collector: GoblinCo
 }
 
 function getCollectorMineCapacityMultiplier(goblin: GoblinConfig, level: number): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level)
+  return calculateGoblinEffectiveModifiers(goblin, level, getGoblinStarsFromConfig(goblin))
     .filter((effect) => effect.type === "mine_capacity_multiplier")
     .reduce((multiplier, effect) => multiplier * effect.value, 1);
 }
 
 function getCollectorMineProductionMultiplier(goblin: GoblinConfig, resourceId: string, level: number): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
+  const baseSpeedBonus = goblin.role === "collector" ? calculateGoblinPrimaryStat(goblin, level, getGoblinStarsFromConfig(goblin)) / 100 : 0;
+  return calculateGoblinEffectiveModifiers(goblin, level, getGoblinStarsFromConfig(goblin)).reduce((multiplier, effect) => {
     if (effect.type !== "mine_production_multiplier" || (effect.resourceId && effect.resourceId !== resourceId)) {
       return multiplier;
     }
 
     return multiplier * effect.value;
-  }, 1);
+  }, 1 + baseSpeedBonus);
 }
 
 function createCollectorMap(collectorGoblins: readonly GoblinConfig[]): Map<string, GoblinConfig> {
@@ -449,11 +440,21 @@ function findAssignedCollector(builtMine: BuiltMineState, collectorsById: Readon
 }
 
 function getCollectorLevel(collector: GoblinConfig | undefined, goblinLevels: Readonly<Record<string, number>>): number {
-  return collector ? Math.max(1, Math.floor(goblinLevels[collector.id] ?? 1)) : 1;
+  return collector ? getGoblinLevelFromConfig(collector, goblinLevels) : 1;
 }
 
 function getRosterGoblinLevel(goblin: GoblinConfig, goblinLevels: Readonly<Record<string, number>>): number {
-  return Math.max(1, Math.floor(goblinLevels[goblin.id] ?? 1));
+  return getGoblinLevelFromConfig(goblin, goblinLevels);
+}
+
+function getGoblinLevelFromConfig(goblin: GoblinConfig, goblinLevels: Readonly<Record<string, number>> = {}): number {
+  const runtimeLevel = (goblin as { instanceLevel?: number }).instanceLevel;
+  return Math.max(1, Math.floor(runtimeLevel ?? goblinLevels[goblin.id] ?? 1));
+}
+
+function getGoblinStarsFromConfig(goblin: GoblinConfig): 0 | 1 | 2 | 3 | 4 | 5 {
+  const value = (goblin as { instanceStars?: number }).instanceStars;
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : 0;
 }
 
 function restoreBaseMineStats(effectiveBuiltMine: BuiltMineState, baseBuiltMine: BuiltMineState): BuiltMineState {

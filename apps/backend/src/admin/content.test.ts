@@ -63,7 +63,7 @@ class MemoryContentStore implements ContentStore {
       ...content.mineTemplates.map((mineTemplate) =>
         this.createEntity(contentVersionId, "mineTemplate", mineTemplate.id, mineTemplate)
       ),
-      this.createEntity(contentVersionId, "goblinGeneration", "default", content.goblinGeneration),
+      this.createEntity(contentVersionId, "goblins", "default", content.goblins),
       this.createEntity(contentVersionId, "goblinHut", "default", content.goblinHut),
       this.createEntity(contentVersionId, "elevator", "default", content.elevator),
       ...Object.entries(content.localization).map(([locale, messages]) =>
@@ -150,7 +150,7 @@ describe("content service", () => {
     });
     expect(detail.content.resources.map((resource) => resource.id)).toContain("gold");
     expect(detail.content.bossCards.map((card) => card.id)).toContain("hit_damage");
-    expect(detail.content.goblinGeneration.archetypes.map((archetype) => archetype.id)).toContain("random_miner_contract");
+    expect(detail.content.goblins.roles.map((role) => role.id)).toEqual(["miner", "collector", "foreman"]);
     expect(detail.content.goblinHut.levels[0]?.maxHiredGoblins).toBe(2);
     expect(detail.content.elevator.levels[0]?.platformSlots).toBe(2);
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
@@ -205,21 +205,21 @@ describe("content service", () => {
     store.entities.set(
       detail.version.id,
       (store.entities.get(detail.version.id) ?? []).filter(
-        (entity) => entity.entityType !== "goblinGeneration" && entity.entityType !== "elevator"
+        (entity) => entity.entityType !== "goblins" && entity.entityType !== "elevator"
       )
     );
 
     const restored = await service.getVersion("admin-1", detail.version.id);
-    const restoredContent = restored?.content as { elevator?: unknown; goblinGeneration?: unknown } | undefined;
+    const restoredContent = restored?.content as { elevator?: unknown; goblins?: unknown } | undefined;
     const validation = await service.validateVersion("admin-1", detail.version.id);
     const validationResult = validation && "validation" in validation ? validation.validation : null;
 
-    expect(restoredContent?.goblinGeneration).toBeUndefined();
+    expect(restoredContent?.goblins).toBeUndefined();
     expect(restoredContent?.elevator).toBeUndefined();
     expect(validationResult?.ok).toBe(false);
     expect(validationResult?.errors ?? []).toEqual(
       expect.arrayContaining([
-        "goblinGeneration: Invalid input: expected object, received undefined",
+        "goblins: Invalid input: expected object, received undefined",
         "elevator: Invalid input: expected object, received undefined"
       ])
     );
@@ -302,7 +302,7 @@ describe("content service", () => {
     });
   });
 
-  it("updates goblin generation entity with server validation and audit log", async () => {
+  it("updates goblin role progression with server validation and audit log", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({
       store,
@@ -311,20 +311,21 @@ describe("content service", () => {
     const detail = await service.createVersion("admin-1", {
       version: "0.1.0"
     });
-    const goblinGeneration = structuredClone(starterContentBundle.goblinGeneration);
+    const goblins = structuredClone(starterContentBundle.goblins);
+    const miner = goblins.roles.find((role) => role.id === "miner");
 
-    if (!goblinGeneration.archetypes[0]) {
-      throw new Error("Missing starter goblin generation archetype");
+    if (!miner?.levels[0]?.stars[0]) {
+      throw new Error("Missing starter miner progression");
     }
 
-    goblinGeneration.archetypes[0].statRanges.strength.max = 14;
+    miner.levels[0].stars[0].statValue = 14;
 
     const result = await service.updateEntity("admin-1", detail.version.id, {
-      entityType: "goblinGeneration",
+      entityType: "goblins",
       entityId: "default",
-      entity: goblinGeneration,
+      entity: goblins,
       localization: {
-        [goblinGeneration.nameKey]: "Проверенная генерация"
+        [goblins.nameKey]: "Checked goblins"
       }
     });
 
@@ -332,7 +333,7 @@ describe("content service", () => {
       content: {
         localization: {
           ru: {
-            [goblinGeneration.nameKey]: "Проверенная генерация"
+            [goblins.nameKey]: "Checked goblins"
           }
         }
       },
@@ -341,13 +342,13 @@ describe("content service", () => {
         updatedAt: "2026-04-29T12:00:00.000Z"
       }
     });
-    expect(result && "content" in result ? result.content.goblinGeneration.archetypes[0]?.statRanges.strength.max : null).toBe(14);
+    expect(result && "content" in result ? result.content.goblins.roles[0]?.levels[0]?.stars[0]?.statValue : null).toBe(14);
     expect(store.auditLogs.at(-1)).toMatchObject({
       action: "admin.content.entity.update",
-      targetId: "goblinGeneration:default",
+      targetId: "goblins:default",
       metadata: {
         entityId: "default",
-        entityType: "goblinGeneration",
+        entityType: "goblins",
         version: "0.1.0"
       }
     });
@@ -373,7 +374,7 @@ describe("content service", () => {
         productionResourceId: "missing_resource"
       },
       localization: {
-        [builtMineType.nameKey]: "Сломанная шахта"
+        [builtMineType.nameKey]: "Broken mine"
       }
     });
 
@@ -408,7 +409,7 @@ describe("content service", () => {
       entityId: "default",
       entity: goblinHut,
       localization: {
-        [goblinHut.nameKey]: "Хижина проверки"
+        [goblinHut.nameKey]: "Checked hut"
       }
     });
 
@@ -417,7 +418,7 @@ describe("content service", () => {
       content: {
         localization: {
           ru: {
-            [goblinHut.nameKey]: "Хижина проверки"
+            [goblinHut.nameKey]: "Checked hut"
           }
         }
       }
@@ -444,7 +445,7 @@ describe("content service", () => {
       entityId: "default",
       entity: elevator,
       localization: {
-        [elevator.nameKey]: "Подъемник проверки"
+        [elevator.nameKey]: "Checked elevator"
       }
     });
 
@@ -453,7 +454,7 @@ describe("content service", () => {
       content: {
         localization: {
           ru: {
-            [elevator.nameKey]: "Подъемник проверки"
+            [elevator.nameKey]: "Checked elevator"
           }
         }
       }
@@ -480,7 +481,7 @@ describe("content service", () => {
         rewardTable: [{ resourceId: "gold", min: 10, max: 25, chance: 0.5 }]
       },
       localization: {
-        [rewardChestType.nameKey]: "Проверочный сундук"
+        [rewardChestType.nameKey]: "Checked chest"
       }
     });
 
@@ -509,7 +510,7 @@ describe("content service", () => {
         valuePerLevel: 5
       },
       localization: {
-        [bossCard.nameKey]: "Проверочная карта"
+        [bossCard.nameKey]: "Checked card"
       }
     });
 
@@ -518,7 +519,7 @@ describe("content service", () => {
       content: {
         localization: {
           ru: {
-            [bossCard.nameKey]: "Проверочная карта"
+            [bossCard.nameKey]: "Checked card"
           }
         }
       }

@@ -15,7 +15,7 @@ export function normalizeForemanAssignments(
   roster: GoblinRosterState
 ): ForemanAssignments {
   const hiredForemanIds = new Set(
-    goblins.filter((goblin) => goblin.class === "foreman" && isGoblinHired(roster, goblin.id)).map((goblin) => goblin.id)
+    goblins.filter((goblin) => goblin.role === "foreman" && isGoblinHired(roster, goblin.id)).map((goblin) => goblin.id)
   );
   const usedIds = new Set<string>();
   const normalized = createEmptyForemanAssignments();

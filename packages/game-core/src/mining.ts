@@ -5,9 +5,9 @@ export interface BlockHpInput {
 }
 
 export interface GoblinDpsInput {
-  strength: number;
-  speed: number;
-  classMultiplier?: number;
+  power: number;
+  hitsPerSecond?: number;
+  roleMultiplier?: number;
   toolMultiplier?: number;
   blockTagBonus?: number;
 }
@@ -30,17 +30,18 @@ export function calculateBlockHp(input: BlockHpInput): number {
 }
 
 export function calculateGoblinDps(input: GoblinDpsInput): number {
-  assertNonNegative(input.strength, "strength");
-  assertNonNegative(input.speed, "speed");
+  assertNonNegative(input.power, "power");
 
-  const classMultiplier = input.classMultiplier ?? 1;
+  const hitsPerSecond = input.hitsPerSecond ?? 1;
+  const roleMultiplier = input.roleMultiplier ?? 1;
   const toolMultiplier = input.toolMultiplier ?? 1;
   const blockTagBonus = input.blockTagBonus ?? 0;
 
-  assertPositive(classMultiplier, "classMultiplier");
+  assertPositive(hitsPerSecond, "hitsPerSecond");
+  assertPositive(roleMultiplier, "roleMultiplier");
   assertPositive(toolMultiplier, "toolMultiplier");
 
-  return roundTo(input.strength * input.speed * classMultiplier * toolMultiplier * (1 + blockTagBonus), 3);
+  return roundTo(input.power * hitsPerSecond * roleMultiplier * toolMultiplier * (1 + blockTagBonus), 3);
 }
 
 export function calculateStoredProduction(input: MineProductionInput): number {

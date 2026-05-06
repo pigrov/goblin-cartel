@@ -110,9 +110,9 @@ export class DrizzleContentStore implements ContentStore {
         },
         {
           contentVersionId,
-          entityType: "goblinGeneration",
+          entityType: "goblins",
           entityId: "default",
-          data: content.goblinGeneration
+          data: content.goblins
         },
         {
           contentVersionId,

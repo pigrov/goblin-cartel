@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
-import type { MiningSession } from "@goblin-cartel/game-core";
+import type { GoblinRosterState, MiningSession } from "@goblin-cartel/game-core";
 import {
   assignGoblinWorkers,
   createDefaultGoblinPlacements,
@@ -34,42 +34,6 @@ function createSession(): MiningSession {
   } as unknown as MiningSession;
 }
 
-function createGoblin(
-  id: string,
-  options: {
-    class?: GoblinConfig["class"];
-    effects?: GoblinConfig["ability"]["effects"];
-    leveling?: GoblinConfig["leveling"];
-    sortOrder?: number;
-  } = {}
-): GoblinConfig {
-  return {
-    ability: {
-      descriptionKey: `ability.${id}.description`,
-      effects: options.effects ?? [],
-      id: `ability_${id}`,
-      nameKey: `ability.${id}.name`
-    },
-    assetId: `asset_${id}`,
-    baseStats: {
-      loyalty: 1,
-      luck: 1,
-      speed: 1,
-      strength: 1
-    },
-    class: options.class ?? "miner",
-    clan: "neutral",
-    descriptionKey: `goblin.${id}.description`,
-    hireCost: [],
-    id,
-    leveling: options.leveling,
-    nameKey: `goblin.${id}.name`,
-    rarity: "common",
-    sortOrder: options.sortOrder ?? 0,
-    unlockRequirements: []
-  } as unknown as GoblinConfig;
-}
-
 describe("goblin placement", () => {
   it("keeps destroyed cells as valid platform seats", () => {
     expect(findPlatformCells(createSession(), 0)).toEqual([
@@ -93,9 +57,9 @@ describe("goblin placement", () => {
 
   it("limits default and normalized placements by platform slots", () => {
     const session = createSession();
-    const first = createGoblin("first", { sortOrder: 1 });
-    const second = createGoblin("second", { sortOrder: 2 });
-    const third = createGoblin("third", { sortOrder: 3 });
+    const first = createGoblin("miner", "power", { id: "first", sortOrder: 1 });
+    const second = createGoblin("miner", "power", { id: "second", sortOrder: 2 });
+    const third = createGoblin("miner", "power", { id: "third", sortOrder: 3 });
 
     expect(createDefaultGoblinPlacements(session, [first, second, third], 0, 2)).toEqual({
       first: 1,
@@ -134,54 +98,34 @@ describe("goblin placement", () => {
     expect(getGoblinPlacementStatus(session, 0, 0, false)).toBe("waiting");
   });
 
-  it("uses rolled miner instance id and stats for worker damage", () => {
+  it("uses hired miner instance id and power stat for worker damage", () => {
     const session = createSession();
-    const archetype = createGoblin("miner_archetype");
-    const roster = {
-      hiredGoblinIds: ["rolled:miner_contract:1"],
+    const miner = createGoblin("miner", "power", { statBase: 12 });
+    const roster: GoblinRosterState = {
+      hiredGoblinIds: ["goblin:miner:1"],
       instances: [
         {
-          class: "miner" as const,
           equipment: [],
-          id: "rolled:miner_contract:1",
+          goblinId: "miner",
+          id: "goblin:miner:1",
           level: 1,
           lifetimeStats: {},
-          name: "Krikk",
-          nickname: "Sharp Pick",
-          rarity: "rare" as const,
-          rolledStats: {
-            loyalty: 4,
-            luck: 3,
-            speed: 10,
-            strength: 20
-          },
-          archetypeId: "miner_archetype",
-          traits: []
+          role: "miner",
+          stars: 5
         }
       ]
     };
-    const runtimeGoblins = createRuntimeGoblinConfigs([archetype], roster);
+    const runtimeGoblins = createRuntimeGoblinConfigs([miner], roster);
 
     expect(runtimeGoblins[0]).toMatchObject({
-      id: "rolled:miner_contract:1",
-      instanceName: "Krikk",
-      sourceArchetypeId: "miner_archetype"
+      id: "goblin:miner:1",
+      sourceGoblinId: "miner"
     });
-    expect(
-      assignGoblinWorkers(
-        session,
-        runtimeGoblins,
-        {
-          "rolled:miner_contract:1": 1
-        },
-        0,
-        roster
-      )
-    ).toMatchObject([
+    expect(assignGoblinWorkers(session, runtimeGoblins, { "goblin:miner:1": 1 }, 0, roster)).toMatchObject([
       {
-        damagePerSecond: 8,
+        damagePerSecond: 17,
         goblin: {
-          id: "rolled:miner_contract:1"
+          id: "goblin:miner:1"
         },
         targetCell: {
           col: 1,
@@ -191,42 +135,25 @@ describe("goblin placement", () => {
     ]);
   });
 
-  it("counts foreman offline relocation slots with level growth", () => {
-    const foreman = createGoblin("foreman", {
-      class: "foreman",
-      effects: [
-        { type: "offline_relocation_slots", value: 1 },
+  it("counts foreman offline relocation slots and modifiers from progression tiers", () => {
+    const foreman = createGoblin("foreman", "control", {
+      modifiers: [
         { type: "offline_auto_damage_multiplier", value: 1.1 },
         { type: "offline_reward_multiplier", value: 1.05 }
       ],
-      leveling: {
-        autoCollectSlotsPerLevel: 0,
-        buildCostMultiplierPerLevel: 0,
-        buildTimeMultiplierPerLevel: 0,
-        cost: [],
-        maxLevel: 4,
-        mineCapacityMultiplierPerLevel: 0,
-        mineProductionMultiplierPerLevel: 0,
-        offlineRelocationSlotsPerLevel: 1,
-        statGrowthPerLevel: {
-          loyalty: 0,
-          luck: 0,
-          speed: 0,
-          strength: 0
-        }
-      }
+      statBase: 5
     });
 
-    expect(getGoblinOfflineRelocationSlots(foreman, 1)).toBe(1);
-    expect(getGoblinOfflineRelocationSlots(foreman, 3)).toBe(3);
-    expect(getGoblinOfflineAutoDamageMultiplier(foreman, 3)).toBe(1.1);
-    expect(getGoblinOfflineRewardMultiplier(foreman, 3)).toBe(1.05);
+    expect(getGoblinOfflineRelocationSlots(foreman, 1)).toBe(5);
+    expect(getGoblinOfflineRelocationSlots(foreman, 2)).toBe(10);
+    expect(getGoblinOfflineAutoDamageMultiplier(foreman, 1)).toBe(1.1);
+    expect(getGoblinOfflineRewardMultiplier(foreman, 1)).toBe(1.05);
   });
 
   it("moves idle miners to live platform columns during offline mining", () => {
     const session = createSession();
-    const first = createGoblin("first", { sortOrder: 1 });
-    const second = createGoblin("second", { sortOrder: 2 });
+    const first = createGoblin("miner", "power", { id: "first", sortOrder: 1 });
+    const second = createGoblin("miner", "power", { id: "second", sortOrder: 2 });
     const result = relocateOfflineGoblinPlacements(
       session,
       [first, second],
@@ -243,3 +170,39 @@ describe("goblin placement", () => {
     });
   });
 });
+
+function createGoblin(
+  role: "miner" | "collector" | "foreman",
+  statKey: "power" | "speed" | "control",
+  options: {
+    id?: string;
+    modifiers?: GoblinConfig["levels"][number]["stars"][number]["modifiers"];
+    sortOrder?: number;
+    statBase?: number;
+  } = {}
+): GoblinConfig {
+  const id = options.id ?? role;
+  const statBase = options.statBase ?? 5;
+
+  return {
+    assetId: `asset_${id}`,
+    descriptionKey: `goblin.${id}.description`,
+    hireCost: [],
+    id,
+    levels: [1, 2].map((level) => ({
+      level,
+      stars: [0, 1, 2, 3, 4, 5].map((stars) => ({
+        modifiers: options.modifiers ?? [],
+        stars: stars as 0 | 1 | 2 | 3 | 4 | 5,
+        statValue: statBase * level + stars,
+        upgradeCost: []
+      }))
+    })),
+    nameKey: `goblin.${id}.name`,
+    role,
+    sortOrder: options.sortOrder ?? 0,
+    statKey,
+    statNameKey: `goblin.stat.${statKey}`,
+    unlockRequirements: []
+  };
+}

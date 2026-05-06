@@ -1,482 +1,146 @@
 import { describe, expect, it } from "vitest";
-import { defaultGoblinHireCardSkin, defaultUiIcons, type ContentBundle, type GoblinConfig } from "@goblin-cartel/content-schemas";
+import type { GoblinConfig, GoblinHutConfig } from "@goblin-cartel/content-schemas";
+import type { GoblinRosterState } from "@goblin-cartel/game-core";
 import {
-  createGoblinHutProgressionState,
-  createGoblinHutVisualStage,
-  createGoblinIdentity,
+  createGoblinHirePreview,
   createGoblinHutRoleTabs,
+  createGoblinIdentity,
   createGoblinRoleSummary,
-  createRandomGoblinContractPreview,
   createGoblinUpgradePreview,
-  filterGoblinsByHutRole,
-  isMiningGoblin
+  filterGoblinsByHutRole
 } from "./goblinHutClientState";
 
-const collector: GoblinConfig = {
-  ability: {
-    descriptionKey: "ability.collect.description",
-    effects: [
-      { type: "auto_collect_slots", value: 1 },
-      { type: "mine_capacity_multiplier", value: 1.1 }
-    ],
-    id: "collect",
-    nameKey: "ability.collect.name"
-  },
-  assetId: "goblin_collector_v1",
-  baseStats: {
-    loyalty: 5,
-    luck: 5,
-    speed: 4,
-    strength: 2
-  },
-  class: "collector",
-  clan: "neutral",
-  descriptionKey: "goblin.collector.description",
-  hireCost: [{ amount: 100, resourceId: "gold" }],
-  id: "collector_1",
-  leveling: {
-    autoCollectSlotsPerLevel: 0.5,
-    buildCostMultiplierPerLevel: 0,
-    buildTimeMultiplierPerLevel: 0,
-    cost: [
-      {
-        baseAmount: 80,
-        levelMultiplier: 1,
-        levelPower: 1,
-        resourceId: "gold"
-      }
-    ],
-    maxLevel: 5,
-    mineCapacityMultiplierPerLevel: 0.05,
-    mineProductionMultiplierPerLevel: 0,
-    offlineRelocationSlotsPerLevel: 0,
-    statGrowthPerLevel: {
-      loyalty: 1,
-      luck: 1,
-      speed: 1,
-      strength: 0
-    }
-  },
-  nameKey: "goblin.collector.name",
-  nicknameKey: "goblin.collector.nickname",
-  rarity: "common",
-  sortOrder: 1,
-  specialization: "warehouse_keeper",
-  unlockRequirements: []
-};
-
-const miner: GoblinConfig = {
-  ...collector,
-  ability: {
-    descriptionKey: "ability.hit.description",
-    effects: [{ type: "base_damage_bonus", value: 2 }],
-    id: "hit",
-    nameKey: "ability.hit.name"
-  },
-  class: "miner",
-  id: "miner_1",
-  leveling: {
-    ...collector.leveling,
-    autoCollectSlotsPerLevel: 0,
-    buildCostMultiplierPerLevel: 0,
-    buildTimeMultiplierPerLevel: 0,
-    statGrowthPerLevel: {
-      loyalty: 0,
-      luck: 0,
-      speed: 1,
-      strength: 2
-    }
-  },
-  nameKey: "goblin.miner.name",
-  nicknameKey: "goblin.miner.nickname",
-  specialization: "stonebreaker"
-};
-
-const builder: GoblinConfig = {
-  ...collector,
-  ability: {
-    descriptionKey: "ability.build.description",
-    effects: [{ type: "build_cost_multiplier", value: 0.9 }],
-    id: "build",
-    nameKey: "ability.build.name"
-  },
-  class: "builder",
-  id: "builder_1",
-  nameKey: "goblin.builder.name",
-  nicknameKey: "goblin.builder.nickname",
-  specialization: "construction_foreman"
-};
-
-const availableGoblins = [builder, collector, miner];
-
-const content: ContentBundle = {
-  blockTypes: [],
-  bossCards: [],
-  builtMineTypes: [],
-  uiIcons: defaultUiIcons,
-  goblinGeneration: {
-    archetypes: availableGoblins.map((goblin) => ({
-      ability: goblin.ability,
-      class: goblin.class,
-      equipmentSlots: [],
-      hireCost: goblin.hireCost,
-      id: goblin.id,
-      leveling: goblin.leveling,
-      nameKey: goblin.nameKey,
-      rarityWeights: [{ rarity: "common" as const, statMultiplier: 1, weight: 1 }],
-      renderPool: [{ assetId: goblin.assetId, rarity: "common" as const, weight: 1 }],
-      sortOrder: goblin.sortOrder,
-      specialization: goblin.specialization,
-      statRanges: {
-        loyalty: { max: goblin.baseStats.loyalty, min: goblin.baseStats.loyalty },
-        luck: { max: goblin.baseStats.luck, min: goblin.baseStats.luck },
-        speed: { max: goblin.baseStats.speed, min: goblin.baseStats.speed },
-        strength: { max: goblin.baseStats.strength, min: goblin.baseStats.strength }
-      },
-      traitPool: []
-    })),
-    hireCardSkin: defaultGoblinHireCardSkin,
-    id: "default",
-    nameKey: "goblin_generation.name",
-    namePool: {
-      names: ["Krikk"],
-      nicknames: ["Stone Ear"]
-    }
-  },
-  goblinHut: {
-    id: "default" as const,
-    levels: [
-      {
-        hireCostMultiplier: 1,
-        level: 1,
-        maxHiredGoblins: 2,
-        nameKey: "hut.1",
-        unlockedClasses: ["miner" as const],
-        upgradeCost: [],
-        upgradeCostMultiplier: 1,
-        unlockRequirements: []
-      },
-      {
-        hireCostMultiplier: 0.9,
-        level: 2,
-        maxHiredGoblins: 4,
-        nameKey: "hut.2",
-        unlockedClasses: ["miner" as const, "builder" as const, "collector" as const],
-        upgradeCost: [{ amount: 100, resourceId: "gold" }],
-        upgradeCostMultiplier: 0.8,
-        unlockRequirements: [{ type: "built_mines_count" as const, value: 1 }]
-      }
-    ],
-    nameKey: "hut.name"
-  },
-  elevator: {
-    id: "default" as const,
-    levels: [
-      {
-        dropDurationMs: 1450,
-        level: 1,
-        nameKey: "elevator.1",
-        offlineDamageMultiplier: 1,
-        platformSlots: 2,
-        stabilityPercent: 20,
-        upgradeCost: [],
-        visualStage: 1 as const
-      }
-    ],
-    nameKey: "elevator.name"
-  },
-  localization: {
-    ru: {}
-  },
-  mineTemplates: [],
-  resources: [
+const goblins = [createGoblin("miner", "power"), createGoblin("collector", "speed"), createGoblin("foreman", "control")];
+const goblinHut: GoblinHutConfig = {
+  id: "default",
+  nameKey: "goblin_hut.name",
+  levels: [
     {
-      iconAssetId: "gold",
-      id: "gold",
-      nameKey: "resource.gold.name",
-      rarity: "common" as const,
-      sortOrder: 1,
-      storageType: "global" as const
+      hireCostMultiplier: 1,
+      level: 1,
+      maxHiredGoblins: 1,
+      nameKey: "hut.1",
+      unlockedRoles: ["miner"],
+      upgradeCost: [],
+      upgradeCostMultiplier: 1,
+      unlockRequirements: []
+    },
+    {
+      hireCostMultiplier: 1,
+      level: 2,
+      maxHiredGoblins: 3,
+      nameKey: "hut.2",
+      unlockedRoles: ["miner", "collector", "foreman"],
+      upgradeCost: [{ amount: 10, resourceId: "gold" }],
+      upgradeCostMultiplier: 1,
+      unlockRequirements: []
     }
-  ],
-  rewardChestTypes: [],
-  veinTypes: []
+  ]
 };
 
 describe("goblin hut client state", () => {
-  it("previews upgrade cost and level-based collector slots", () => {
-    const preview = createGoblinUpgradePreview(
-      collector,
-      {
-        goblinLevels: {
-          collector_1: 2
-        },
-        hiredGoblinIds: ["collector_1"]
-      },
-      {
-        gold: 200
-      }
-    );
+  it("builds hire previews from fixed role locks", () => {
+    const roster: GoblinRosterState = { hiredGoblinIds: [] };
 
-    expect(preview).toMatchObject({
-      autoCollectSlotsAfter: 2,
-      autoCollectSlotsNow: 1,
-      buildCostMultiplierAfter: 1,
-      buildCostMultiplierNow: 1,
-      buildTimeMultiplierAfter: 1,
-      buildTimeMultiplierNow: 1,
+    expect(createGoblinHirePreview({ builtMinesCount: 0, completedMineTemplateIds: [], goblin: goblins[0]!, goblinHut, goblins, resources: {}, roster })).toMatchObject({
+      canHire: true,
+      failureReason: null
+    });
+    expect(createGoblinHirePreview({ builtMinesCount: 0, completedMineTemplateIds: [], goblin: goblins[1]!, goblinHut, goblins, resources: { gold: 100 }, roster })).toMatchObject({
+      canHire: false,
+      failureReason: "role_locked"
+    });
+  });
+
+  it("requires merged stars before paid goblin level upgrades", () => {
+    const roster: GoblinRosterState = {
+      hiredGoblinIds: ["goblin:miner:1"],
+      instances: [{ equipment: [], goblinId: "miner", id: "goblin:miner:1", level: 1, lifetimeStats: {}, role: "miner", stars: 0 }]
+    };
+    const runtimeMiner = { ...goblins[0]!, id: "goblin:miner:1" };
+
+    expect(createGoblinUpgradePreview(runtimeMiner, roster, { gold: 100 }, goblinHut)).toMatchObject({
+      canUpgrade: false,
+      failureReason: "needs_stars",
+      levelAfter: 1,
+      primaryStatAfter: 5,
+      starsAfter: 0
+    });
+
+    const fiveStarRoster: GoblinRosterState = {
+      ...roster,
+      instances: [{ ...roster.instances![0]!, stars: 5 }]
+    };
+
+    expect(createGoblinUpgradePreview(runtimeMiner, fiveStarRoster, { gold: 100 }, goblinHut)).toMatchObject({
       canUpgrade: true,
-      costRequirements: [
-        {
-          available: 200,
-          missing: 0,
-          ok: true,
-          required: 160,
-          resourceId: "gold"
-        }
-      ],
       failureReason: null,
-      levelAfter: 3,
-      levelNow: 2,
-      maxLevel: 5
+      levelAfter: 2,
+      primaryStatAfter: 12,
+      starsAfter: 0
     });
   });
 
-  it("blocks upgrades for locked or max-level goblins", () => {
-    expect(createGoblinUpgradePreview(collector, { hiredGoblinIds: [] }, { gold: 500 }).failureReason).toBe("not_hired");
-    expect(
-      createGoblinUpgradePreview(
-        collector,
-        {
-          goblinLevels: {
-            collector_1: 5
-          },
-          hiredGoblinIds: ["collector_1"]
-        },
-        {
-          gold: 500
-        }
-      ).failureReason
-    ).toBe("max_level");
-  });
+  it("summarizes hired role instances", () => {
+    const roster: GoblinRosterState = {
+      hiredGoblinIds: ["goblin:miner:1", "goblin:collector:1"],
+      instances: [
+        { equipment: [], goblinId: "miner", id: "goblin:miner:1", level: 1, lifetimeStats: {}, role: "miner", stars: 0 },
+        { equipment: [], goblinId: "collector", id: "goblin:collector:1", level: 1, lifetimeStats: {}, role: "collector", stars: 0 }
+      ]
+    };
 
-  it("summarizes hired roles for the hut header", () => {
-    expect(
-      createGoblinRoleSummary([builder, collector, miner], {
-        goblinLevels: {
-          collector_1: 3
-        },
-        hiredGoblinIds: ["builder_1", "collector_1", "miner_1"]
-      })
-    ).toEqual({
-      builderCount: 1,
+    expect(createGoblinRoleSummary(goblins, roster)).toMatchObject({
       collectorCount: 1,
-      hiredCount: 3,
+      hiredCount: 2,
       minerCount: 1,
-      totalAutoCollectSlots: 2
+      totalAutoCollectSlots: 1
     });
   });
 
-  it("splits hut tabs by goblin role", () => {
-    const goblins = [builder, collector, miner];
-    const roster = {
-      hiredGoblinIds: ["collector_1", "miner_1"]
-    };
+  it("filters role tabs and resolves identity labels", () => {
+    const roster: GoblinRosterState = { hiredGoblinIds: [], hutLevel: 2 };
 
-    expect(createGoblinHutRoleTabs(goblins, roster)).toEqual([
-      { count: 3, hiredCount: 2, id: "all", label: "Все", locked: false },
-      { count: 1, hiredCount: 1, id: "miners", label: "Шахтеры", locked: false },
-      { count: 1, hiredCount: 1, id: "collectors", label: "Сборщики", locked: false },
-      { count: 1, hiredCount: 0, id: "builders", label: "Стройка", locked: false }
-    ]);
-    expect(filterGoblinsByHutRole(goblins, "miners")).toEqual([miner]);
-    expect(filterGoblinsByHutRole(goblins, "collectors")).toEqual([collector]);
-    expect(filterGoblinsByHutRole(goblins, "builders")).toEqual([builder]);
-    expect(goblins.filter(isMiningGoblin)).toEqual([miner]);
-  });
-
-  it("previews hut progression and role-locked hires", () => {
-    const hutState = createGoblinHutProgressionState({
-      builtMinesCount: 1,
-      completedMineTemplateIds: [],
-      content,
-      resources: {
-        gold: 120
-      },
-      roster: {
-        hiredGoblinIds: ["miner_1"]
-      }
-    });
-
-    expect(hutState).toMatchObject({
-      canUpgrade: true,
-      levelNow: 1,
-      maxHiredGoblins: 2,
-      maxLevel: 2,
-      visualStage: 2
-    });
-    expect(hutState.costRequirements).toEqual([
-      {
-        available: 120,
-        missing: 0,
-        ok: true,
-        required: 100,
-        resourceId: "gold"
-      }
-    ]);
-    expect(createGoblinHutRoleTabs(availableGoblins, { hiredGoblinIds: ["miner_1"] }, content.goblinHut)[2]).toMatchObject({
-      id: "collectors",
-      locked: true
-    });
-  });
-
-  it("previews random goblin contracts with hut limits and resources", () => {
-    const archetype = {
-      ability: miner.ability,
-      class: "miner" as const,
-      equipmentSlots: [],
-      hireCost: [{ amount: 120, resourceId: "gold" }],
-      id: "miner_contract",
-      leveling: miner.leveling,
-      nameKey: "contract.miner",
-      rarityWeights: [{ rarity: "common" as const, statMultiplier: 1, weight: 1 }],
-      renderPool: [{ assetId: miner.assetId, rarity: "common" as const, weight: 1 }],
-      sortOrder: 1,
-      statRanges: {
-        loyalty: { max: 5, min: 5 },
-        luck: { max: 5, min: 5 },
-        speed: { max: 5, min: 5 },
-        strength: { max: 5, min: 5 }
-      },
-      traitPool: []
-    };
-
-    expect(
-      createRandomGoblinContractPreview({
-        archetype,
-        goblinHut: content.goblinHut,
-        goblins: availableGoblins,
-        resources: { gold: 140 },
-        roster: { hiredGoblinIds: ["miner_1"] }
-      })
-    ).toMatchObject({
-      canHire: true,
-      costRequirements: [{ available: 140, missing: 0, ok: true, required: 120, resourceId: "gold" }],
-      failureReason: null
-    });
-
-    expect(
-      createRandomGoblinContractPreview({
-        archetype,
-        goblinHut: content.goblinHut,
-        goblins: availableGoblins,
-        resources: { gold: 0 },
-        roster: { hiredGoblinIds: [] }
-      })
-    ).toMatchObject({
-      canHire: true,
-      costRequirements: [],
-      failureReason: null
-    });
-
-    expect(
-      createRandomGoblinContractPreview({
-        archetype,
-        goblinHut: content.goblinHut,
-        goblins: availableGoblins,
-        resources: { gold: 20 },
-        roster: { hiredGoblinIds: ["miner_1"] }
-      })
-    ).toMatchObject({
-      canHire: false,
-      failureReason: "not_enough_resources"
-    });
-
-    expect(
-      createRandomGoblinContractPreview({
-        archetype,
-        goblinHut: content.goblinHut,
-        goblins: availableGoblins,
-        resources: { gold: 500 },
-        roster: { hiredGoblinIds: ["miner_1", "rolled:miner_contract:1"] }
-      })
-    ).toMatchObject({
-      canHire: false,
-      failureReason: "hut_limit"
-    });
-  });
-
-  it("counts rolled goblin instances in hut summaries", () => {
-    expect(
-      createGoblinRoleSummary(availableGoblins, {
-        hiredGoblinIds: ["miner_1", "rolled:miner_contract:1", "rolled:collector_contract:1"],
-        instances: [
-          {
-            class: "miner",
-            equipment: [],
-            id: "contract:miner_1",
-            level: 1,
-            lifetimeStats: {},
-            rarity: "common",
-            rolledStats: { loyalty: 5, luck: 5, speed: 5, strength: 5 },
-            archetypeId: "miner_1",
-            traits: []
-          },
-          {
-            class: "miner",
-            equipment: [],
-            id: "rolled:miner_contract:1",
-            level: 1,
-            lifetimeStats: {},
-            rarity: "rare",
-            rolledStats: { loyalty: 6, luck: 4, speed: 5, strength: 8 },
-            archetypeId: "miner_1",
-            traits: []
-          },
-          {
-            class: "collector",
-            equipment: [],
-            id: "rolled:collector_contract:1",
-            level: 3,
-            lifetimeStats: {},
-            rarity: "rare",
-            rolledStats: { loyalty: 7, luck: 8, speed: 5, strength: 3 },
-            archetypeId: "collector_1",
-            traits: []
-          }
-        ]
-      })
-    ).toMatchObject({
-      collectorCount: 1,
-      hiredCount: 3,
-      minerCount: 2,
-      totalAutoCollectSlots: 2
-    });
-  });
-
-  it("maps hut levels to four visual stages", () => {
-    expect([1, 2, 3, 4].map((level) => createGoblinHutVisualStage(level, 4))).toEqual([1, 2, 3, 4]);
-    expect([1, 2, 3, 4, 5].map((level) => createGoblinHutVisualStage(level, 5))).toEqual([1, 2, 3, 4, 4]);
-  });
-
-  it("splits visible goblin names into name and nickname", () => {
-    expect(
-      createGoblinIdentity(collector, {
-        "goblin.collector.description": "Keeps ledgers.",
-        "goblin.collector.name": "Пип",
-        "goblin.collector.nickname": "Сухая Книга"
-      })
-    ).toEqual({
-      description: "Keeps ledgers.",
-      fullName: "Пип Сухая Книга",
-      name: "Пип",
-      nickname: "Сухая Книга"
-    });
-
-    expect(createGoblinIdentity({ ...collector, nicknameKey: undefined }, { "goblin.collector.name": "Пип Сухая Книга" })).toMatchObject({
-      fullName: "Пип Сухая Книга",
-      name: "Пип",
-      nickname: "Сухая Книга"
+    expect(filterGoblinsByHutRole(goblins, "foremen")).toEqual([goblins[2]]);
+    expect(createGoblinHutRoleTabs(goblins, roster, goblinHut).find((tab) => tab.id === "foremen")?.locked).toBe(false);
+    expect(createGoblinIdentity(goblins[0]!, { "goblin.miner.name": "Шахтер", "goblin.miner.description": "Долбит" })).toMatchObject({
+      description: "Долбит",
+      fullName: "Шахтер"
     });
   });
 });
+
+function createGoblin(role: "miner" | "collector" | "foreman", statKey: "power" | "speed" | "control"): GoblinConfig {
+  return {
+    assetId: `asset_${role}`,
+    descriptionKey: `goblin.${role}.description`,
+    hireCost: role === "miner" ? [] : [{ amount: 50, resourceId: "gold" }],
+    id: role,
+    levels: [
+      {
+        level: 1,
+        stars: [0, 1, 2, 3, 4, 5].map((stars) => ({
+          modifiers: [],
+          stars: stars as 0 | 1 | 2 | 3 | 4 | 5,
+          statValue: 5 + stars,
+          upgradeCost: stars === 5 ? [{ amount: 10, resourceId: "gold" }] : []
+        }))
+      },
+      {
+        level: 2,
+        stars: [0, 1, 2, 3, 4, 5].map((stars) => ({
+          modifiers: [],
+          stars: stars as 0 | 1 | 2 | 3 | 4 | 5,
+          statValue: 12 + stars,
+          upgradeCost: stars === 5 ? [{ amount: 20, resourceId: "gold" }] : []
+        }))
+      }
+    ],
+    nameKey: `goblin.${role}.name`,
+    role,
+    sortOrder: 1,
+    statKey,
+    statNameKey: `goblin.stat.${statKey}`,
+    unlockRequirements: []
+  };
+}

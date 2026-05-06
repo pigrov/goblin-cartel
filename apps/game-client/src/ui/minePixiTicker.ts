@@ -168,10 +168,10 @@ function animateBlockImpacts(
     }
 
     const progress = clamp01(elapsed / impact.duration);
-    const strength = (impact.variant === "critical" ? 1.55 : impact.variant === "goblin" ? 0.72 : 1) * (impact.destroyed ? 1.18 : 1);
+    const impactAmplitude = (impact.variant === "critical" ? 1.55 : impact.variant === "goblin" ? 0.72 : 1) * (impact.destroyed ? 1.18 : 1);
     const fade = 1 - progress;
-    const x = Math.sin(progress * Math.PI * 9) * fade * 3.4 * strength;
-    const y = Math.abs(Math.sin(progress * Math.PI * 4.5)) * fade * 2.2 * strength;
+    const x = Math.sin(progress * Math.PI * 9) * fade * 3.4 * impactAmplitude;
+    const y = Math.abs(Math.sin(progress * Math.PI * 4.5)) * fade * 2.2 * impactAmplitude;
     renderedBlock.node.position.set(renderedBlock.baseX + x, renderedBlock.baseY + y);
   }
 }

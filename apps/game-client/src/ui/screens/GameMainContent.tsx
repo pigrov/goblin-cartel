@@ -14,7 +14,6 @@ import type { MinePixiColumnTacticHint, MinePixiGoblin, MinePixiHitEffect } from
 import type { MineRunProgressStatsView } from "../mineRunStats";
 import type { OfflineMiningSummary } from "../offlineMiningSummary";
 import type { PlatformDropEvent } from "../useMiningLoop";
-import type { RandomGoblinReveal } from "../useGoblinRosterController";
 import type { GameSection } from "./BottomNav";
 import { BuiltMinesSection } from "./BuiltMinesSection";
 import { BaseSection, GoblinSection } from "./GoblinManagementScreens";
@@ -27,12 +26,12 @@ export interface GameMainContentActions {
   onBuildMine: (vein: MiningFoundVein) => boolean;
   onCollectAllMines: () => void;
   onCollectMine: (builtMineId: string) => void;
-  onHireRandomGoblin: (archetypeId: string) => void;
+  onHireGoblin: (goblinId: string) => void;
+  onMergeGoblins: (sourceGoblinId: string, targetGoblinId: string) => void;
   onOpenGoblins: () => void;
   onOpenCollectorPicker: (builtMineId: string) => void;
   onDismissOfflineSummary: () => void;
   onPlaceGoblin: (goblinId: string, targetCell: { row: number; col: number }) => void;
-  onRandomGoblinRevealClose: () => void;
   onRoleTabChange: (roleTab: GoblinHutRoleTabId) => void;
   onStartNextMine: () => void;
   onUpgradeGoblin: (goblin: GoblinConfig) => void;
@@ -72,7 +71,6 @@ export interface GameMainContentView {
     availableGoblins: GoblinConfig[];
     hutLevel: number;
     hutLimit: number;
-    randomGoblinReveal: RandomGoblinReveal | null;
     roster: GoblinRosterState;
     rosterMessage: string | null;
   };
@@ -146,12 +144,11 @@ export function GameMainContent(props: {
         hutLevel={view.goblins.hutLevel}
         hutLimit={view.goblins.hutLimit}
         labels={common.labels}
-        onHireRandomGoblin={actions.onHireRandomGoblin}
-        onRandomGoblinRevealClose={actions.onRandomGoblinRevealClose}
+        onHireGoblin={actions.onHireGoblin}
+        onMergeGoblins={actions.onMergeGoblins}
         onRoleTabChange={actions.onRoleTabChange}
         onUpgradeGoblin={actions.onUpgradeGoblin}
         resources={common.resources}
-        randomGoblinReveal={view.goblins.randomGoblinReveal}
         roster={view.goblins.roster}
         rosterMessage={view.goblins.rosterMessage}
       />

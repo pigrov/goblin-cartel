@@ -1,63 +1,51 @@
 import { describe, expect, it } from "vitest";
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
-import {
-  assignForemanToTowerSlot,
-  createEmptyForemanAssignments,
-  getAssignedForemen,
-  normalizeForemanAssignments
-} from "./foremanTowerState";
-
-function createGoblin(id: string, goblinClass: GoblinConfig["class"] = "foreman"): GoblinConfig {
-  return {
-    ability: {
-      descriptionKey: `ability.${id}.description`,
-      effects: [],
-      id: `ability_${id}`,
-      nameKey: `ability.${id}.name`
-    },
-    assetId: `asset_${id}`,
-    baseStats: {
-      loyalty: 1,
-      luck: 1,
-      speed: 1,
-      strength: 1
-    },
-    class: goblinClass,
-    clan: "neutral",
-    descriptionKey: `goblin.${id}.description`,
-    hireCost: [],
-    id,
-    nameKey: `goblin.${id}.name`,
-    rarity: "common",
-    sortOrder: 1,
-    unlockRequirements: []
-  } as unknown as GoblinConfig;
-}
+import type { GoblinRosterState } from "@goblin-cartel/game-core";
+import { assignForemanToTowerSlot, getAssignedForemen, normalizeForemanAssignments } from "./foremanTowerState";
 
 describe("foreman tower state", () => {
-  it("creates three empty tower slots", () => {
-    expect(createEmptyForemanAssignments()).toEqual([null, null, null]);
+  it("keeps only hired foremen and removes duplicates", () => {
+    const foreman = createGoblin("goblin:foreman:1", "foreman", "control");
+    const miner = createGoblin("goblin:miner:1", "miner", "power");
+    const roster: GoblinRosterState = {
+      hiredGoblinIds: [foreman.id, miner.id],
+      instances: [
+        { equipment: [], goblinId: "foreman", id: foreman.id, level: 1, lifetimeStats: {}, role: "foreman", stars: 0 },
+        { equipment: [], goblinId: "miner", id: miner.id, level: 1, lifetimeStats: {}, role: "miner", stars: 0 }
+      ]
+    };
+
+    expect(normalizeForemanAssignments([foreman.id, foreman.id, miner.id], [foreman, miner], roster)).toEqual([foreman.id, null, null]);
+    expect(getAssignedForemen([foreman, miner], roster, [foreman.id, null, null])).toEqual([foreman]);
   });
 
-  it("keeps only unique hired foremen in tower slots", () => {
-    const foreman = createGoblin("foreman");
-    const otherForeman = createGoblin("other_foreman");
-    const miner = createGoblin("miner", "miner");
-
-    expect(
-      normalizeForemanAssignments(
-        ["foreman", "foreman", "miner"],
-        [foreman, otherForeman, miner],
-        { hiredGoblinIds: ["foreman", "miner"] }
-      )
-    ).toEqual(["foreman", null, null]);
-  });
-
-  it("moves a foreman between slots and returns assigned foremen", () => {
-    const foreman = createGoblin("foreman");
-    const assignments = assignForemanToTowerSlot(["foreman", null, null], 2, "foreman");
-
-    expect(assignments).toEqual([null, null, "foreman"]);
-    expect(getAssignedForemen([foreman], { hiredGoblinIds: ["foreman"] }, assignments)).toEqual([foreman]);
+  it("moves a foreman between slots", () => {
+    expect(assignForemanToTowerSlot(["a", null, null], 2, "a")).toEqual([null, null, "a"]);
   });
 });
+
+function createGoblin(id: string, role: "miner" | "collector" | "foreman", statKey: "power" | "speed" | "control"): GoblinConfig {
+  return {
+    assetId: `asset_${role}`,
+    descriptionKey: `goblin.${role}.description`,
+    hireCost: [],
+    id,
+    levels: [
+      {
+        level: 1,
+        stars: [0, 1, 2, 3, 4, 5].map((stars) => ({
+          modifiers: [],
+          stars: stars as 0 | 1 | 2 | 3 | 4 | 5,
+          statValue: 5,
+          upgradeCost: []
+        }))
+      }
+    ],
+    nameKey: `goblin.${role}.name`,
+    role,
+    sortOrder: 1,
+    statKey,
+    statNameKey: `goblin.stat.${statKey}`,
+    unlockRequirements: []
+  };
+}

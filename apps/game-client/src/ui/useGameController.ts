@@ -150,7 +150,8 @@ export function useGameController() {
     goblinHutProgression,
     goblinLevels,
     goblinPlacements,
-    handleHireRandomGoblin,
+    handleHireGoblin,
+    handleMergeGoblins,
     handlePlaceGoblin,
     handleUpgradeGoblin,
     handleUpgradeGoblinHut,
@@ -158,9 +159,7 @@ export function useGameController() {
     miningGoblins,
     pixiGoblins,
     platformCellKeys,
-    randomGoblinReveal,
     rosterMessage,
-    setRandomGoblinReveal,
     setGoblinPlacements
   } = useGoblinRosterController({
     completedMineTemplateIds,
@@ -306,12 +305,12 @@ export function useGameController() {
     setPlayerDbSyncState
   });
   useEffect(() => {
-    setForemanAssignments((current) => normalizeForemanAssignments(current, availableGoblins, roster));
-  }, [availableGoblins, roster]);
+    setForemanAssignments((current) => normalizeForemanAssignments(current, hiredGoblins, roster));
+  }, [hiredGoblins, roster]);
 
   function handleAssignForemanSlot(slotIndex: number, goblinId: string | null) {
     setForemanAssignments((current) =>
-      normalizeForemanAssignments(assignForemanToTowerSlot(current, slotIndex, goblinId), availableGoblins, roster)
+      normalizeForemanAssignments(assignForemanToTowerSlot(current, slotIndex, goblinId), hiredGoblins, roster)
     );
   }
 
@@ -501,7 +500,8 @@ export function useGameController() {
     handleContinueRewardChest,
     handleDismissMineCompletionNotice,
     handleAssignForemanSlot,
-    handleHireRandomGoblin,
+    handleHireGoblin,
+    handleMergeGoblins,
     handleOpenRewardChest,
     handleLinkVkIdentity,
     handlePlaceGoblin,
@@ -511,6 +511,7 @@ export function useGameController() {
     handleUpgradeElevator,
     handleUpgradeGoblin,
     handleUpgradeGoblinHut,
+    hiredGoblins,
     hiredCollectorGoblins,
     hitEffects,
     labels,
@@ -534,7 +535,6 @@ export function useGameController() {
     rewardChestStage,
     roster,
     rosterMessage,
-    randomGoblinReveal,
     selectedCell,
     session,
     setActiveSection,
@@ -544,7 +544,6 @@ export function useGameController() {
     setOfflineSummary,
     setFoundVeinNotice,
     setGoblinRoleTab,
-    setRandomGoblinReveal,
     setPixiDevOverlayEnabled,
     setSettingsOpen,
     settingsOpen,
@@ -584,7 +583,7 @@ export function useGameController() {
       onMenuOpen: () => setSettingsOpen(true),
       onResourceClick: showResourceTooltip,
       onTooltipClose: () => setResourceTooltip(null),
-      resourceChipFrameAssetId: contentState.content.goblinGeneration.hireCardSkin.resourceChipFrame ?? "ui_resource_chip_frame_v1",
+      resourceChipFrameAssetId: contentState.content.goblins.skin.resourceChipFrame ?? "ui_resource_chip_frame_v1",
       resourceIconAssetIds:
         contentState.content.uiIcons?.resources ??
         Object.fromEntries(contentState.content.resources.map((resource) => [resource.id, resource.iconAssetId])),

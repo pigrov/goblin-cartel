@@ -107,7 +107,7 @@ export function useBuiltMinesController(input: {
       const result = collectAutomatedBuiltMineIncomeWithCollectors({
         builtMines: builtMinesRef.current,
         collectors: hiredCollectorGoblinsRef.current,
-        goblinLevels: rosterRef.current.goblinLevels ?? {},
+        goblinLevels: {},
         now: Date.now(),
         resources: sessionRef.current.resources
       });

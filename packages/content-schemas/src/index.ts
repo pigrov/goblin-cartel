@@ -12,111 +12,40 @@ export const resourceAmountSchema = z.object({
   amount: z.number().int().positive()
 });
 
-export const goblinClassSchema = z.enum(["miner", "builder", "collector", "foreman"]);
-export const goblinClanSchema = z.enum(["rusty_picks", "black_pockets", "bolt_skulls", "neutral"]);
-export const goblinSpecializationSchema = z.enum([
-  "stonebreaker",
-  "ore_sniffer",
-  "heavy_striker",
-  "warehouse_keeper",
-  "resource_expert",
-  "construction_foreman",
-  "event"
+export const goblinRoleSchema = z.enum(["miner", "collector", "foreman"]);
+export const goblinPrimaryStatSchema = z.enum(["power", "speed", "control"]);
+export const goblinStarRankSchema = z.union([
+  z.literal(0),
+  z.literal(1),
+  z.literal(2),
+  z.literal(3),
+  z.literal(4),
+  z.literal(5)
 ]);
 
-export const goblinBaseStatsSchema = z.object({
-  strength: z.number().int().nonnegative(),
-  speed: z.number().int().nonnegative(),
-  luck: z.number().int().nonnegative(),
-  loyalty: z.number().int().nonnegative()
-});
-
-export const goblinGenerationStatRangeSchema = z
-  .object({
-    min: z.number().int().nonnegative(),
-    max: z.number().int().nonnegative()
-  })
-  .refine((range) => range.min <= range.max, {
-    message: "min must be lower than or equal to max",
-    path: ["min"]
-  });
-
-export const goblinGenerationStatRangesSchema = z
-  .object({
-    strength: goblinGenerationStatRangeSchema,
-    speed: goblinGenerationStatRangeSchema,
-    luck: goblinGenerationStatRangeSchema,
-    loyalty: goblinGenerationStatRangeSchema
-  })
-  .strict();
-
-export const goblinGenerationRarityWeightSchema = z
-  .object({
-    rarity: z.enum(["common", "rare", "epic", "legendary"]),
-    weight: z.number().positive(),
-    statMultiplier: z.number().positive().default(1)
-  })
-  .strict();
-
-export const goblinGenerationTraitSchema = z
-  .object({
-    id: z.string().min(1),
-    nameKey: z.string().min(1).optional(),
-    weight: z.number().positive()
-  })
-  .strict();
-
-export const goblinGenerationRenderSchema = z
-  .object({
-    assetId: z.string().min(1),
-    rarity: z.enum(["common", "rare", "epic", "legendary"]).optional(),
-    weight: z.number().positive()
-  })
-  .strict();
-
-export const defaultGoblinHireCardSkin = {
+export const defaultGoblinSkin = {
   buttons: {
     disabled: "ui_hire_button_disabled_v1",
     hover: "ui_hire_button_hover_v1",
     normal: "ui_hire_button_normal_v1",
     pressed: "ui_hire_button_pressed_v1"
   },
-  cardBases: {
-    common: "ui_hire_card_base_common_v1",
-    epic: "ui_hire_card_base_epic_v1",
-    legendary: "ui_hire_card_base_legendary_v1",
-    rare: "ui_hire_card_base_rare_v1"
-  },
-  icons: {
-    cost: "ui_icon_coin_v1",
-    loyalty: "ui_icon_clock_v1",
-    luck: "ui_icon_star_v1",
-    speed: "ui_icon_boot_v1",
-    strength: "ui_icon_pickaxe_v1"
-  },
+  cardBase: "ui_hire_card_base_common_v1",
+  detailsModalBackground: "",
   ownedCards: {
     base: "ui_owned_goblin_card_base_v1",
+    starIcon: "",
     upgradeArrow: "ui_owned_goblin_upgrade_arrow_v1"
-  },
-  pricePills: {
-    disabled: "ui_hire_price_disabled_v1",
-    normal: "ui_hire_price_normal_v1"
   },
   resourceChipFrame: "ui_resource_chip_frame_v1",
   screenBackground: "ui_goblin_screen_pattern_v1",
   titlePlate: "ui_hire_title_plate_v1"
 } as const;
 
-export const goblinHireCardSkinSchema = z
+export const goblinSkinSchema = z
   .object({
-    cardBases: z
-      .object({
-        common: z.string().min(1),
-        rare: z.string().min(1),
-        epic: z.string().min(1),
-        legendary: z.string().min(1)
-      })
-      .strict(),
+    cardBase: z.string().min(1),
+    detailsModalBackground: z.string().default(""),
     buttons: z
       .object({
         normal: z.string().min(1),
@@ -125,31 +54,17 @@ export const goblinHireCardSkinSchema = z
         disabled: z.string().min(1)
       })
       .strict(),
-    pricePills: z
-      .object({
-        normal: z.string().min(1),
-        disabled: z.string().min(1)
-      })
-      .strict(),
-    icons: z
-      .object({
-        cost: z.string().min(1),
-        strength: z.string().min(1),
-        speed: z.string().min(1),
-        luck: z.string().min(1),
-        loyalty: z.string().min(1)
-      })
-      .strict(),
     ownedCards: z
       .object({
         base: z.string().min(1),
+        starIcon: z.string().default(""),
         upgradeArrow: z.string().min(1)
       })
       .strict()
-      .default(defaultGoblinHireCardSkin.ownedCards),
-    resourceChipFrame: z.string().min(1).default(defaultGoblinHireCardSkin.resourceChipFrame),
-    screenBackground: z.string().min(1).default(defaultGoblinHireCardSkin.screenBackground),
-    titlePlate: z.string().min(1).default(defaultGoblinHireCardSkin.titlePlate)
+      .default(defaultGoblinSkin.ownedCards),
+    resourceChipFrame: z.string().min(1).default(defaultGoblinSkin.resourceChipFrame),
+    screenBackground: z.string().min(1).default(defaultGoblinSkin.screenBackground),
+    titlePlate: z.string().min(1).default(defaultGoblinSkin.titlePlate)
   })
   .strict();
 
@@ -172,10 +87,9 @@ export const defaultUiIcons = {
     stone: "icon_stone_v1"
   },
   stats: {
-    loyalty: "ui_icon_clock_v1",
-    luck: "ui_icon_star_v1",
-    speed: "ui_icon_boot_v1",
-    strength: "ui_icon_pickaxe_v1"
+    control: "ui_icon_clock_v1",
+    power: "ui_icon_pickaxe_v1",
+    speed: "ui_icon_boot_v1"
   }
 } as const;
 
@@ -192,99 +106,25 @@ export const uiIconsSchema = z
     resources: z.record(z.string().min(1), z.string().min(1)).default(defaultUiIcons.resources),
     stats: z
       .object({
-        strength: z.string().min(1),
-        speed: z.string().min(1),
-        luck: z.string().min(1),
-        loyalty: z.string().min(1)
+        control: z.string().min(1),
+        power: z.string().min(1),
+        speed: z.string().min(1)
       })
       .strict()
       .default(defaultUiIcons.stats)
   })
   .strict();
 
-export const goblinGenerationNamePoolSchema = z
-  .object({
-    names: z.array(z.string().min(1)).min(1),
-    nicknames: z.array(z.string().min(1)).min(1)
-  })
-  .strict();
-
-export const goblinGenerationArchetypeSchema = z
-  .object({
-    id: z.string().min(1),
-    nameKey: z.string().min(1),
-    class: goblinClassSchema,
-    specialization: goblinSpecializationSchema.optional(),
-    ability: z.lazy(() => goblinAbilitySchema),
-    leveling: z.lazy(() => goblinLevelingSchema),
-    rarityWeights: z.array(goblinGenerationRarityWeightSchema).min(1),
-    statRanges: goblinGenerationStatRangesSchema,
-    traitPool: z.array(goblinGenerationTraitSchema).default([]),
-    renderPool: z.array(goblinGenerationRenderSchema).min(1),
-    equipmentSlots: z.array(z.string().min(1)).default(["tool"]),
-    hireCost: z.array(resourceAmountSchema).default([]),
-    sortOrder: z.number().int().default(0)
-  })
-  .strict();
-
-export const goblinGenerationSchema = z
-  .object({
-    id: z.literal("default").default("default"),
-    nameKey: z.string().min(1),
-    namePool: goblinGenerationNamePoolSchema,
-    hireCardSkin: goblinHireCardSkinSchema.default(defaultGoblinHireCardSkin),
-    archetypes: z.array(goblinGenerationArchetypeSchema).default([])
-  })
-  .strict();
-
-export const goblinStatGrowthSchema = z.object({
-  strength: z.number().nonnegative().default(0),
-  speed: z.number().nonnegative().default(0),
-  luck: z.number().nonnegative().default(0),
-  loyalty: z.number().nonnegative().default(0)
-});
-
-export const goblinLevelingCostSchema = z.object({
-  resourceId: z.string().min(1),
-  baseAmount: z.number().int().positive(),
-  levelMultiplier: z.number().positive().default(1),
-  levelPower: z.number().nonnegative().default(1)
-});
-
-export const goblinLevelingSchema = z.object({
-  maxLevel: z.number().int().positive().default(5),
-  cost: z.array(goblinLevelingCostSchema).default([]),
-  statGrowthPerLevel: goblinStatGrowthSchema.default({
-    strength: 0,
-    speed: 0,
-    luck: 0,
-    loyalty: 0
-  }),
-  autoCollectSlotsPerLevel: z.number().nonnegative().default(0),
-  buildCostMultiplierPerLevel: z.number().nonnegative().default(0),
-  buildTimeMultiplierPerLevel: z.number().nonnegative().default(0),
-  offlineRelocationSlotsPerLevel: z.number().nonnegative().default(0),
-  mineCapacityMultiplierPerLevel: z.number().nonnegative().default(0),
-  mineProductionMultiplierPerLevel: z.number().nonnegative().default(0)
-});
-
-export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
+export const goblinModifierSchema = z.discriminatedUnion("type", [
   z.object({
-    type: z.literal("damage_bonus_by_tag"),
-    tag: z.string().min(1),
-    value: z.number().nonnegative()
-  }),
-  z.object({
-    type: z.literal("base_damage_bonus"),
+    type: z.literal("stat_bonus"),
+    stat: goblinPrimaryStatSchema,
     value: z.number().int().nonnegative()
   }),
   z.object({
-    type: z.literal("build_cost_multiplier"),
+    type: z.literal("stat_multiplier"),
+    stat: goblinPrimaryStatSchema,
     value: z.number().positive()
-  }),
-  z.object({
-    type: z.literal("auto_collect_slots"),
-    value: z.number().int().positive()
   }),
   z.object({
     type: z.literal("mine_capacity_multiplier"),
@@ -300,14 +140,6 @@ export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
     value: z.number().positive()
   }),
   z.object({
-    type: z.literal("auto_select_next_block"),
-    enabled: z.boolean().default(true)
-  }),
-  z.object({
-    type: z.literal("offline_relocation_slots"),
-    value: z.number().int().positive()
-  }),
-  z.object({
     type: z.literal("offline_auto_damage_multiplier"),
     value: z.number().positive()
   }),
@@ -317,12 +149,21 @@ export const goblinAbilityEffectSchema = z.discriminatedUnion("type", [
   })
 ]);
 
-export const goblinAbilitySchema = z.object({
-  id: z.string().min(1),
-  nameKey: z.string().min(1),
-  descriptionKey: z.string().min(1),
-  effects: z.array(goblinAbilityEffectSchema).default([])
-});
+export const goblinProgressionStarSchema = z
+  .object({
+    stars: goblinStarRankSchema,
+    statValue: z.number().int().positive(),
+    upgradeCost: z.array(resourceAmountSchema).default([]),
+    modifiers: z.array(goblinModifierSchema).default([])
+  })
+  .strict();
+
+export const goblinProgressionLevelSchema = z
+  .object({
+    level: z.number().int().positive(),
+    stars: z.array(goblinProgressionStarSchema).length(6)
+  })
+  .strict();
 
 export const goblinUnlockRequirementSchema = z.discriminatedUnion("type", [
   z.object({
@@ -334,8 +175,8 @@ export const goblinUnlockRequirementSchema = z.discriminatedUnion("type", [
     mineTemplateId: z.string().min(1)
   }),
   z.object({
-    type: z.literal("goblins_by_class"),
-    class: goblinClassSchema,
+    type: z.literal("goblins_by_role"),
+    role: goblinRoleSchema,
     count: z.number().int().positive()
   }),
   z.object({
@@ -345,11 +186,36 @@ export const goblinUnlockRequirementSchema = z.discriminatedUnion("type", [
   })
 ]);
 
+export const goblinRoleConfigSchema = z
+  .object({
+    id: z.string().min(1),
+    role: goblinRoleSchema,
+    nameKey: z.string().min(1),
+    descriptionKey: z.string().min(1),
+    statKey: goblinPrimaryStatSchema,
+    statNameKey: z.string().min(1),
+    assetId: z.string().min(1),
+    hireCost: z.array(resourceAmountSchema).default([]),
+    levels: z.array(goblinProgressionLevelSchema).min(1),
+    unlockRequirements: z.array(goblinUnlockRequirementSchema).default([]),
+    sortOrder: z.number().int().default(0)
+  })
+  .strict();
+
+export const goblinsSchema = z
+  .object({
+    id: z.literal("default").default("default"),
+    nameKey: z.string().min(1),
+    skin: goblinSkinSchema.default(defaultGoblinSkin),
+    roles: z.array(goblinRoleConfigSchema).length(3)
+  })
+  .strict();
+
 export const goblinHutLevelSchema = z.object({
   level: z.number().int().positive(),
   nameKey: z.string().min(1),
   maxHiredGoblins: z.number().int().positive(),
-  unlockedClasses: z.array(goblinClassSchema).min(1),
+  unlockedRoles: z.array(goblinRoleSchema).min(1),
   hireCostMultiplier: z.number().positive().default(1),
   upgradeCostMultiplier: z.number().positive().default(1),
   upgradeCost: z.array(resourceAmountSchema).default([]),
@@ -543,38 +409,7 @@ export const mineTemplateSchema = z
   })
   .strict();
 
-export const goblinSchema = z.object({
-  id: z.string().min(1),
-  nameKey: z.string().min(1),
-  nicknameKey: z.string().min(1).optional(),
-  descriptionKey: z.string().min(1),
-  class: goblinClassSchema,
-  specialization: goblinSpecializationSchema.optional(),
-  clan: goblinClanSchema.default("neutral"),
-  rarity: z.enum(["common", "rare", "epic", "legendary"]).default("common"),
-  assetId: z.string().min(1),
-  baseStats: goblinBaseStatsSchema,
-  ability: goblinAbilitySchema,
-  hireCost: z.array(resourceAmountSchema).default([]),
-  leveling: goblinLevelingSchema.default({
-    maxLevel: 5,
-    cost: [],
-    statGrowthPerLevel: {
-      strength: 0,
-      speed: 0,
-      luck: 0,
-      loyalty: 0
-    },
-    autoCollectSlotsPerLevel: 0,
-    buildCostMultiplierPerLevel: 0,
-    buildTimeMultiplierPerLevel: 0,
-    offlineRelocationSlotsPerLevel: 0,
-    mineCapacityMultiplierPerLevel: 0,
-    mineProductionMultiplierPerLevel: 0
-  }),
-  unlockRequirements: z.array(goblinUnlockRequirementSchema).default([]),
-  sortOrder: z.number().int()
-});
+export const goblinSchema = goblinRoleConfigSchema;
 
 export const localizationSchema = z.record(z.string().min(2), z.record(z.string().min(1), z.string().min(1)));
 
@@ -588,7 +423,7 @@ export const contentBundleSchema = z
     bossCards: z.array(bossCardSchema),
     mineTemplates: z.array(mineTemplateSchema).min(1),
     uiIcons: uiIconsSchema.default(defaultUiIcons),
-    goblinGeneration: goblinGenerationSchema,
+    goblins: goblinsSchema,
     goblinHut: goblinHutSchema,
     elevator: elevatorSchema,
     localization: localizationSchema
@@ -604,9 +439,12 @@ export type BlockTypeConfig = z.infer<typeof blockTypeSchema>;
 export type MineCellConfig = z.infer<typeof mineCellSchema>;
 export type MineTemplateConfig = z.infer<typeof mineTemplateSchema>;
 export type GoblinConfig = z.infer<typeof goblinSchema>;
-export type GoblinGenerationConfig = z.infer<typeof goblinGenerationSchema>;
+export type GoblinsConfig = z.infer<typeof goblinsSchema>;
+export type GoblinRoleConfig = z.infer<typeof goblinRoleConfigSchema>;
+export type GoblinRole = z.infer<typeof goblinRoleSchema>;
+export type GoblinPrimaryStat = z.infer<typeof goblinPrimaryStatSchema>;
+export type GoblinStarRank = z.infer<typeof goblinStarRankSchema>;
 export type UiIconsConfig = z.infer<typeof uiIconsSchema>;
-export type GoblinGenerationArchetypeConfig = z.infer<typeof goblinGenerationArchetypeSchema>;
 export type GoblinHutConfig = z.infer<typeof goblinHutSchema>;
 export type GoblinHutLevelConfig = z.infer<typeof goblinHutLevelSchema>;
 export type ElevatorConfig = z.infer<typeof elevatorSchema>;
@@ -678,101 +516,34 @@ function createStarterMineTemplates(): MineTemplateConfig[] {
   }));
 }
 
-function createStarterGoblinNamePool(): GoblinGenerationConfig["namePool"] {
-  const nameRoots = [
-    "Крикк",
-    "Грызз",
-    "Шмык",
-    "Бырк",
-    "Румм",
-    "Тикк",
-    "Нокк",
-    "Скрэпп",
-    "Вжикк",
-    "Хрумм",
-    "Дрынк",
-    "Пырк",
-    "Клакк",
-    "Жмых",
-    "Фырк",
-    "Грохх",
-    "Мурк",
-    "Блимм",
-    "Цокк",
-    "Шарк"
-  ];
-  const nameSuffixes = ["", "о", "ар", "ик", "ун", "аш"];
-  const nicknameAdjectives = [
-    "Ржавое",
-    "Кривое",
-    "Медное",
-    "Тяжелое",
-    "Сухое",
-    "Железное",
-    "Гулкое",
-    "Хитрое",
-    "Черное",
-    "Пыльное",
-    "Острое",
-    "Старое",
-    "Ломкое",
-    "Громкое",
-    "Тусклое",
-    "Злое",
-    "Быстрое",
-    "Копченое",
-    "Каменное",
-    "Шумное"
-  ];
-  const nicknameNouns = ["Ухо", "Зубило", "Каска", "Плечо", "Перо", "Репа"];
-
-  return {
-    names: nameRoots.flatMap((root) => nameSuffixes.map((suffix) => `${root}${suffix}`)),
-    nicknames: nicknameAdjectives.flatMap((adjective) => nicknameNouns.map((noun) => `${adjective} ${noun}`))
-  };
-}
-
 export interface ContentValidationResult {
   ok: boolean;
   errors: string[];
 }
 
-function createStarterMinerLeveling(goldBaseAmount: number) {
-  return {
-    maxLevel: 5,
-    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.25 }],
-    statGrowthPerLevel: {
-      strength: 2,
-      speed: 1,
-      luck: 0,
-      loyalty: 0
-    },
-    autoCollectSlotsPerLevel: 0,
-    buildCostMultiplierPerLevel: 0,
-    buildTimeMultiplierPerLevel: 0,
-    offlineRelocationSlotsPerLevel: 0,
-    mineCapacityMultiplierPerLevel: 0,
-    mineProductionMultiplierPerLevel: 0
-  };
-}
-
-function createStarterCollectorLeveling(goldBaseAmount: number) {
-  return {
-    maxLevel: 5,
-    cost: [{ resourceId: "gold", baseAmount: goldBaseAmount, levelMultiplier: 1, levelPower: 1.3 }],
-    statGrowthPerLevel: {
-      strength: 0,
-      speed: 1,
-      luck: 1,
-      loyalty: 1
-    },
-    autoCollectSlotsPerLevel: 0.5,
-    buildCostMultiplierPerLevel: 0,
-    buildTimeMultiplierPerLevel: 0,
-    offlineRelocationSlotsPerLevel: 0,
-    mineCapacityMultiplierPerLevel: 0.03,
-    mineProductionMultiplierPerLevel: 0.03
-  };
+function createStarterGoblinLevels(
+  levelStats: Array<[number, number, number, number, number, number]>,
+  costBaseAmount: number
+): GoblinRoleConfig["levels"] {
+  return levelStats.map((statValues, levelIndex) => ({
+    level: levelIndex + 1,
+    stars: statValues.map((statValue, starIndex) => {
+      const isLevelPromotionTier = starIndex === 5 && levelIndex < levelStats.length - 1;
+      return {
+        stars: starIndex as GoblinStarRank,
+        statValue,
+        upgradeCost: isLevelPromotionTier
+          ? [
+              {
+                resourceId: "gold",
+                amount: Math.round(costBaseAmount * (levelIndex + 1) ** 2)
+              }
+            ]
+          : [],
+        modifiers: []
+      };
+    })
+  }));
 }
 
 export const starterContentBundle: ContentBundle = {
@@ -1155,140 +926,69 @@ export const starterContentBundle: ContentBundle = {
   ],
   mineTemplates: createStarterMineTemplates(),
   uiIcons: defaultUiIcons,
-  goblinGeneration: {
+  goblins: {
     id: "default",
-    nameKey: "goblin_generation.name",
-    namePool: createStarterGoblinNamePool(),
-    hireCardSkin: defaultGoblinHireCardSkin,
-    archetypes: [
+    nameKey: "goblins.name",
+    skin: defaultGoblinSkin,
+    roles: [
       {
-        id: "random_miner_contract",
-        nameKey: "goblin_generation.random_miner_contract.name",
-        class: "miner",
-        ability: {
-          id: "stone_biter",
-          nameKey: "ability.stone_biter.name",
-          descriptionKey: "ability.stone_biter.description",
-          effects: [{ type: "damage_bonus_by_tag", tag: "rock", value: 0.2 }]
-        },
-        leveling: createStarterMinerLeveling(120),
-        rarityWeights: [
-          { rarity: "common", weight: 78, statMultiplier: 1 },
-          { rarity: "rare", weight: 18, statMultiplier: 1.15 },
-          { rarity: "epic", weight: 3.5, statMultiplier: 1.35 },
-          { rarity: "legendary", weight: 0.5, statMultiplier: 1.6 }
-        ],
-        statRanges: {
-          strength: { min: 5, max: 12 },
-          speed: { min: 3, max: 7 },
-          luck: { min: 1, max: 5 },
-          loyalty: { min: 3, max: 8 }
-        },
-        traitPool: [
-          { id: "stone_focus", nameKey: "goblin_trait.stone_focus.name", weight: 45 },
-          { id: "ore_eye", nameKey: "goblin_trait.ore_eye.name", weight: 30 },
-          { id: "steady_hands", nameKey: "goblin_trait.steady_hands.name", weight: 25 }
-        ],
-        renderPool: [
-          { assetId: "goblin_hire_miner_v1", rarity: "common", weight: 10 }
-        ],
-        equipmentSlots: ["tool"],
-        hireCost: [{ resourceId: "gold", amount: 220 }],
+        id: "miner",
+        role: "miner",
+        nameKey: "goblin.miner.name",
+        descriptionKey: "goblin.miner.description",
+        statKey: "power",
+        statNameKey: "goblin.stat.power",
+        assetId: "goblin_hire_miner_v1",
+        hireCost: [],
+        levels: createStarterGoblinLevels(
+          [
+            [5, 6, 7, 8, 9, 10],
+            [12, 14, 16, 18, 20, 22],
+            [26, 29, 32, 35, 38, 42]
+          ],
+          100
+        ),
+        unlockRequirements: [],
         sortOrder: 10
       },
       {
-        id: "random_collector_contract",
-        nameKey: "goblin_generation.random_collector_contract.name",
-        class: "collector",
-        specialization: "warehouse_keeper",
-        ability: {
-          id: "boring_order",
-          nameKey: "ability.boring_order.name",
-          descriptionKey: "ability.boring_order.description",
-          effects: [
-            { type: "auto_collect_slots", value: 1 },
-            { type: "mine_capacity_multiplier", value: 1.15 }
-          ]
-        },
-        leveling: createStarterCollectorLeveling(900),
-        rarityWeights: [
-          { rarity: "common", weight: 70, statMultiplier: 1 },
-          { rarity: "rare", weight: 24, statMultiplier: 1.15 },
-          { rarity: "epic", weight: 5, statMultiplier: 1.35 },
-          { rarity: "legendary", weight: 1, statMultiplier: 1.6 }
-        ],
-        statRanges: {
-          strength: { min: 1, max: 4 },
-          speed: { min: 3, max: 8 },
-          luck: { min: 5, max: 11 },
-          loyalty: { min: 5, max: 10 }
-        },
-        traitPool: [
-          { id: "careful_pockets", nameKey: "goblin_trait.careful_pockets.name", weight: 45 },
-          { id: "long_list", nameKey: "goblin_trait.long_list.name", weight: 35 },
-          { id: "quiet_count", nameKey: "goblin_trait.quiet_count.name", weight: 20 }
-        ],
-        renderPool: [
-          { assetId: "goblin_hire_builder_v1", rarity: "common", weight: 10 }
-        ],
-        equipmentSlots: ["ledger"],
-        hireCost: [{ resourceId: "gold", amount: 900 }],
+        id: "collector",
+        role: "collector",
+        nameKey: "goblin.collector.name",
+        descriptionKey: "goblin.collector.description",
+        statKey: "speed",
+        statNameKey: "goblin.stat.speed",
+        assetId: "goblin_hire_builder_v1",
+        hireCost: [{ resourceId: "gold", amount: 300 }],
+        levels: createStarterGoblinLevels(
+          [
+            [5, 6, 7, 8, 9, 10],
+            [12, 14, 16, 18, 20, 22],
+            [26, 29, 32, 35, 38, 42]
+          ],
+          140
+        ),
+        unlockRequirements: [{ type: "built_mines_count", value: 1 }],
         sortOrder: 20
       },
       {
-        id: "random_foreman_contract",
-        nameKey: "goblin_generation.random_foreman_contract.name",
-        class: "foreman",
-        ability: {
-          id: "no_idle_picks",
-          nameKey: "ability.no_idle_picks.name",
-          descriptionKey: "ability.no_idle_picks.description",
-          effects: [
-            { type: "auto_select_next_block", enabled: true },
-            { type: "offline_relocation_slots", value: 1 },
-            { type: "offline_auto_damage_multiplier", value: 1.1 },
-            { type: "offline_reward_multiplier", value: 1.05 },
-            { type: "build_time_multiplier", value: 0.9 }
-          ]
-        },
-        leveling: {
-          maxLevel: 5,
-          cost: [{ resourceId: "gold", baseAmount: 1400, levelMultiplier: 1, levelPower: 1.32 }],
-          statGrowthPerLevel: {
-            strength: 1,
-            speed: 1,
-            luck: 0,
-            loyalty: 1
-          },
-          autoCollectSlotsPerLevel: 0,
-          buildCostMultiplierPerLevel: 0,
-          buildTimeMultiplierPerLevel: 0.015,
-          offlineRelocationSlotsPerLevel: 1,
-          mineCapacityMultiplierPerLevel: 0,
-          mineProductionMultiplierPerLevel: 0
-        },
-        rarityWeights: [
-          { rarity: "common", weight: 62, statMultiplier: 1 },
-          { rarity: "rare", weight: 30, statMultiplier: 1.15 },
-          { rarity: "epic", weight: 7, statMultiplier: 1.35 },
-          { rarity: "legendary", weight: 1, statMultiplier: 1.6 }
-        ],
-        statRanges: {
-          strength: { min: 4, max: 8 },
-          speed: { min: 4, max: 8 },
-          luck: { min: 2, max: 6 },
-          loyalty: { min: 6, max: 11 }
-        },
-        traitPool: [
-          { id: "sharp_whistle", nameKey: "goblin_trait.sharp_whistle.name", weight: 40 },
-          { id: "night_orders", nameKey: "goblin_trait.night_orders.name", weight: 35 },
-          { id: "strict_shift", nameKey: "goblin_trait.strict_shift.name", weight: 25 }
-        ],
-        renderPool: [
-          { assetId: "goblin_hire_foreman_v1", rarity: "common", weight: 10 }
-        ],
-        equipmentSlots: ["whistle"],
-        hireCost: [{ resourceId: "gold", amount: 2400 }],
+        id: "foreman",
+        role: "foreman",
+        nameKey: "goblin.foreman.name",
+        descriptionKey: "goblin.foreman.description",
+        statKey: "control",
+        statNameKey: "goblin.stat.control",
+        assetId: "goblin_hire_foreman_v1",
+        hireCost: [{ resourceId: "gold", amount: 900 }],
+        levels: createStarterGoblinLevels(
+          [
+            [5, 6, 7, 8, 9, 10],
+            [12, 14, 16, 18, 20, 22],
+            [26, 29, 32, 35, 38, 42]
+          ],
+          180
+        ),
+        unlockRequirements: [{ type: "mine_completed", mineTemplateId: "abandoned_crosscut_02" }],
         sortOrder: 30
       }
     ]
@@ -1301,7 +1001,7 @@ export const starterContentBundle: ContentBundle = {
         level: 1,
         nameKey: "goblin_hut.level.1.name",
         maxHiredGoblins: 2,
-        unlockedClasses: ["miner"],
+        unlockedRoles: ["miner"],
         hireCostMultiplier: 1,
         upgradeCostMultiplier: 1,
         upgradeCost: [],
@@ -1311,7 +1011,7 @@ export const starterContentBundle: ContentBundle = {
         level: 2,
         nameKey: "goblin_hut.level.2.name",
         maxHiredGoblins: 3,
-        unlockedClasses: ["miner", "builder"],
+        unlockedRoles: ["miner", "collector"],
         hireCostMultiplier: 0.97,
         upgradeCostMultiplier: 0.97,
         upgradeCost: [
@@ -1324,7 +1024,7 @@ export const starterContentBundle: ContentBundle = {
         level: 3,
         nameKey: "goblin_hut.level.3.name",
         maxHiredGoblins: 5,
-        unlockedClasses: ["miner", "builder", "collector"],
+        unlockedRoles: ["miner", "collector"],
         hireCostMultiplier: 0.95,
         upgradeCostMultiplier: 0.93,
         upgradeCost: [
@@ -1338,7 +1038,7 @@ export const starterContentBundle: ContentBundle = {
         level: 4,
         nameKey: "goblin_hut.level.4.name",
         maxHiredGoblins: 8,
-        unlockedClasses: ["miner", "builder", "collector", "foreman"],
+        unlockedRoles: ["miner", "collector", "foreman"],
         hireCostMultiplier: 0.9,
         upgradeCostMultiplier: 0.88,
         upgradeCost: [
@@ -1460,19 +1160,16 @@ export const starterContentBundle: ContentBundle = {
       "reward_chest.wooden.name": "Деревянный сундук",
       "reward_chest.iron.name": "Железный сундук",
       "reward_chest.steel.name": "Стальной сундук",
-      "goblin_generation.name": "Случайный найм гоблинов",
-      "goblin_generation.random_miner_contract.name": "Контракт шахтера",
-      "goblin_generation.random_collector_contract.name": "Контракт сборщика",
-      "goblin_generation.random_foreman_contract.name": "Контракт бригадира",
-      "goblin_trait.stone_focus.name": "Каменный фокус",
-      "goblin_trait.ore_eye.name": "Рудный глаз",
-      "goblin_trait.steady_hands.name": "Твердые руки",
-      "goblin_trait.careful_pockets.name": "Осторожные карманы",
-      "goblin_trait.long_list.name": "Длинная ведомость",
-      "goblin_trait.quiet_count.name": "Тихий счет",
-      "goblin_trait.sharp_whistle.name": "Резкий свисток",
-      "goblin_trait.night_orders.name": "Ночные приказы",
-      "goblin_trait.strict_shift.name": "Строгая смена",
+      "goblins.name": "Гоблины",
+      "goblin.miner.name": "Шахтер",
+      "goblin.miner.description": "Долбит камни на платформе. Сила напрямую задает урон в секунду.",
+      "goblin.collector.name": "Сборщик",
+      "goblin.collector.description": "Автоматизирует шахту и увеличивает ее добычу в час на процент скорости.",
+      "goblin.foreman.name": "Бригадир",
+      "goblin.foreman.description": "В офлайне переставляет шахтеров на новые камни. Контроль задает число перестановок.",
+      "goblin.stat.power": "Сила",
+      "goblin.stat.speed": "Скорость",
+      "goblin.stat.control": "Контроль",
       "goblin_hut.name": "Хижина гоблинов",
       "goblin_hut.level.1.name": "Шалаш кирок",
       "goblin_hut.level.2.name": "Навес бригады",
@@ -1492,24 +1189,6 @@ export const starterContentBundle: ContentBundle = {
       "boss_card.crit_multiplier.description": "Каждый уровень увеличивает множитель критического удара.",
       "boss_card.max_energy.name": "Запас энергии",
       "boss_card.max_energy.description": "Каждый уровень увеличивает максимальную энергию босса.",
-      "ability.stone_biter.name": "Камнегрыз",
-      "ability.stone_biter.description": "Наносит больше урона каменным блокам.",
-      "ability.cheap_shift.name": "Дешевая смена",
-      "ability.cheap_shift.description": "Добавляет немного базового урона в начале игры.",
-      "ability.copper_sniff.name": "Медный нюх",
-      "ability.copper_sniff.description": "Лучше справляется с медными жилами.",
-      "ability.slow_crusher.name": "Медленный дробитель",
-      "ability.slow_crusher.description": "Бьет редко, но заметно сильнее.",
-      "ability.first_scaffold.name": "Первый настил",
-      "ability.first_scaffold.description": "Немного снижает стоимость раннего строительства.",
-      "ability.tidy_planks.name": "Ровные доски",
-      "ability.tidy_planks.description": "Снижает строительные расходы аккуратной сборкой.",
-      "ability.boring_order.name": "Скучный порядок",
-      "ability.boring_order.description": "Открывает первый слот авто-сбора и увеличивает вместимость назначенной шахты.",
-      "ability.copper_tally.name": "Медная ведомость",
-      "ability.copper_tally.description": "Открывает слот авто-сбора и усиливает добычу медной руды.",
-      "ability.no_idle_picks.name": "Без простоев",
-      "ability.no_idle_picks.description": "Переставляет шахтеров офлайн, держит темп добычи и выбивает немного больше ресурсов."
     }
   }
 };
@@ -1532,7 +1211,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   collectDuplicateIds("rewardChestTypes", parsed.data.rewardChestTypes, errors);
   collectDuplicateIds("bossCards", parsed.data.bossCards, errors);
   collectDuplicateIds("mineTemplates", parsed.data.mineTemplates, errors);
-  collectDuplicateIds("goblinGeneration.archetypes", parsed.data.goblinGeneration.archetypes, errors);
+  collectDuplicateIds("goblins.roles", parsed.data.goblins.roles, errors);
 
   const resourceIds = new Set(parsed.data.resources.map((resource) => resource.id));
   const blockTypeIds = new Set(parsed.data.blockTypes.map((blockType) => blockType.id));
@@ -1652,7 +1331,7 @@ export function validateContentBundle(input: unknown): ContentValidationResult {
   validateGoblinHut(parsed.data.goblinHut, resourceIds, mineTemplateIds, ruLocalization, errors);
   validateLocalizationKey(parsed.data.elevator.nameKey, "ru", ruLocalization, errors);
   validateElevator(parsed.data.elevator, resourceIds, ruLocalization, errors);
-  validateGoblinGeneration(parsed.data.goblinGeneration, resourceIds, ruLocalization, errors);
+  validateGoblins(parsed.data.goblins, resourceIds, mineTemplateIds, ruLocalization, errors);
 
   return {
     ok: errors.length === 0,
@@ -1669,7 +1348,7 @@ function validateGoblinHut(
 ) {
   const seenLevels = new Set<number>();
   let previousMaxHiredGoblins = 0;
-  let previousUnlockedClasses = new Set<string>();
+  let previousUnlockedRoles = new Set<string>();
 
   for (const level of [...goblinHut.levels].sort((left, right) => left.level - right.level)) {
     if (seenLevels.has(level.level)) {
@@ -1689,14 +1368,14 @@ function validateGoblinHut(
       errors.push(`goblinHut.levels.${level.level}.maxHiredGoblins cannot be lower than previous level`);
     }
 
-    for (const goblinClass of previousUnlockedClasses) {
-      if (!level.unlockedClasses.includes(goblinClass as GoblinConfig["class"])) {
-        errors.push(`goblinHut.levels.${level.level}.unlockedClasses cannot remove ${goblinClass}`);
+    for (const goblinRole of previousUnlockedRoles) {
+      if (!level.unlockedRoles.includes(goblinRole as GoblinRole)) {
+        errors.push(`goblinHut.levels.${level.level}.unlockedRoles cannot remove ${goblinRole}`);
       }
     }
 
     previousMaxHiredGoblins = level.maxHiredGoblins;
-    previousUnlockedClasses = new Set(level.unlockedClasses);
+    previousUnlockedRoles = new Set(level.unlockedRoles);
   }
 
   const sortedLevels = [...seenLevels].sort((left, right) => left - right);
@@ -1766,60 +1445,99 @@ function validateElevator(
   }
 }
 
-function validateGoblinGeneration(
-  goblinGeneration: GoblinGenerationConfig,
+function validateGoblins(
+  goblins: GoblinsConfig,
   resourceIds: Set<string>,
+  mineTemplateIds: Set<string>,
   ruLocalization: Record<string, string> | undefined,
   errors: string[]
 ) {
-  validateLocalizationKey(goblinGeneration.nameKey, "ru", ruLocalization, errors);
+  const expectedStats: Record<GoblinRole, GoblinPrimaryStat> = {
+    collector: "speed",
+    foreman: "control",
+    miner: "power"
+  };
+  const seenRoles = new Set<GoblinRole>();
 
-  for (const archetype of goblinGeneration.archetypes) {
-    const seenRarities = new Set<string>();
-    const seenTraits = new Set<string>();
-    const seenRenderKeys = new Set<string>();
+  validateLocalizationKey(goblins.nameKey, "ru", ruLocalization, errors);
 
-    validateLocalizationKey(archetype.nameKey, "ru", ruLocalization, errors);
-    validateGoldResourceAmounts(`goblinGeneration.archetypes.${archetype.id}.hireCost`, archetype.hireCost, resourceIds, errors);
-    if (archetype.ability) {
-      validateLocalizationKey(archetype.ability.nameKey, "ru", ruLocalization, errors);
-      validateLocalizationKey(archetype.ability.descriptionKey, "ru", ruLocalization, errors);
-      validateGoblinAbilityEffects(`goblinGeneration.archetypes.${archetype.id}.ability.effects`, archetype.ability.effects, resourceIds, errors);
-    } else {
-      errors.push(`goblinGeneration.archetypes.${archetype.id}.ability is required`);
-    }
-    if (archetype.leveling) {
-      validateGoblinLevelingCost(`goblinGeneration.archetypes.${archetype.id}.leveling.cost`, archetype.leveling.cost, resourceIds, errors);
-    } else {
-      errors.push(`goblinGeneration.archetypes.${archetype.id}.leveling is required`);
+  for (const goblin of goblins.roles) {
+    if (goblin.id !== goblin.role) {
+      errors.push(`goblins.roles.${goblin.id}.id must match role`);
     }
 
-    for (const rarityWeight of archetype.rarityWeights) {
-      if (seenRarities.has(rarityWeight.rarity)) {
-        errors.push(`goblinGeneration.archetypes.${archetype.id}.rarityWeights has duplicate rarity ${rarityWeight.rarity}`);
-      }
-      seenRarities.add(rarityWeight.rarity);
+    if (seenRoles.has(goblin.role)) {
+      errors.push(`goblins.roles has duplicate role ${goblin.role}`);
     }
 
-    for (const trait of archetype.traitPool) {
-      if (seenTraits.has(trait.id)) {
-        errors.push(`goblinGeneration.archetypes.${archetype.id}.traitPool has duplicate trait ${trait.id}`);
-      }
-      seenTraits.add(trait.id);
+    seenRoles.add(goblin.role);
+    validateLocalizationKey(goblin.nameKey, "ru", ruLocalization, errors);
+    validateLocalizationKey(goblin.descriptionKey, "ru", ruLocalization, errors);
+    validateLocalizationKey(goblin.statNameKey, "ru", ruLocalization, errors);
+    validateGoldResourceAmounts(`goblins.roles.${goblin.id}.hireCost`, goblin.hireCost, resourceIds, errors);
+    validateUnlockRequirements(`goblins.roles.${goblin.id}.unlockRequirements`, goblin.unlockRequirements, resourceIds, mineTemplateIds, errors);
 
-      if (trait.nameKey) {
-        validateLocalizationKey(trait.nameKey, "ru", ruLocalization, errors);
+    if (goblin.statKey !== expectedStats[goblin.role]) {
+      errors.push(`goblins.roles.${goblin.id}.statKey must be ${expectedStats[goblin.role]}`);
+    }
+
+    validateGoblinProgression(goblin, resourceIds, errors);
+  }
+
+  for (const role of Object.keys(expectedStats) as GoblinRole[]) {
+    if (!seenRoles.has(role)) {
+      errors.push(`goblins.roles is missing ${role}`);
+    }
+  }
+}
+
+function validateGoblinProgression(goblin: GoblinRoleConfig, resourceIds: Set<string>, errors: string[]): void {
+  const sortedLevels = [...goblin.levels].sort((left, right) => left.level - right.level);
+
+  for (let index = 0; index < sortedLevels.length; index += 1) {
+    const level = sortedLevels[index];
+    const expectedLevel = index + 1;
+
+    if (!level) {
+      continue;
+    }
+
+    if (level.level !== expectedLevel) {
+      errors.push(`goblins.roles.${goblin.id}.levels must start at 1 and be sequential`);
+      break;
+    }
+
+    const seenStars = new Set<number>();
+
+    for (const star of level.stars) {
+      if (seenStars.has(star.stars)) {
+        errors.push(`goblins.roles.${goblin.id}.levels.${level.level}.stars has duplicate rank ${star.stars}`);
+      }
+
+      seenStars.add(star.stars);
+      validateGoldResourceAmounts(
+        `goblins.roles.${goblin.id}.levels.${level.level}.stars.${star.stars}.upgradeCost`,
+        star.upgradeCost,
+        resourceIds,
+        errors
+      );
+      if (star.stars < 5 && star.upgradeCost.length > 0) {
+        errors.push(`goblins.roles.${goblin.id}.levels.${level.level}.stars.${star.stars}.upgradeCost must be empty because stars are merged`);
+      }
+
+      for (const modifier of star.modifiers) {
+        if (modifier.type === "mine_production_multiplier" && modifier.resourceId && !resourceIds.has(modifier.resourceId)) {
+          errors.push(
+            `goblins.roles.${goblin.id}.levels.${level.level}.stars.${star.stars}.modifiers references missing resource ${modifier.resourceId}`
+          );
+        }
       }
     }
 
-    for (const render of archetype.renderPool) {
-      const renderKey = `${render.rarity ?? "any"}:${render.assetId}`;
-
-      if (seenRenderKeys.has(renderKey)) {
-        errors.push(`goblinGeneration.archetypes.${archetype.id}.renderPool has duplicate asset ${render.assetId}`);
+    for (let rank = 0; rank <= 5; rank += 1) {
+      if (!seenStars.has(rank)) {
+        errors.push(`goblins.roles.${goblin.id}.levels.${level.level}.stars is missing rank ${rank}`);
       }
-
-      seenRenderKeys.add(renderKey);
     }
   }
 }
@@ -1839,26 +1557,6 @@ function validateBuiltMineUpgradeCost(
 
     if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
       errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());
-    }
-  }
-}
-
-function validateGoblinLevelingCost(
-  path: string,
-  cost: Array<{ resourceId?: string }>,
-  resourceIds: Set<string>,
-  errors: string[]
-) {
-  for (let index = 0; index < cost.length; index += 1) {
-    const row = cost[index];
-
-    if (!row?.resourceId || !resourceIds.has(row.resourceId)) {
-      errors.push(`${path}.${index} references missing resource ${row?.resourceId ?? ""}`.trim());
-      continue;
-    }
-
-    if (row.resourceId !== "gold") {
-      errors.push(`${path}.${index} must use gold`);
     }
   }
 }
@@ -1969,7 +1667,7 @@ function validateUnlockRequirements(
   requirements: Array<
     | { type: "built_mines_count"; value: number }
     | { type: "mine_completed"; mineTemplateId: string }
-    | { type: "goblins_by_class"; class: string; count: number }
+    | { type: "goblins_by_role"; role: GoblinRole; count: number }
     | { type: "resource_collected"; resourceId: string; amount: number }
   >,
   resourceIds: Set<string>,
@@ -1983,19 +1681,6 @@ function validateUnlockRequirements(
 
     if (requirement.type === "mine_completed" && !mineTemplateIds.has(requirement.mineTemplateId)) {
       errors.push(`${owner} references missing mine template ${requirement.mineTemplateId}`);
-    }
-  }
-}
-
-function validateGoblinAbilityEffects(
-  owner: string,
-  effects: Array<{ type: string; resourceId?: string }>,
-  resourceIds: Set<string>,
-  errors: string[]
-): void {
-  for (const effect of effects) {
-    if (effect.type === "mine_production_multiplier" && effect.resourceId && !resourceIds.has(effect.resourceId)) {
-      errors.push(`${owner} references missing resource ${effect.resourceId}`);
     }
   }
 }

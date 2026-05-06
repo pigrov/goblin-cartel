@@ -330,7 +330,7 @@ function createRestoredMiningState(
     const automatedMineIncome = collectAutomatedBuiltMineIncomeWithCollectors({
       builtMines: restoredBuiltMines,
       collectors: hiredCollectorGoblins,
-      goblinLevels: roster.goblinLevels ?? {},
+      goblinLevels: Object.fromEntries((roster.instances ?? []).map((instance) => [instance.id, instance.level])),
       now,
       resources: restoredSession.resources
     });

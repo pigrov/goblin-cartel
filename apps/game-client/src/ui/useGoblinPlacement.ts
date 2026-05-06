@@ -1,7 +1,7 @@
 import type { GoblinConfig } from "@goblin-cartel/content-schemas";
 import {
-  calculateGoblinEffectiveAbilityEffects,
-  calculateCrewAutoDamagePerSecond,
+  calculateGoblinEffectiveModifiers,
+  calculateGoblinPrimaryStat,
   findPlatformRow,
   getGoblinLevel,
   type GoblinRosterState,
@@ -173,16 +173,7 @@ export function assignGoblinWorkers(
           row: activePlatformRow,
           col: targetColumn
         },
-        damagePerSecond: calculateCrewAutoDamagePerSecond({
-          blockTags: targetBlock.tags,
-          goblins: [goblin],
-          roster: {
-            goblinLevels: {
-              [goblin.id]: getRuntimeGoblinLevel(roster, goblin)
-            },
-            hiredGoblinIds: [goblin.id]
-          }
-        })
+        damagePerSecond: calculateGoblinPrimaryStat(goblin, getRuntimeGoblinLevel(roster, goblin), getRuntimeGoblinStars(goblin))
       };
     })
     .filter((worker): worker is GoblinWorkerAssignment => Boolean(worker));
@@ -213,17 +204,11 @@ export function getGoblinPlacementStatus(
 }
 
 export function getGoblinOfflineRelocationSlots(goblin: GoblinConfig, level = 1): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((slots, effect) => {
-    if (effect.type !== "offline_relocation_slots") {
-      return slots;
-    }
-
-    return slots + Math.max(0, Math.floor(effect.value));
-  }, 0);
+  return goblin.role === "foreman" ? calculateGoblinPrimaryStat(goblin, level, getRuntimeGoblinStars(goblin)) : 0;
 }
 
 export function getGoblinOfflineAutoDamageMultiplier(goblin: GoblinConfig, level = 1): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
+  return calculateGoblinEffectiveModifiers(goblin, level, getRuntimeGoblinStars(goblin)).reduce((multiplier, effect) => {
     if (effect.type !== "offline_auto_damage_multiplier") {
       return multiplier;
     }
@@ -233,7 +218,7 @@ export function getGoblinOfflineAutoDamageMultiplier(goblin: GoblinConfig, level
 }
 
 export function getGoblinOfflineRewardMultiplier(goblin: GoblinConfig, level = 1): number {
-  return calculateGoblinEffectiveAbilityEffects(goblin, level).reduce((multiplier, effect) => {
+  return calculateGoblinEffectiveModifiers(goblin, level, getRuntimeGoblinStars(goblin)).reduce((multiplier, effect) => {
     if (effect.type !== "offline_reward_multiplier") {
       return multiplier;
     }
@@ -455,9 +440,12 @@ function getRuntimeGoblinLevel(roster: GoblinRosterState, goblin: RuntimeGoblinC
   return Math.max(1, Math.floor(goblin.instanceLevel ?? getGoblinLevel(roster, goblin.id)));
 }
 
+function getRuntimeGoblinStars(goblin: unknown): 0 | 1 | 2 | 3 | 4 | 5 {
+  const value = typeof goblin === "object" && goblin !== null ? (goblin as { instanceStars?: number }).instanceStars : undefined;
+  return value === 1 || value === 2 || value === 3 || value === 4 || value === 5 ? value : 0;
+}
+
 function goblinName(goblin: RuntimeGoblinConfig, labels: Record<string, string>): string {
   const identity = createGoblinIdentity(goblin, labels);
-  const name = goblin.instanceName?.trim() || identity.name;
-  const nickname = goblin.instanceNickname?.trim() || identity.nickname;
-  return nickname ? `${name} ${nickname}` : name;
+  return identity.fullName;
 }

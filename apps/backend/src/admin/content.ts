@@ -16,7 +16,7 @@ export type ContentEntityType =
   | "bossCard"
   | "mineTemplate"
   | "uiIcons"
-  | "goblinGeneration"
+  | "goblins"
   | "goblinHut"
   | "elevator"
   | "localization";
@@ -26,7 +26,7 @@ export type EditableContentEntityType =
   | "blockType"
   | "bossCard"
   | "builtMineType"
-  | "goblinGeneration"
+  | "goblins"
   | "goblinHut"
   | "elevator"
   | "mineTemplate"
@@ -435,8 +435,8 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
   );
   const goblinHutEntity = entities.find((entity) => entity.entityType === "goblinHut" && entity.entityId === "default");
   const goblinHut = goblinHutEntity?.data as ContentBundle["goblinHut"];
-  const goblinGenerationEntity = entities.find((entity) => entity.entityType === "goblinGeneration" && entity.entityId === "default");
-  const goblinGeneration = goblinGenerationEntity?.data as ContentBundle["goblinGeneration"] | undefined;
+  const goblinsEntity = entities.find((entity) => entity.entityType === "goblins" && entity.entityId === "default");
+  const goblins = goblinsEntity?.data as ContentBundle["goblins"] | undefined;
   const elevatorEntity = entities.find((entity) => entity.entityType === "elevator" && entity.entityId === "default");
   const elevator = elevatorEntity?.data as ContentBundle["elevator"] | undefined;
   const uiIconsEntity = entities.find((entity) => entity.entityType === "uiIcons" && entity.entityId === "default");
@@ -451,7 +451,7 @@ function bundleFromEntities(entities: ContentEntityRecord[]): ContentBundle {
     bossCards: sortContentItems(entities, "bossCard", starterContentBundle.bossCards),
     mineTemplates: sortContentItems(entities, "mineTemplate", starterContentBundle.mineTemplates),
     uiIcons: uiIcons ?? starterContentBundle.uiIcons,
-    ...(goblinGeneration ? { goblinGeneration } : {}),
+    ...(goblins ? { goblins } : {}),
     ...(goblinHut ? { goblinHut } : {}),
     ...(elevator ? { elevator } : {}),
     localization
@@ -490,10 +490,10 @@ function upsertEditableContentEntity(
     };
   }
 
-  if (input.entityType === "goblinGeneration") {
+  if (input.entityType === "goblins") {
     return {
       ...content,
-      goblinGeneration: normalizedEntity as ContentBundle["goblinGeneration"],
+      goblins: normalizedEntity as ContentBundle["goblins"],
       localization: nextLocalization
     };
   }
@@ -541,14 +541,14 @@ function collectionForEntityType(content: ContentBundle, entityType: EditableCon
       return content.rewardChestTypes;
     case "elevator":
     case "goblinHut":
-    case "goblinGeneration":
+    case "goblins":
     case "uiIcons":
       return [];
   }
 }
 
 function collectionNameForEntityType(
-  entityType: Exclude<EditableContentEntityType, "elevator" | "goblinGeneration" | "goblinHut" | "uiIcons">
+  entityType: Exclude<EditableContentEntityType, "elevator" | "goblins" | "goblinHut" | "uiIcons">
 ): "blockTypes" | "bossCards" | "builtMineTypes" | "mineTemplates" | "resources" | "rewardChestTypes" {
   switch (entityType) {
     case "resource":

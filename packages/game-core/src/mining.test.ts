@@ -8,12 +8,12 @@ describe("mining formulas", () => {
     expect(calculateBlockHp({ baseHp: 100, rowIndex: 10, mineDifficultyMultiplier: 1.2 })).toBe(120);
   });
 
-  it("calculates goblin dps with class, tool and tag bonuses", () => {
+  it("calculates goblin dps from power and optional multipliers", () => {
     expect(
       calculateGoblinDps({
-        strength: 8,
-        speed: 5,
-        classMultiplier: 1.1,
+        power: 8,
+        hitsPerSecond: 5,
+        roleMultiplier: 1.1,
         toolMultiplier: 1.25,
         blockTagBonus: 0.2
       })

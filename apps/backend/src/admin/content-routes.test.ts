@@ -69,23 +69,23 @@ describe("content routes", () => {
   it("updates one content entity for ready admin", async () => {
     const server = Fastify({ logger: false });
     await registerContentRoutes(server, createAuthService(readyUser), createContentService("0.1.0"));
-    const goblinGeneration = structuredClone(starterContentBundle.goblinGeneration);
-    const firstArchetype = goblinGeneration.archetypes[0];
+    const goblins = structuredClone(starterContentBundle.goblins);
+    const firstRole = goblins.roles[0];
 
-    if (firstArchetype) {
-      firstArchetype.statRanges.strength.max = 12;
+    if (firstRole?.levels[0]?.stars[0]) {
+      firstRole.levels[0].stars[0].statValue = 12;
     }
 
     const response = await server.inject({
       method: "PUT",
-      url: "/admin/content/versions/00000000-0000-4000-8000-000000000001/entities/goblinGeneration/default",
+      url: "/admin/content/versions/00000000-0000-4000-8000-000000000001/entities/goblins/default",
       headers: {
         authorization: "Bearer token"
       },
       payload: {
-        entity: goblinGeneration,
+        entity: goblins,
         localization: {
-          "goblin_generation.name": "Проверенная генерация"
+          "goblins.name": "Checked goblins"
         }
       }
     });
@@ -97,8 +97,8 @@ describe("content routes", () => {
         status: "draft"
       },
       content: {
-        goblinGeneration: {
-          archetypes: expect.any(Array)
+        goblins: {
+          roles: expect.any(Array)
         }
       }
     });

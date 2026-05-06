@@ -2,6 +2,8 @@ import type { ResourceConfig } from "@goblin-cartel/content-schemas";
 import { Gem, Hammer, Mountain, Sparkles, Zap } from "lucide-react";
 import type { CSSProperties } from "react";
 import { assetUrl } from "../assetUrls";
+import resourceBarFrameUrl from "../../assets/goblin-modal/details-top.png";
+import settingsIconImageUrl from "../../assets/ui/icon-settings.png";
 
 export interface ResourceTooltip {
   id: number;
@@ -32,9 +34,10 @@ export function ResourceHud(props: {
 }) {
   const resourceById = new Map(props.displayedResources.map((resource) => [resource.id, resource]));
   const style = {
+    "--resource-bar-frame": `url("${resourceBarFrameUrl}")`,
     "--resource-chip-frame": cssAssetUrl(props.resourceChipFrameAssetId),
     "--settings-button-frame": cssAssetUrl(props.settingsButtonFrameAssetId),
-    "--settings-button-icon": cssAssetUrl(props.settingsIconAssetId)
+    "--settings-button-icon": `url("${settingsIconImageUrl}")`
   } as CSSProperties;
 
   return (
