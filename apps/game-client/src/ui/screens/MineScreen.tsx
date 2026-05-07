@@ -9,6 +9,7 @@ import type { MineRunProgressStatsView, MineRunRewardSummary } from "../mineRunS
 import type { MinePixiColumnTacticHint, MinePixiForemanSlot, MinePixiGoblin, MinePixiHitEffect } from "../MinePixiScene";
 import { formatOfflineDuration, type OfflineMiningSummary } from "../offlineMiningSummary";
 import type { PlatformDropEvent } from "../useMiningLoop";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 import {
   getGoblinOfflineAutoDamageMultiplier,
   getGoblinOfflineRelocationSlots,
@@ -293,52 +294,44 @@ function MineProgressModal(props: { onClose: () => void; stats: MineRunProgressS
   const progressStyle = { "--progress": `${props.stats.progressPercent}%` } as CSSProperties;
 
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
-      <section className="mine-progress-modal" aria-label="Прогресс рудника" onClick={(event) => event.stopPropagation()}>
+    <GameFullscreenModal ariaLabel="Прогресс рудника" contentClassName="mine-progress-modal" onClose={props.onClose} title="Прогресс">
+      <header className="mine-modal-heading">
+        <span>Рудник</span>
+        <strong>
+          {props.stats.currentDepthMeters}/{props.stats.depthMeters} м
+        </strong>
+      </header>
+
+      <div className="mine-progress-modal-hero">
+        <div className="mine-progress-ring" style={progressStyle}>
+          <strong>{props.stats.progressPercent}%</strong>
+          <span>очищено</span>
+        </div>
+        <div>
+          <span>Камни</span>
+          <strong>
+            {props.stats.destroyedBlocks}/{props.stats.totalBlocks}
+          </strong>
+        </div>
+        <div>
+          <span>Жила</span>
+          <strong>{props.stats.completionVeinName ?? "Не указана"}</strong>
+        </div>
+      </div>
+
+      <div className="mine-progress-modal-stats">
+        <MineProgressStat label="Глубина" value={`${props.stats.currentDepthMeters}/${props.stats.depthMeters} м`} />
+        <MineProgressStat label="Бонус глубины" value={props.stats.depthRewardLabel ?? "Нет"} />
+      </div>
+
+      <section className="mine-progress-modal-rewards">
         <header>
-          <div>
-            <p>Рудник</p>
-            <strong>Прогресс</strong>
-            <span>
-              {props.stats.currentDepthMeters}/{props.stats.depthMeters} м
-            </span>
-          </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
-          </button>
+          <Gem size={16} />
+          <span>Добыто сейчас</span>
         </header>
-
-        <div className="mine-progress-modal-hero">
-          <div className="mine-progress-ring" style={progressStyle}>
-            <strong>{props.stats.progressPercent}%</strong>
-            <span>очищено</span>
-          </div>
-          <div>
-            <span>Камни</span>
-            <strong>
-              {props.stats.destroyedBlocks}/{props.stats.totalBlocks}
-            </strong>
-          </div>
-          <div>
-            <span>Жила</span>
-            <strong>{props.stats.completionVeinName ?? "Не указана"}</strong>
-          </div>
-        </div>
-
-        <div className="mine-progress-modal-stats">
-          <MineProgressStat label="Глубина" value={`${props.stats.currentDepthMeters}/${props.stats.depthMeters} м`} />
-          <MineProgressStat label="Бонус глубины" value={props.stats.depthRewardLabel ?? "Нет"} />
-        </div>
-
-        <section className="mine-progress-modal-rewards">
-          <header>
-            <Gem size={16} />
-            <span>Добыто сейчас</span>
-          </header>
-          <MineProgressRewardPills rewards={props.stats.totalRewards} />
-        </section>
+        <MineProgressRewardPills rewards={props.stats.totalRewards} />
       </section>
-    </div>
+    </GameFullscreenModal>
   );
 }
 
@@ -379,63 +372,61 @@ function ElevatorModal(props: {
   const nextTitle = props.state.nextLevel ? labelFromNameKey(props.state.nextLevel.nameKey, "Следующий уровень", props.labels) : null;
 
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
-      <section className={props.upgraded ? "elevator-modal upgraded" : "elevator-modal"} aria-label="Подъемник" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <div>
-            <p>Рудник</p>
-            <strong>Подъемник</strong>
-            <span>{currentTitle} · уровень {props.state.levelNow}/{props.state.maxLevel}</span>
-          </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
-          </button>
-        </header>
+    <GameFullscreenModal
+      ariaLabel="Подъемник"
+      contentClassName={props.upgraded ? "elevator-modal upgraded" : "elevator-modal"}
+      onClose={props.onClose}
+      title="Подъемник"
+    >
+      <header className="mine-modal-heading">
+        <span>Рудник</span>
+        <strong>{currentTitle}</strong>
+        <em>уровень {props.state.levelNow}/{props.state.maxLevel}</em>
+      </header>
 
-        <div className={`elevator-modal-visual stage-${props.state.visualStage}`} aria-hidden="true">
-          <i className="elevator-modal-rail" />
-          <i className="elevator-modal-wheel" />
-          <i className="elevator-modal-cable" />
-          <i className="elevator-modal-platform" />
-          <i className="elevator-modal-glow" />
-        </div>
+      <div className={`elevator-modal-visual stage-${props.state.visualStage}`} aria-hidden="true">
+        <i className="elevator-modal-rail" />
+        <i className="elevator-modal-wheel" />
+        <i className="elevator-modal-cable" />
+        <i className="elevator-modal-platform" />
+        <i className="elevator-modal-glow" />
+      </div>
 
-        <div className="elevator-modal-stat-grid">
-          <ElevatorStat icon={<Pickaxe size={16} />} label="Места" value={`${props.state.platformSlots}`} />
-          <ElevatorStat icon={<Gauge size={16} />} label="Спуск" value={formatSeconds(props.state.dropDurationMs / 1000)} />
-          <ElevatorStat icon={<Zap size={16} />} label="Офлайн" value={`x${formatMultiplier(props.state.offlineDamageMultiplier)}`} />
-          <ElevatorStat icon={<ShieldCheck size={16} />} label="Надежность" value={`${props.state.stabilityPercent}%`} />
-        </div>
+      <div className="elevator-modal-stat-grid">
+        <ElevatorStat icon={<Pickaxe size={16} />} label="Места" value={`${props.state.platformSlots}`} />
+        <ElevatorStat icon={<Gauge size={16} />} label="Спуск" value={formatSeconds(props.state.dropDurationMs / 1000)} />
+        <ElevatorStat icon={<Zap size={16} />} label="Офлайн" value={`x${formatMultiplier(props.state.offlineDamageMultiplier)}`} />
+        <ElevatorStat icon={<ShieldCheck size={16} />} label="Надежность" value={`${props.state.stabilityPercent}%`} />
+      </div>
 
-        {props.state.nextLevel ? (
-          <section className="elevator-modal-next">
-            <header>
-              <strong>{nextTitle}</strong>
-              <span>
-                {props.state.platformSlots} → {props.state.nextLevel.platformSlots} мест · x
-                {formatMultiplier(props.state.offlineDamageMultiplier)} → x{formatMultiplier(props.state.nextLevel.offlineDamageMultiplier)}
+      {props.state.nextLevel ? (
+        <section className="elevator-modal-next">
+          <header>
+            <strong>{nextTitle}</strong>
+            <span>
+              {props.state.platformSlots} → {props.state.nextLevel.platformSlots} мест · x
+              {formatMultiplier(props.state.offlineDamageMultiplier)} → x{formatMultiplier(props.state.nextLevel.offlineDamageMultiplier)}
+            </span>
+          </header>
+          <div className="build-cost-list">
+            {props.state.costRequirements.map((requirement) => (
+              <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
+                <ResourceIcon resourceId={requirement.resourceId} size={13} />
+                {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
               </span>
-            </header>
-            <div className="build-cost-list">
-              {props.state.costRequirements.map((requirement) => (
-                <span className={requirement.ok ? "ok" : "missing"} key={requirement.resourceId}>
-                  <ResourceIcon resourceId={requirement.resourceId} size={13} />
-                  {formatInteger(Math.min(requirement.available, requirement.required))}/{formatInteger(requirement.required)}
-                </span>
-              ))}
-            </div>
-            <button disabled={!props.state.canUpgrade} onClick={props.onUpgrade} type="button">
-              {elevatorUpgradeActionLabel(props.state)}
-            </button>
-          </section>
-        ) : (
-          <section className="elevator-modal-next complete">
-            <strong>Подъемник полностью улучшен</strong>
-            <span>Платформа работает на максимальном уровне.</span>
-          </section>
-        )}
-      </section>
-    </div>
+            ))}
+          </div>
+          <button disabled={!props.state.canUpgrade} onClick={props.onUpgrade} type="button">
+            {elevatorUpgradeActionLabel(props.state)}
+          </button>
+        </section>
+      ) : (
+        <section className="elevator-modal-next complete">
+          <strong>Подъемник полностью улучшен</strong>
+          <span>Платформа работает на максимальном уровне.</span>
+        </section>
+      )}
+    </GameFullscreenModal>
   );
 }
 
@@ -482,90 +473,83 @@ function ForemanTowerModal(props: {
   const assignedById = new Set(props.foremanTower.assignments.filter((id): id is string => Boolean(id)));
 
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
-      <section className="foreman-modal" aria-label="Вышка бригадира" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <div>
-            <p>Рудник</p>
-            <strong>Вышка бригадира</strong>
-          </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
-          </button>
-        </header>
+    <GameFullscreenModal ariaLabel="Вышка бригадира" contentClassName="foreman-modal" onClose={props.onClose} title="Вышка">
+      <header className="mine-modal-heading">
+        <span>Рудник</span>
+        <strong>Вышка бригадира</strong>
+      </header>
 
-        <div className="foreman-slot-grid" aria-label="Слоты вышки">
-          {props.foremanTower.assignments.map((goblinId, index) => {
-            const foreman = goblinId ? props.foremanTower.availableForemen.find((goblin) => goblin.id === goblinId) ?? null : null;
+      <div className="foreman-slot-grid" aria-label="Слоты вышки">
+        {props.foremanTower.assignments.map((goblinId, index) => {
+          const foreman = goblinId ? props.foremanTower.availableForemen.find((goblin) => goblin.id === goblinId) ?? null : null;
+
+          return (
+            <button
+              className={selectedSlot === index ? "foreman-slot active" : "foreman-slot"}
+              key={index}
+              onClick={() => setSelectedSlot(index)}
+              type="button"
+            >
+              {foreman ? (
+                <>
+                  <strong>{createGoblinIdentity(foreman, props.labels).name}</strong>
+                  <span>{((foreman as { instanceLevel?: number }).instanceLevel ?? props.foremanTower.goblinLevels[foreman.id] ?? 1)} ур.</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={16} />
+                  <span>пусто</span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="foreman-effect-summary">
+        <span>Перестановки: {sumForemanRelocations(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels)}</span>
+        <span>Офлайн-урон: x{formatMultiplier(sumForemanDamage(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels))}</span>
+        <span>Офлайн-добыча: x{formatMultiplier(sumForemanRewards(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels))}</span>
+      </div>
+
+      <div className="foreman-list" aria-label="Купленные бригадиры">
+        {props.foremanTower.availableForemen.length > 0 ? (
+          props.foremanTower.availableForemen.map((foreman) => {
+            const level = props.foremanTower.goblinLevels[foreman.id] ?? 1;
+            const identity = createGoblinIdentity(foreman, props.labels);
+            const assigned = assignedById.has(foreman.id);
 
             return (
-              <button
-                className={selectedSlot === index ? "foreman-slot active" : "foreman-slot"}
-                key={index}
-                onClick={() => setSelectedSlot(index)}
-                type="button"
-              >
-                {foreman ? (
-                  <>
-                    <strong>{createGoblinIdentity(foreman, props.labels).name}</strong>
-                    <span>{((foreman as { instanceLevel?: number }).instanceLevel ?? props.foremanTower.goblinLevels[foreman.id] ?? 1)} ур.</span>
-                  </>
-                ) : (
-                  <>
-                    <Plus size={16} />
-                    <span>пусто</span>
-                  </>
-                )}
-              </button>
+              <article className={assigned ? "foreman-picker-card assigned" : "foreman-picker-card"} key={foreman.id}>
+                <div>
+                  <strong>{identity.fullName}</strong>
+                  <span>
+                    {getGoblinOfflineRelocationSlots(foreman, level)} перест. · x
+                    {formatMultiplier(getGoblinOfflineAutoDamageMultiplier(foreman, level))} урон · x
+                    {formatMultiplier(getGoblinOfflineRewardMultiplier(foreman, level))} добыча
+                  </span>
+                </div>
+                <button onClick={() => props.onAssign(selectedSlot, foreman.id)} type="button">
+                  {assigned ? "переставить" : "назначить"}
+                </button>
+              </article>
             );
-          })}
-        </div>
+          })
+        ) : (
+          <div className="foreman-empty">
+            <strong>Бригадиров пока нет</strong>
+            <span>Сначала найми бригадира в Хижине, потом назначь его в слот вышки.</span>
+            <button onClick={props.onOpenGoblins} type="button">В Хижину</button>
+          </div>
+        )}
+      </div>
 
-        <div className="foreman-effect-summary">
-          <span>Перестановки: {sumForemanRelocations(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels)}</span>
-          <span>Офлайн-урон: x{formatMultiplier(sumForemanDamage(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels))}</span>
-          <span>Офлайн-добыча: x{formatMultiplier(sumForemanRewards(props.foremanTower.assignedForemen, props.foremanTower.goblinLevels))}</span>
-        </div>
-
-        <div className="foreman-list" aria-label="Купленные бригадиры">
-          {props.foremanTower.availableForemen.length > 0 ? (
-            props.foremanTower.availableForemen.map((foreman) => {
-              const level = props.foremanTower.goblinLevels[foreman.id] ?? 1;
-              const identity = createGoblinIdentity(foreman, props.labels);
-              const assigned = assignedById.has(foreman.id);
-
-              return (
-                <article className={assigned ? "foreman-picker-card assigned" : "foreman-picker-card"} key={foreman.id}>
-                  <div>
-                    <strong>{identity.fullName}</strong>
-                    <span>
-                      {getGoblinOfflineRelocationSlots(foreman, level)} перест. · x
-                      {formatMultiplier(getGoblinOfflineAutoDamageMultiplier(foreman, level))} урон · x
-                      {formatMultiplier(getGoblinOfflineRewardMultiplier(foreman, level))} добыча
-                    </span>
-                  </div>
-                  <button onClick={() => props.onAssign(selectedSlot, foreman.id)} type="button">
-                    {assigned ? "переставить" : "назначить"}
-                  </button>
-                </article>
-              );
-            })
-          ) : (
-            <div className="foreman-empty">
-              <strong>Бригадиров пока нет</strong>
-              <span>Сначала найми бригадира в Хижине, потом назначь его в слот вышки.</span>
-              <button onClick={props.onOpenGoblins} type="button">В Хижину</button>
-            </div>
-          )}
-        </div>
-
-        {props.foremanTower.assignments[selectedSlot] ? (
-          <button className="foreman-clear-button" onClick={() => props.onAssign(selectedSlot, null)} type="button">
-            Снять со слота
-          </button>
-        ) : null}
-      </section>
-    </div>
+      {props.foremanTower.assignments[selectedSlot] ? (
+        <button className="foreman-clear-button" onClick={() => props.onAssign(selectedSlot, null)} type="button">
+          Снять со слота
+        </button>
+      ) : null}
+    </GameFullscreenModal>
   );
 }
 

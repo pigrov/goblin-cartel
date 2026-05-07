@@ -14,11 +14,8 @@ import {
 } from "../goblinHutClientState";
 import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "../goblinRuntimeUnits";
 import { assetUrl } from "../assetUrls";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 import goblinDetailsAvatarUrl from "../../assets/goblin-modal/details-avatar.png";
-import goblinDetailsBgUrl from "../../assets/goblin-modal/details-bg.png";
-import goblinDetailsPanelUrl from "../../assets/goblin-modal/details-panel.png";
-import goblinDetailsTopUrl from "../../assets/goblin-modal/details-top.png";
-import closeIconUrl from "../../assets/ui/icon-cross.png";
 
 type OwnedGoblinDragState = {
   cardSize: number;
@@ -427,58 +424,47 @@ function GoblinDetailsModal(props: {
   const upgradeCost = preview.costRequirements.find((item) => item.resourceId === "gold");
 
   return (
-    <div className="goblin-modal-backdrop goblin-details-backdrop" onClick={props.onClose}>
-      <article className="goblin-details-fullscreen" onClick={(event) => event.stopPropagation()}>
-        <img alt="" className="goblin-details-scene-bg" draggable={false} src={goblinDetailsBgUrl} />
+    <GameFullscreenModal
+      ariaLabel="Информация о гоблине"
+      avatarSrc={goblinDetailsAvatarUrl}
+      contentClassName="goblin-details-info-content"
+      onClose={props.onClose}
+      title={roleLabel(props.goblin.role)}
+    >
+      <header className="goblin-details-info-header">
+        <span>{identity.name}</span>
+        <strong>{preview.levelNow} ур. · {preview.starsNow} зв.</strong>
+      </header>
 
-        <header className="goblin-details-top-plate" style={{ "--goblin-details-top": `url("${goblinDetailsTopUrl}")` } as CSSProperties}>
-          <strong>{roleLabel(props.goblin.role)}</strong>
-          <button className="goblin-details-top-close" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <img alt="" draggable={false} src={closeIconUrl} />
-          </button>
-        </header>
+      <div className="goblin-details-stats">
+        <div>
+          <span>{statName}</span>
+          <strong>{preview.primaryStatNow}</strong>
+        </div>
+        <div>
+          <span>После улучшения</span>
+          <strong>{preview.primaryStatAfter}</strong>
+        </div>
+        <div>
+          <span>Звезды</span>
+          <strong>{preview.starsNow}/5</strong>
+        </div>
+      </div>
 
-        <img alt="" className="goblin-details-avatar-art" draggable={false} src={goblinDetailsAvatarUrl} />
+      <p className="goblin-details-description">{identity.description || "Личный гоблин готов к работе в руднике."}</p>
 
-        <section className="goblin-details-info-panel" style={{ "--goblin-details-panel": `url("${goblinDetailsPanelUrl}")` } as CSSProperties}>
-          <div className="goblin-details-info-content">
-            <header className="goblin-details-info-header">
-              <span>{identity.name}</span>
-              <strong>{preview.levelNow} ур. · {preview.starsNow} зв.</strong>
-            </header>
-
-            <div className="goblin-details-stats">
-              <div>
-                <span>{statName}</span>
-                <strong>{preview.primaryStatNow}</strong>
-              </div>
-              <div>
-                <span>После улучшения</span>
-                <strong>{preview.primaryStatAfter}</strong>
-              </div>
-              <div>
-                <span>Звезды</span>
-                <strong>{preview.starsNow}/5</strong>
-              </div>
-            </div>
-
-            <p className="goblin-details-description">{identity.description || "Личный гоблин готов к работе в руднике."}</p>
-
-            <footer className="goblin-details-actions">
-              <button className="goblin-details-primary-action" disabled={!preview.canUpgrade} onClick={props.onUpgrade} type="button">
-                <span>{goblinUpgradeButtonLabel(preview.failureReason)}</span>
-                {upgradeCost ? (
-                  <small>
-                    <SkinAssetIcon assetId={goldIcon} />
-                    {upgradeCost.required}
-                  </small>
-                ) : null}
-              </button>
-            </footer>
-          </div>
-        </section>
-      </article>
-    </div>
+      <footer className="goblin-details-actions">
+        <button className="goblin-details-primary-action" disabled={!preview.canUpgrade} onClick={props.onUpgrade} type="button">
+          <span>{goblinUpgradeButtonLabel(preview.failureReason)}</span>
+          {upgradeCost ? (
+            <small>
+              <SkinAssetIcon assetId={goldIcon} />
+              {upgradeCost.required}
+            </small>
+          ) : null}
+        </button>
+      </footer>
+    </GameFullscreenModal>
   );
 }
 

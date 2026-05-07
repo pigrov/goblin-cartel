@@ -1,4 +1,4 @@
-import { X } from "lucide-react";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 
 export function FoundVeinModal(props: {
   canBuild: boolean;
@@ -11,43 +11,36 @@ export function FoundVeinModal(props: {
   veinName: string;
 }) {
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
-      <section className="vein-modal" aria-label="Рудник расчищен" onClick={(event) => event.stopPropagation()}>
-        <header>
+    <GameFullscreenModal ariaLabel="Рудник расчищен" contentClassName="vein-modal" onClose={props.onClose} title="Жила">
+      <header className="mine-modal-heading">
+        <span>Рудник расчищен</span>
+        <strong>{props.veinName}</strong>
+      </header>
+      <p className="vein-modal-copy">
+        Ура, рудник полностью расчищен. Найдена жила: {props.veinName}. Построй шахту, чтобы она автоматически приносила ресурс.
+      </p>
+      {props.costLabel && props.productionPerHour && props.productionLabel ? (
+        <div className="vein-modal-stats">
           <div>
-            <p>Рудник расчищен</p>
-            <strong>{props.veinName}</strong>
+            <span>Стоимость</span>
+            <strong>{props.costLabel}</strong>
           </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
-          </button>
-        </header>
-        <p className="vein-modal-copy">
-          Ура, рудник полностью расчищен. Найдена жила: {props.veinName}. Построй шахту, чтобы она автоматически приносила ресурс.
-        </p>
-        {props.costLabel && props.productionPerHour && props.productionLabel ? (
-          <div className="vein-modal-stats">
-            <div>
-              <span>Стоимость</span>
-              <strong>{props.costLabel}</strong>
-            </div>
-            <div>
-              <span>Добыча</span>
-              <strong>
-                {props.productionPerHour}/ч {props.productionLabel}
-              </strong>
-            </div>
+          <div>
+            <span>Добыча</span>
+            <strong>
+              {props.productionPerHour}/ч {props.productionLabel}
+            </strong>
           </div>
-        ) : null}
-        <div className="vein-modal-actions">
-          <button disabled={!props.canBuild || !props.costLabel} onClick={props.onBuild} type="button">
-            Построить
-          </button>
-          <button onClick={props.onBuildLater} type="button">
-            Построить позже
-          </button>
         </div>
-      </section>
-    </div>
+      ) : null}
+      <div className="vein-modal-actions">
+        <button disabled={!props.canBuild || !props.costLabel} onClick={props.onBuild} type="button">
+          Построить
+        </button>
+        <button onClick={props.onBuildLater} type="button">
+          Построить позже
+        </button>
+      </div>
+    </GameFullscreenModal>
   );
 }

@@ -1,5 +1,6 @@
 import type { BossEnergyConfig } from "@goblin-cartel/game-core";
-import { Bomb, Sparkles, X, Zap } from "lucide-react";
+import { Bomb, Sparkles, Zap } from "lucide-react";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 
 export function BossEnergyPanel(props: {
   config: BossEnergyConfig;
@@ -53,43 +54,35 @@ export function BossDetailsModal(props: {
   secondsUntilReady: number;
 }) {
   return (
-    <div className="modal-backdrop boss-fullscreen-backdrop" onClick={props.onClose} role="presentation">
-      <section className="boss-modal" aria-label="Параметры босса" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <div>
-            <p>Босс</p>
-            <strong>Параметры удара</strong>
-            <span>Карты усиливают удары по камням</span>
-          </div>
-          <button className="boss-modal-close" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={24} />
-          </button>
-        </header>
-        <section className="boss-hero-card">
-          <div className="boss-hero-orb" aria-hidden="true">
-            <Zap size={34} />
-          </div>
-          <div>
-            <span>Энергия</span>
-            <strong>{formatInteger(props.displayedEnergy)}/{props.config.maxEnergy}</strong>
-          </div>
-          <i aria-hidden="true">
-            <b style={{ width: `${Math.min(100, (props.displayedEnergy / props.config.maxEnergy) * 100)}%` }} />
-          </i>
-        </section>
-        <div className="boss-stat-grid">
-          <BossStat label="Энергия" value={`${formatInteger(props.displayedEnergy)}/${props.config.maxEnergy}`} />
-          <BossStat label="Расход" value={`${props.config.energyPerHit}/удар`} />
-          <BossStat label="Урон" value={`${props.config.damagePerTap}/тап`} />
-          <BossStat label="Реген" value={`+${props.config.regenPerSecond}/сек`} />
-          <BossStat label="Крит" value={formatPercent(props.config.critChance)} />
-          <BossStat label="Множитель" value={`x${formatNumber(props.config.critMultiplier)}`} />
+    <GameFullscreenModal ariaLabel="Параметры босса" contentClassName="boss-modal" onClose={props.onClose} title="Босс">
+      <header className="mine-modal-heading">
+        <span>Параметры удара</span>
+        <strong>Карты усиливают удары по камням</strong>
+      </header>
+      <section className="boss-hero-card">
+        <div className="boss-hero-orb" aria-hidden="true">
+          <Zap size={34} />
         </div>
-        <div className="boss-ready-line">
-          {props.secondsUntilReady === 0 ? "Удар готов" : `Следующий удар через ${formatSeconds(props.secondsUntilReady)}`}
+        <div>
+          <span>Энергия</span>
+          <strong>{formatInteger(props.displayedEnergy)}/{props.config.maxEnergy}</strong>
         </div>
+        <i aria-hidden="true">
+          <b style={{ width: `${Math.min(100, (props.displayedEnergy / props.config.maxEnergy) * 100)}%` }} />
+        </i>
       </section>
-    </div>
+      <div className="boss-stat-grid">
+        <BossStat label="Энергия" value={`${formatInteger(props.displayedEnergy)}/${props.config.maxEnergy}`} />
+        <BossStat label="Расход" value={`${props.config.energyPerHit}/удар`} />
+        <BossStat label="Урон" value={`${props.config.damagePerTap}/тап`} />
+        <BossStat label="Реген" value={`+${props.config.regenPerSecond}/сек`} />
+        <BossStat label="Крит" value={formatPercent(props.config.critChance)} />
+        <BossStat label="Множитель" value={`x${formatNumber(props.config.critMultiplier)}`} />
+      </div>
+      <div className="boss-ready-line">
+        {props.secondsUntilReady === 0 ? "Удар готов" : `Следующий удар через ${formatSeconds(props.secondsUntilReady)}`}
+      </div>
+    </GameFullscreenModal>
   );
 }
 

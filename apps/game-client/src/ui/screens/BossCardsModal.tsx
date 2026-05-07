@@ -6,6 +6,7 @@ import {
   type BossCardId,
   type BossCardState
 } from "@goblin-cartel/game-core";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 
 function BossCardArt(props: { card: BossCardDefinition }) {
   const className = `boss-card-art ${bossCardAssetClass(props.card)}`;
@@ -94,97 +95,86 @@ export function BossCardsModal(props: {
   const selectedCard = props.cards.find((card) => card.id === selectedCardId) ?? null;
 
   return (
-    <div className="modal-backdrop boss-fullscreen-backdrop" onClick={props.onClose} role="presentation">
-      <section className="boss-cards-modal" aria-label="Карты босса" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <span className="boss-modal-filter-button" aria-hidden="true">
-            <Sparkles size={20} />
-          </span>
-          <div>
-            <p>Босс</p>
-            <strong>Карты удара</strong>
-            <span>Карты дают постоянные усиления</span>
-          </div>
-          <button className="boss-modal-close" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={24} />
-          </button>
-        </header>
+    <GameFullscreenModal ariaLabel="Карты босса" contentClassName="boss-cards-modal" onClose={props.onClose} title="Карты">
+      <header className="mine-modal-heading">
+        <span>Босс</span>
+        <strong>Карты дают постоянные усиления</strong>
+      </header>
 
-        <div className="boss-cards-list">
-          {props.cards.map((card) => {
-            const level = props.state.levels[card.id] ?? 0;
-            const cost = calculateBossCardUpgradeCost(card, props.state);
-            const availableCards = props.resources[card.cardResourceId] ?? 0;
-            const availableElixir = props.resources.elixir ?? 0;
-            const cardProgress = cost ? Math.min(100, (availableCards / cost.cardAmount) * 100) : 100;
-            const canUpgrade = Boolean(cost && availableCards >= cost.cardAmount && availableElixir >= cost.elixirAmount);
+      <div className="boss-cards-list">
+        {props.cards.map((card) => {
+          const level = props.state.levels[card.id] ?? 0;
+          const cost = calculateBossCardUpgradeCost(card, props.state);
+          const availableCards = props.resources[card.cardResourceId] ?? 0;
+          const availableElixir = props.resources.elixir ?? 0;
+          const cardProgress = cost ? Math.min(100, (availableCards / cost.cardAmount) * 100) : 100;
+          const canUpgrade = Boolean(cost && availableCards >= cost.cardAmount && availableElixir >= cost.elixirAmount);
 
-            return (
-              <article className={`boss-card ${card.rarity}`} key={card.id} onClick={() => setSelectedCardId(card.id)}>
-                <BossCardArt card={card} />
-                <div className="boss-card-copy">
-                  <div className="boss-card-title">
-                    <span>{bossCardRarityLabel(card.rarity)}</span>
-                    <strong>{bossCardName(card, props.labels)}</strong>
-                  </div>
-                  <p>{bossCardDescription(card, props.labels)}</p>
-                  <div className="boss-card-effect">
-                    <span>Ур. {level}</span>
-                    <strong>{bossCardEffectLabel(card)}</strong>
-                  </div>
-                  {cost ? (
-                    <div className="boss-card-progress">
-                      <div>
-                        <span>Карты</span>
-                        <strong>
-                          {formatInteger(Math.min(availableCards, cost.cardAmount))}/{formatInteger(cost.cardAmount)}
-                        </strong>
-                      </div>
-                      <i aria-hidden="true">
-                        <b style={{ width: `${cardProgress}%` }} />
-                      </i>
-                      <div>
-                        <span>Эликсир</span>
-                        <strong>
-                          {formatInteger(Math.min(availableElixir, cost.elixirAmount))}/{formatInteger(cost.elixirAmount)}
-                        </strong>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="boss-card-progress maxed">
-                      <strong>Максимальный уровень</strong>
-                    </div>
-                  )}
+          return (
+            <article className={`boss-card ${card.rarity}`} key={card.id} onClick={() => setSelectedCardId(card.id)}>
+              <BossCardArt card={card} />
+              <div className="boss-card-copy">
+                <div className="boss-card-title">
+                  <span>{bossCardRarityLabel(card.rarity)}</span>
+                  <strong>{bossCardName(card, props.labels)}</strong>
                 </div>
-                <button
-                  disabled={!canUpgrade}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    props.onUpgrade(card.id);
-                  }}
-                  type="button"
-                >
-                  {cost ? "Улучшить" : "Макс."}
-                </button>
-              </article>
-            );
-          })}
-        </div>
+                <p>{bossCardDescription(card, props.labels)}</p>
+                <div className="boss-card-effect">
+                  <span>Ур. {level}</span>
+                  <strong>{bossCardEffectLabel(card)}</strong>
+                </div>
+                {cost ? (
+                  <div className="boss-card-progress">
+                    <div>
+                      <span>Карты</span>
+                      <strong>
+                        {formatInteger(Math.min(availableCards, cost.cardAmount))}/{formatInteger(cost.cardAmount)}
+                      </strong>
+                    </div>
+                    <i aria-hidden="true">
+                      <b style={{ width: `${cardProgress}%` }} />
+                    </i>
+                    <div>
+                      <span>Эликсир</span>
+                      <strong>
+                        {formatInteger(Math.min(availableElixir, cost.elixirAmount))}/{formatInteger(cost.elixirAmount)}
+                      </strong>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="boss-card-progress maxed">
+                    <strong>Максимальный уровень</strong>
+                  </div>
+                )}
+              </div>
+              <button
+                disabled={!canUpgrade}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  props.onUpgrade(card.id);
+                }}
+                type="button"
+              >
+                {cost ? "Улучшить" : "Макс."}
+              </button>
+            </article>
+          );
+        })}
+      </div>
 
-        {props.message ? <p className="boss-cards-message">{props.message}</p> : null}
+      {props.message ? <p className="boss-cards-message">{props.message}</p> : null}
 
-        {selectedCard ? (
-          <BossCardDetail
-            card={selectedCard}
-            labels={props.labels}
-            onClose={() => setSelectedCardId(null)}
-            onUpgrade={props.onUpgrade}
-            resources={props.resources}
-            state={props.state}
-          />
-        ) : null}
-      </section>
-    </div>
+      {selectedCard ? (
+        <BossCardDetail
+          card={selectedCard}
+          labels={props.labels}
+          onClose={() => setSelectedCardId(null)}
+          onUpgrade={props.onUpgrade}
+          resources={props.resources}
+          state={props.state}
+        />
+      ) : null}
+    </GameFullscreenModal>
   );
 }
 

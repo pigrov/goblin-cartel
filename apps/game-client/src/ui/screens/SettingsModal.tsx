@@ -1,4 +1,5 @@
-import { RotateCcw, ShieldCheck, X } from "lucide-react";
+import { RotateCcw, ShieldCheck } from "lucide-react";
+import { GameFullscreenModal } from "../components/GameFullscreenModal";
 import type { PlayerDbSyncState } from "../playerDbSyncState";
 
 export type VkIdentityLinkStatus = "idle" | "linking" | "linked" | "unavailable" | "error";
@@ -19,49 +20,49 @@ export function SettingsModal(props: {
   };
 }) {
   return (
-    <div className="modal-backdrop" onClick={props.onClose} role="presentation">
-      <section className="settings-modal" aria-label="Настройки" onClick={(event) => event.stopPropagation()}>
-        <header>
-          <div>
-            <p>Меню</p>
-            <strong>Настройки</strong>
-          </div>
-          <button className="icon-button" onClick={props.onClose} type="button" aria-label="Закрыть">
-            <X size={18} />
-          </button>
-        </header>
-        <div className="settings-list">
-          <div className="settings-row">
-            <span>Рудник</span>
-            <strong>{props.mineTitle}</strong>
-          </div>
-          <div className="settings-row">
-            <span>Контент</span>
-            <strong>{props.contentLabel}</strong>
-          </div>
-          <div className={`settings-row settings-sync-state ${props.playerDbSync.status}`}>
-            <span>Синхронизация</span>
-            <strong>{playerDbSyncLabel(props.playerDbSync)}</strong>
-            <small>{props.playerDbSync.message}</small>
-          </div>
-          <div className={`settings-row settings-vk-state ${props.vkIdentity.status}`}>
-            <span>VK ID</span>
-            <strong>{vkIdentityLabel(props.vkIdentity)}</strong>
-            <small>{props.vkIdentity.message}</small>
-          </div>
-          <label className="settings-toggle">
-            <span>
-              <strong>Pixi dev overlay</strong>
-              <small>FPS, клетки, строки</small>
-            </span>
-            <input
-              checked={props.pixiDevOverlayEnabled}
-              onChange={(event) => props.onPixiDevOverlayChange(event.target.checked)}
-              type="checkbox"
-            />
-          </label>
+    <GameFullscreenModal ariaLabel="Настройки" contentClassName="settings-composite-content" onClose={props.onClose} title="Настройки">
+      <header className="settings-composite-heading">
+        <span>Меню</span>
+        <strong>Параметры игры</strong>
+      </header>
+      <div className="settings-list">
+        <div className="settings-row">
+          <span>Рудник</span>
+          <strong>{props.mineTitle}</strong>
         </div>
-        <button className="settings-action settings-action-secondary" disabled={props.vkIdentity.status === "linking"} onClick={props.onLinkVkIdentity} type="button">
+        <div className="settings-row">
+          <span>Контент</span>
+          <strong>{props.contentLabel}</strong>
+        </div>
+        <div className={`settings-row settings-sync-state ${props.playerDbSync.status}`}>
+          <span>Синхронизация</span>
+          <strong>{playerDbSyncLabel(props.playerDbSync)}</strong>
+          <small>{props.playerDbSync.message}</small>
+        </div>
+        <div className={`settings-row settings-vk-state ${props.vkIdentity.status}`}>
+          <span>VK ID</span>
+          <strong>{vkIdentityLabel(props.vkIdentity)}</strong>
+          <small>{props.vkIdentity.message}</small>
+        </div>
+        <label className="settings-toggle">
+          <span>
+            <strong>Pixi dev overlay</strong>
+            <small>FPS, клетки, строки</small>
+          </span>
+          <input
+            checked={props.pixiDevOverlayEnabled}
+            onChange={(event) => props.onPixiDevOverlayChange(event.target.checked)}
+            type="checkbox"
+          />
+        </label>
+      </div>
+      <div className="settings-composite-actions">
+        <button
+          className="settings-action settings-action-secondary"
+          disabled={props.vkIdentity.status === "linking"}
+          onClick={props.onLinkVkIdentity}
+          type="button"
+        >
           <ShieldCheck size={18} />
           {props.vkIdentity.status === "linking" ? "Подключение VK ID" : "Подключить VK ID"}
         </button>
@@ -69,8 +70,8 @@ export function SettingsModal(props: {
           <RotateCcw size={18} />
           Сбросить шахту
         </button>
-      </section>
-    </div>
+      </div>
+    </GameFullscreenModal>
   );
 }
 
