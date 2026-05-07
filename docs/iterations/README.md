@@ -103,3 +103,5 @@
 - `0098_hire_card_asset_skin` - added configurable content/admin asset skin slots for goblin hire cards, seeded the production asset pack, and wired client cards through asset IDs.
 - `0099_hire_card_simplification` - rebuilt the Goblins screen visual skin with admin-uploaded backgrounds, title plates, hire-card assets, owned-goblin cards, Russo One typography, and gold-only random hire contracts.
 - `0100_resource_hud_icons` - moved resource/stat/control icons into content/admin, added default resource and settings assets, and made the resource bar fully transparent.
+- `0101_fullscreen_modal_system` - packed the new fullscreen modal style into a reusable game component and moved key game modals onto it.
+- `0102_offline_goblin_resume` - fixed stale offline final-hit state that could pause goblin mining after Android app resume, and added foreground/background save hardening.

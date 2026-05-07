@@ -48,6 +48,23 @@ export function useGamePersistence(input: {
   const remoteSaveTimerRef = useRef<number | null>(null);
   const remoteSaveInFlightRef = useRef(false);
   const remoteSavePendingRef = useRef(false);
+  const localSaveInputRef = useRef({
+    activeCell: input.activeCell,
+    bossCardDefinitions: input.bossCardDefinitions,
+    bossCards: input.bossCards,
+    bossEnergy: input.bossEnergy,
+    builtMines: input.builtMines,
+    contentVersion: input.contentVersion,
+    elevatorLevel: input.elevatorLevel,
+    foremanAssignments: input.foremanAssignments,
+    goblinPlacements: input.goblinPlacements,
+    mineCompletionNoticeSeenIds: input.mineCompletionNoticeSeenIds,
+    mineRunStats: input.mineRunStats,
+    platformRow: input.platformRow,
+    roster: input.roster,
+    session: input.session,
+    sessionReady: input.sessionReady
+  });
   const remoteSaveInputRef = useRef({
     bossCardDefinitions: input.bossCardDefinitions,
     builtMines: input.builtMines,
@@ -59,6 +76,23 @@ export function useGamePersistence(input: {
     session: input.session,
     sessionReady: input.sessionReady
   });
+  localSaveInputRef.current = {
+    activeCell: input.activeCell,
+    bossCardDefinitions: input.bossCardDefinitions,
+    bossCards: input.bossCards,
+    bossEnergy: input.bossEnergy,
+    builtMines: input.builtMines,
+    contentVersion: input.contentVersion,
+    elevatorLevel: input.elevatorLevel,
+    foremanAssignments: input.foremanAssignments,
+    goblinPlacements: input.goblinPlacements,
+    mineCompletionNoticeSeenIds: input.mineCompletionNoticeSeenIds,
+    mineRunStats: input.mineRunStats,
+    platformRow: input.platformRow,
+    roster: input.roster,
+    session: input.session,
+    sessionReady: input.sessionReady
+  };
   remoteSaveInputRef.current = {
     bossCardDefinitions: input.bossCardDefinitions,
     builtMines: input.builtMines,
@@ -70,6 +104,31 @@ export function useGamePersistence(input: {
     session: input.session,
     sessionReady: input.sessionReady
   };
+
+  function saveCurrentLocalState(): void {
+    const latest = localSaveInputRef.current;
+
+    if (!latest.sessionReady) {
+      return;
+    }
+
+    saveMiningSession(
+      latest.contentVersion,
+      latest.session,
+      latest.activeCell,
+      latest.platformRow,
+      latest.goblinPlacements,
+      latest.elevatorLevel,
+      latest.foremanAssignments,
+      latest.bossEnergy,
+      latest.builtMines,
+      latest.mineCompletionNoticeSeenIds,
+      latest.mineRunStats,
+      latest.bossCardDefinitions
+    );
+    saveGoblinRoster(latest.contentVersion, latest.roster, latest.bossCardDefinitions);
+    saveStoredBossCards(latest.bossCards, localStorage, latest.bossCardDefinitions, latest.contentVersion);
+  }
 
   function queueRemoteSave(): void {
     if (remoteSaveTimerRef.current !== null) {
@@ -151,6 +210,26 @@ export function useGamePersistence(input: {
     },
     []
   );
+
+  useEffect(() => {
+    function handleVisibilityChange() {
+      if (document.visibilityState === "hidden") {
+        saveCurrentLocalState();
+      }
+    }
+
+    function handlePageHide() {
+      saveCurrentLocalState();
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("pagehide", handlePageHide);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("pagehide", handlePageHide);
+    };
+  }, []);
 
   useEffect(() => {
     if (!input.sessionReady) {

@@ -1,7 +1,12 @@
 import type { ContentBundle } from "@goblin-cartel/content-schemas";
 import type { MiningSession } from "@goblin-cartel/game-core";
 import { describe, expect, it } from "vitest";
-import { createDepthProgressRewards, createPlatformDropEvent } from "./useMiningLoop";
+import {
+  clearOfflineSummaryPendingFinalHit,
+  createDepthProgressRewards,
+  createPlatformDropEvent,
+  isPendingOfflineFinalHitActive
+} from "./useMiningLoop";
 
 describe("useMiningLoop platform drop events", () => {
   it("reports gained meters and total depth for row drops", () => {
@@ -38,6 +43,49 @@ describe("useMiningLoop platform drop events", () => {
     );
 
     expect(rewards).toEqual({ stone: 10 });
+  });
+
+  it("detects stale pending offline final hits", () => {
+    const session = createSessionShape(1, 1);
+    session.blocks = [
+      [
+        { col: 0, destroyed: false, hp: 1, row: 0 },
+        { col: 1, destroyed: true, hp: 0, row: 0 }
+      ]
+    ] as MiningSession["blocks"];
+
+    expect(isPendingOfflineFinalHitActive(session, { row: 0, col: 0 })).toBe(true);
+    expect(isPendingOfflineFinalHitActive(session, { row: 0, col: 1 })).toBe(false);
+    expect(isPendingOfflineFinalHitActive(session, { row: 9, col: 9 })).toBe(false);
+    expect(isPendingOfflineFinalHitActive(session, null)).toBe(false);
+  });
+
+  it("clears pending flag from offline summary without losing rewards", () => {
+    expect(
+      clearOfflineSummaryPendingFinalHit({
+        destroyedBlocks: 2,
+        pendingFinalHit: true,
+        relocationMoves: 1,
+        rewards: { gold: 4 },
+        seconds: 60
+      })
+    ).toEqual({
+      destroyedBlocks: 2,
+      pendingFinalHit: false,
+      relocationMoves: 1,
+      rewards: { gold: 4 },
+      seconds: 60
+    });
+
+    expect(
+      clearOfflineSummaryPendingFinalHit({
+        destroyedBlocks: 0,
+        pendingFinalHit: true,
+        relocationMoves: 0,
+        rewards: {},
+        seconds: 60
+      })
+    ).toBeNull();
   });
 });
 

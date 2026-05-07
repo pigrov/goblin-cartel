@@ -11,7 +11,7 @@ import {
 import { type Dispatch, type SetStateAction, useEffect, useRef, useState } from "react";
 import { assignGoblinWorkers, type GoblinPlacementMap } from "./useGoblinPlacement";
 import type { RuntimeGoblinConfig } from "./goblinRuntimeUnits";
-import type { OfflineMiningSummary } from "./offlineMiningSummary";
+import { createOfflineMiningSummary, type OfflineMiningSummary } from "./offlineMiningSummary";
 
 const autoMiningTickMs = 1000;
 const offlineFinalHitDelayMs = 900;
@@ -116,6 +116,14 @@ export function useMiningLoop(input: {
     }, hitEffectLifetimeMs);
   }
 
+  function clearPendingOfflineFinalHit(session: MiningSession, pendingCell: { row: number; col: number }) {
+    pendingOfflineFinalHitRef.current = null;
+    input.setPendingOfflineFinalHit(null);
+    input.setOfflineSummary(clearOfflineSummaryPendingFinalHit);
+    input.setActiveCell(findExposedCellForPreferred(session, pendingCell));
+    input.setPlatformRow(findPlatformRow(session, pendingCell.row));
+  }
+
   useEffect(() => {
     activeCellRef.current = input.activeCell;
     blockTypesRef.current = input.blockTypes;
@@ -192,12 +200,20 @@ export function useMiningLoop(input: {
 
     const intervalId = window.setInterval(() => {
       input.setSession((current) => {
-        if (pendingOfflineFinalHitRef.current) {
-          return current;
+        const pendingOfflineFinalHit = pendingOfflineFinalHitRef.current;
+        let preferredPlatformRow = platformRowRef.current;
+
+        if (pendingOfflineFinalHit) {
+          if (isPendingOfflineFinalHitActive(current, pendingOfflineFinalHit)) {
+            return current;
+          }
+
+          clearPendingOfflineFinalHit(current, pendingOfflineFinalHit);
+          preferredPlatformRow = findPlatformRow(current, pendingOfflineFinalHit.row);
         }
 
         const currentSelectedCell = findExposedCellForPreferred(current, activeCellRef.current);
-        const nextPlatformStartRow = findPlatformRow(current, platformRowRef.current);
+        const nextPlatformStartRow = findPlatformRow(current, preferredPlatformRow);
         const currentWorkers = assignGoblinWorkers(
           current,
           miningGoblinsRef.current,
@@ -260,9 +276,15 @@ export function useMiningLoop(input: {
 
     const timeoutId = window.setTimeout(() => {
       input.setSession((current) => {
-        const target = current.blocks[input.pendingOfflineFinalHit?.row ?? -1]?.[input.pendingOfflineFinalHit?.col ?? -1];
+        const pendingOfflineFinalHit = input.pendingOfflineFinalHit;
+        const target = current.blocks[pendingOfflineFinalHit?.row ?? -1]?.[pendingOfflineFinalHit?.col ?? -1];
 
-        if (!target || target.destroyed || !input.pendingOfflineFinalHit) {
+        if (!pendingOfflineFinalHit) {
+          return current;
+        }
+
+        if (!target || target.destroyed) {
+          clearPendingOfflineFinalHit(current, pendingOfflineFinalHit);
           return current;
         }
 
@@ -272,12 +294,12 @@ export function useMiningLoop(input: {
           damage: Math.max(1, target.hp)
         });
 
-        spawnHitEffect(input.pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
+        spawnHitEffect(pendingOfflineFinalHit, "boss", Math.max(1, target.hp), next.lastRewards);
         onBlockDestroyedRef.current(next.mine.templateId, next.lastRewards, 1);
         input.onFoundVein(next.lastFoundVein);
         input.onRewardChestBlock(next.blocks[target.row]?.[target.col], next);
 
-        input.setActiveCell(findExposedCellForPreferred(next, input.pendingOfflineFinalHit));
+        input.setActiveCell(findExposedCellForPreferred(next, pendingOfflineFinalHit));
         input.setOfflineSummary((currentSummary) =>
           currentSummary
             ? {
@@ -288,8 +310,9 @@ export function useMiningLoop(input: {
               }
             : null
         );
+        pendingOfflineFinalHitRef.current = null;
         input.setPendingOfflineFinalHit(null);
-        input.setPlatformRow(findPlatformRow(next, input.pendingOfflineFinalHit.row));
+        input.setPlatformRow(findPlatformRow(next, pendingOfflineFinalHit.row));
         return next;
       });
     }, offlineFinalHitDelayMs);
@@ -350,6 +373,32 @@ export function useMiningLoop(input: {
     platformDropAnimating,
     platformDropEvent
   };
+}
+
+export function isPendingOfflineFinalHitActive(
+  session: MiningSession,
+  pendingOfflineFinalHit: { row: number; col: number } | null
+): boolean {
+  if (!pendingOfflineFinalHit) {
+    return false;
+  }
+
+  const target = session.blocks[pendingOfflineFinalHit.row]?.[pendingOfflineFinalHit.col];
+  return Boolean(target && !target.destroyed && target.hp > 0);
+}
+
+export function clearOfflineSummaryPendingFinalHit(summary: OfflineMiningSummary | null): OfflineMiningSummary | null {
+  if (!summary?.pendingFinalHit) {
+    return summary;
+  }
+
+  return createOfflineMiningSummary({
+    destroyedBlocks: summary.destroyedBlocks,
+    pendingFinalHit: false,
+    relocationMoves: summary.relocationMoves,
+    rewards: summary.rewards,
+    seconds: summary.seconds
+  });
 }
 
 export function createPlatformDropEvent(
