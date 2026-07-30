@@ -69,6 +69,8 @@ export interface GameMainContentView {
   goblins: {
     activeRoleTab: GoblinHutRoleTabId;
     availableGoblins: GoblinConfig[];
+    builtMinesCount: number;
+    completedMineTemplateIds: string[];
     hutLevel: number;
     hutLimit: number;
     roster: GoblinRosterState;
@@ -140,6 +142,8 @@ export function GameMainContent(props: {
       <GoblinSection
         activeRoleTab={view.goblins.activeRoleTab}
         availableGoblins={view.goblins.availableGoblins}
+        builtMinesCount={view.goblins.builtMinesCount}
+        completedMineTemplateIds={view.goblins.completedMineTemplateIds}
         content={common.content}
         hutLevel={view.goblins.hutLevel}
         hutLimit={view.goblins.hutLimit}

@@ -151,12 +151,12 @@ export function createContentService(options: { store: ContentStore; now?: () =>
     },
 
     async createVersion(actorAdminUserId, input) {
+      const content = input.content ?? (await contentForNewVersion(options.store));
       const version = await options.store.createVersion({
         version: input.version,
         notes: input.notes ?? null,
         createdBy: actorAdminUserId
       });
-      const content = input.content ?? starterContentBundle;
       await options.store.replaceEntities(version.id, content);
 
       await options.store.writeAuditLog({
@@ -395,6 +395,18 @@ export function createContentService(options: { store: ContentStore; now?: () =>
       };
     }
   };
+}
+
+async function contentForNewVersion(store: ContentStore): Promise<ContentBundle> {
+  const [sourceVersion] = await store.listVersions();
+
+  if (!sourceVersion) {
+    return starterContentBundle;
+  }
+
+  const sourceContent = bundleFromEntities(await store.listEntities(sourceVersion.id));
+  const parsed = contentBundleSchema.safeParse(sourceContent);
+  return parsed.success ? parsed.data : starterContentBundle;
 }
 
 function isEditableContentVersionStatus(status: string): boolean {

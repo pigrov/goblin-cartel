@@ -20,6 +20,12 @@ describe("content schemas", () => {
     expect(result.success ? result.data.skin.cardBase : null).toBe("ui_hire_card_base_common_v1");
   });
 
+  it("keeps separate goblin visual asset slots", () => {
+    for (const goblin of starterContentBundle.goblins.roles) {
+      expect(new Set([goblin.assetId, goblin.hireAssetId, goblin.detailsAssetId]).size).toBe(3);
+    }
+  });
+
   it("rejects duplicate goblin roles", () => {
     const broken = structuredClone(starterContentBundle);
     broken.goblins.roles[1] = {
@@ -46,5 +52,16 @@ describe("content schemas", () => {
     expect(result.ok).toBe(false);
     expect(result.errors).toContain("goblins.roles.miner.hireCost.0 must use gold");
     expect(result.errors).toContain("goblins.roles.miner.levels.1.stars.0.upgradeCost.0 must use gold");
+  });
+
+  it("rejects duplicated goblin visual asset slots", () => {
+    const broken = structuredClone(starterContentBundle);
+    broken.goblins.roles[0]!.assetId = "goblin_hire_miner_v1";
+    broken.goblins.roles[0]!.detailsAssetId = "goblin_hire_miner_v1";
+
+    const result = validateContentBundle(broken);
+
+    expect(result.ok).toBe(false);
+    expect(result.errors).toContain("goblins.roles.miner assetId, hireAssetId and detailsAssetId must be different");
   });
 });

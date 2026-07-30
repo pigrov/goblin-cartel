@@ -1,5 +1,5 @@
 import type { ContentBundle, GoblinConfig } from "@goblin-cartel/content-schemas";
-import { calculateGoblinPrimaryStat, getHiredGoblinCount, type GoblinRosterState } from "@goblin-cartel/game-core";
+import { getHiredGoblinCount, type GoblinRosterState } from "@goblin-cartel/game-core";
 import { ArrowDownUp, Users } from "lucide-react";
 import type { CSSProperties, PointerEvent, ReactNode } from "react";
 import { useMemo, useState } from "react";
@@ -16,6 +16,8 @@ import { createRuntimeGoblinConfigs, type RuntimeGoblinConfig } from "../goblinR
 import { assetUrl } from "../assetUrls";
 import { GameFullscreenModal } from "../components/GameFullscreenModal";
 import goblinDetailsAvatarUrl from "../../assets/goblin-modal/details-avatar.png";
+import modalPanelUrl from "../../assets/goblin-modal/details-panel.png";
+import goblinQueueBackgroundUrl from "../../assets/goblins/goblin-queue-bg.png";
 
 type OwnedGoblinDragState = {
   cardSize: number;
@@ -138,6 +140,8 @@ function baseUpgradeActionLabel(input: { canUpgrade: boolean; hasNextLevel: bool
 export function GoblinSection(props: {
   activeRoleTab: GoblinHutRoleTabId;
   availableGoblins: GoblinConfig[];
+  builtMinesCount: number;
+  completedMineTemplateIds: string[];
   content: ContentBundle;
   hutLevel: number;
   hutLimit: number;
@@ -155,6 +159,7 @@ export function GoblinSection(props: {
   const runtimeGoblins = useMemo(() => createRuntimeGoblinConfigs(props.availableGoblins, props.roster), [props.availableGoblins, props.roster]);
   const selectedGoblin = runtimeGoblins.find((goblin) => goblin.id === selectedGoblinId) ?? null;
   const draggedGoblin = runtimeGoblins.find((goblin) => goblin.id === dragState?.id) ?? null;
+  const goldIconAssetId = props.content.uiIcons.resources.gold ?? "icon_gold_v1";
   const mergeTargetIds = useMemo(() => {
     if (!draggedGoblin || (draggedGoblin.instanceStars ?? 0) >= 5) {
       return new Set<string>();
@@ -164,7 +169,11 @@ export function GoblinSection(props: {
   }, [draggedGoblin, runtimeGoblins]);
   const skin = props.content.goblins.skin;
   const screenStyle = {
-    "--goblin-roster-background": cssAssetUrl(skin.screenBackground)
+    "--goblin-screen-panel": `url("${modalPanelUrl}")`,
+    "--hire-button-disabled": cssAssetUrl(skin.buttons.disabled),
+    "--hire-button-hover": cssAssetUrl(skin.buttons.hover),
+    "--hire-button-normal": cssAssetUrl(skin.buttons.normal),
+    "--hire-button-pressed": cssAssetUrl(skin.buttons.pressed)
   } as CSSProperties;
 
   function handleOwnedGoblinPointerDown(event: PointerEvent<HTMLButtonElement>, goblin: RuntimeGoblinConfig) {
@@ -227,68 +236,75 @@ export function GoblinSection(props: {
   }
 
   return (
-    <section className="goblin-roster" style={screenStyle}>
-      <section className="goblin-contract-panel">
-        <header className="goblin-contract-title-plaque" style={{ "--hire-title-plate": cssAssetUrl(skin.titlePlate) } as CSSProperties}>
-          <span>НАЙМ ГОБЛИНОВ</span>
-        </header>
+    <section className="goblin-roster goblin-screen" style={screenStyle}>
+      <section className="goblin-screen-visual" aria-label="Найм гоблинов">
+        <img alt="" className="goblin-screen-bg" draggable={false} src={goblinQueueBackgroundUrl} />
+        <div className="goblin-screen-ambient" />
+        <div className="goblin-screen-role-strip">
+          {props.availableGoblins.map((goblin) => {
+            const preview = createGoblinHirePreview({
+              builtMinesCount: props.builtMinesCount,
+              completedMineTemplateIds: props.completedMineTemplateIds,
+              goblin,
+              goblinHut: props.content.goblinHut,
+              goblins: props.availableGoblins,
+              resources: props.resources,
+              roster: props.roster
+            });
 
-        <div className="goblin-contract-grid">
-          {props.availableGoblins.map((goblin) => (
-            <GoblinHireCard
-              content={props.content}
-              goblin={goblin}
-              key={goblin.id}
-              labels={props.labels}
-              onHire={() => props.onHireGoblin(goblin.id)}
-              preview={createGoblinHirePreview({
-                builtMinesCount: 0,
-                completedMineTemplateIds: [],
-                goblin,
-                goblinHut: props.content.goblinHut,
-                goblins: props.availableGoblins,
-                resources: props.resources,
-                roster: props.roster
-              })}
-            />
-          ))}
+            return (
+              <GoblinHireStripCard
+                goblin={goblin}
+                goldIconAssetId={goldIconAssetId}
+                key={goblin.id}
+                onHire={() => props.onHireGoblin(goblin.id)}
+                preview={preview}
+              />
+            );
+          })}
         </div>
       </section>
 
-      <section className="owned-goblins">
-        <header className="goblin-contract-title-plaque" style={{ "--hire-title-plate": cssAssetUrl(skin.titlePlate) } as CSSProperties}>
-          <span>ВАШИ ГОБЛИНЫ {getHiredGoblinCount(props.roster)}/{props.hutLimit}</span>
-        </header>
+      <section className="goblin-screen-panel" aria-label="Ваши гоблины">
+        <div className="goblin-screen-content">
+          <section className="owned-goblins goblin-screen-owned-goblins">
+            <header className="goblin-contract-title-plaque" style={{ "--hire-title-plate": cssAssetUrl(skin.titlePlate) } as CSSProperties}>
+              <span>ВАШИ ГОБЛИНЫ {getHiredGoblinCount(props.roster)}/{props.hutLimit}</span>
+            </header>
 
-        <div className="owned-goblin-grid">
-          {runtimeGoblins.map((goblin) => {
-            const isMergeSource = dragState?.id === goblin.id;
-            const isMergeTarget = mergeTargetIds.has(goblin.id);
-            const ownedGoblinStyle = {
-              "--owned-goblin-card-base": cssAssetUrl(skin.ownedCards.base)
-            } as CSSProperties;
+            <div className="owned-goblin-grid">
+              {runtimeGoblins.map((goblin) => {
+                const isMergeSource = dragState?.id === goblin.id;
+                const isMergeTarget = mergeTargetIds.has(goblin.id);
+                const ownedGoblinStyle = {
+                  "--owned-goblin-card-base": cssAssetUrl(skin.ownedCards.base)
+                } as CSSProperties;
 
-            return (
-            <button
-              className={`owned-goblin ${canUpgradeOwnedGoblin(goblin, props) ? "can-upgrade" : ""} ${isMergeSource ? "merge-source" : ""} ${isMergeTarget ? "merge-target" : ""}`}
-              data-owned-goblin-id={goblin.id}
-              key={goblin.id}
-              onPointerCancel={() => setDragState(null)}
-              onPointerDown={(event) => handleOwnedGoblinPointerDown(event, goblin)}
-              onPointerMove={(event) => handleOwnedGoblinPointerMove(event, goblin)}
-              onPointerUp={(event) => handleOwnedGoblinPointerUp(event, goblin)}
-              style={ownedGoblinStyle}
-              type="button"
-            >
-              <span className="owned-goblin-level">{goblin.instanceLevel ?? 1}</span>
-              {canUpgradeOwnedGoblin(goblin, props) ? (
-                <SkinAssetIcon assetId={skin.ownedCards.upgradeArrow} className="owned-goblin-upgrade" />
-              ) : null}
-              <SkinAssetIcon assetId={goblin.assetId} className="owned-goblin-render" />
-              <OwnedGoblinStars starIconAssetId={skin.ownedCards.starIcon} stars={goblin.instanceStars ?? 0} />
-            </button>
-            );
-          })}
+                return (
+                  <button
+                    className={`owned-goblin ${canUpgradeOwnedGoblin(goblin, props) ? "can-upgrade" : ""} ${isMergeSource ? "merge-source" : ""} ${isMergeTarget ? "merge-target" : ""}`}
+                    data-owned-goblin-id={goblin.id}
+                    key={goblin.id}
+                    onPointerCancel={() => setDragState(null)}
+                    onPointerDown={(event) => handleOwnedGoblinPointerDown(event, goblin)}
+                    onPointerMove={(event) => handleOwnedGoblinPointerMove(event, goblin)}
+                    onPointerUp={(event) => handleOwnedGoblinPointerUp(event, goblin)}
+                    style={ownedGoblinStyle}
+                    type="button"
+                  >
+                    <span className="owned-goblin-level">{goblin.instanceLevel ?? 1}</span>
+                    {canUpgradeOwnedGoblin(goblin, props) ? (
+                      <SkinAssetIcon assetId={skin.ownedCards.upgradeArrow} className="owned-goblin-upgrade" />
+                    ) : null}
+                    <SkinAssetIcon assetId={goblin.assetId} className="owned-goblin-render" />
+                    <OwnedGoblinStars starIconAssetId={skin.ownedCards.starIcon} stars={goblin.instanceStars ?? 0} />
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+
+          {props.rosterMessage ? <p className="roster-message">{props.rosterMessage}</p> : null}
         </div>
       </section>
 
@@ -311,8 +327,6 @@ export function GoblinSection(props: {
           <OwnedGoblinStars starIconAssetId={skin.ownedCards.starIcon} stars={draggedGoblin.instanceStars ?? 0} />
         </div>
       ) : null}
-
-      {props.rosterMessage ? <p className="roster-message">{props.rosterMessage}</p> : null}
 
       {selectedGoblin ? (
         <GoblinDetailsModal
@@ -359,53 +373,46 @@ function OwnedGoblinStars(props: { starIconAssetId?: string; stars: number }) {
   );
 }
 
-function GoblinHireCard(props: {
-  content: ContentBundle;
+function GoblinHireStripCard(props: {
   goblin: GoblinConfig;
-  labels: Record<string, string>;
+  goldIconAssetId: string;
   onHire: () => void;
   preview: ReturnType<typeof createGoblinHirePreview>;
 }) {
-  const skin = props.content.goblins.skin;
-  const identity = createGoblinIdentity(props.goblin, props.labels);
-  const primaryStat = calculateGoblinPrimaryStat(props.goblin, 1, 0);
-  const goldIcon = props.content.uiIcons.resources.gold ?? "icon_gold_v1";
-  const statIcon = props.content.uiIcons.stats[props.goblin.statKey];
-  const cost = props.preview.costRequirements.find((item) => item.resourceId === "gold")?.required ?? 0;
+  const goldCost = props.preview.costRequirements.find((requirement) => requirement.resourceId === "gold")?.required ?? 0;
 
   return (
-    <article
-      className="goblin-contract-card skinned"
-      style={
-        {
-          "--hire-button-disabled": cssAssetUrl(skin.buttons.disabled),
-          "--hire-button-hover": cssAssetUrl(skin.buttons.hover),
-          "--hire-button-normal": cssAssetUrl(skin.buttons.normal),
-          "--hire-button-pressed": cssAssetUrl(skin.buttons.pressed),
-          "--hire-card-base": cssAssetUrl(skin.cardBase)
-        } as CSSProperties
-      }
-    >
-      <div className="goblin-contract-role">
-        <strong>{identity.name}</strong>
-      </div>
-      <SkinAssetIcon assetId={props.goblin.assetId} className="goblin-contract-render" />
-      <div className="goblin-contract-statline primary">
-        <small>{props.labels[props.goblin.statNameKey] ?? statLabel(props.goblin.statKey)}</small>
-        <span>
-          <SkinAssetIcon assetId={statIcon} />
-          {primaryStat}
+    <article className="goblin-screen-role-card">
+      <div className="goblin-screen-role-title">
+        <strong>{roleLabel(props.goblin.role)}</strong>
+        <span className="goblin-screen-role-price">
+          <SkinAssetIcon assetId={props.goldIconAssetId} />
+          {formatInteger(goldCost)}
         </span>
       </div>
-      <button disabled={!props.preview.canHire} onClick={props.onHire} type="button">
-        <span>НАНЯТЬ</span>
-        <span className="goblin-contract-button-cost">
-          <SkinAssetIcon assetId={goldIcon} />
-          {cost}
-        </span>
+      <SkinAssetIcon assetId={goblinHireAssetId(props.goblin)} className="goblin-screen-role-art" />
+      <button disabled={!props.preview.canHire} onClick={props.onHire} title={goblinHireButtonTitle(props.preview.failureReason)} type="button">
+        {"\u041d\u0410\u041d\u042f\u0422\u042c"}
       </button>
     </article>
   );
+}
+
+function goblinHireButtonTitle(reason: ReturnType<typeof createGoblinHirePreview>["failureReason"]): string | undefined {
+  switch (reason) {
+    case "hut_limit":
+      return "\u041b\u0438\u043c\u0438\u0442 \u0425\u0438\u0436\u0438\u043d\u044b \u0437\u0430\u043f\u043e\u043b\u043d\u0435\u043d";
+    case "locked":
+      return "\u0423\u0441\u043b\u043e\u0432\u0438\u044f \u043d\u0430\u0439\u043c\u0430 \u0435\u0449\u0435 \u043d\u0435 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u044b";
+    case "not_enough_resources":
+      return "\u041d\u0435 \u0445\u0432\u0430\u0442\u0430\u0435\u0442 \u0437\u043e\u043b\u043e\u0442\u0430";
+    case "role_locked":
+      return "\u0420\u043e\u043b\u044c \u0435\u0449\u0435 \u043d\u0435 \u043e\u0442\u043a\u0440\u044b\u0442\u0430 \u0425\u0438\u0436\u0438\u043d\u043e\u0439";
+    case null:
+      return undefined;
+    default:
+      return "\u041d\u0430\u0439\u043c \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d";
+  }
 }
 
 function GoblinDetailsModal(props: {
@@ -422,11 +429,12 @@ function GoblinDetailsModal(props: {
   const statName = props.labels[props.goblin.statNameKey] ?? statLabel(props.goblin.statKey);
   const goldIcon = props.content.uiIcons.resources.gold ?? "icon_gold_v1";
   const upgradeCost = preview.costRequirements.find((item) => item.resourceId === "gold");
+  const avatarSrc = assetUrl(goblinDetailsAssetId(props.goblin)) ?? goblinDetailsAvatarUrl;
 
   return (
     <GameFullscreenModal
       ariaLabel="Информация о гоблине"
-      avatarSrc={goblinDetailsAvatarUrl}
+      avatarSrc={avatarSrc}
       contentClassName="goblin-details-info-content"
       onClose={props.onClose}
       title={roleLabel(props.goblin.role)}
@@ -504,6 +512,14 @@ function canMergeOwnedGoblins(source: RuntimeGoblinConfig, target: RuntimeGoblin
   );
 }
 
+function goblinHireAssetId(goblin: GoblinConfig): string {
+  return goblin.hireAssetId?.trim() || goblin.assetId;
+}
+
+function goblinDetailsAssetId(goblin: GoblinConfig): string {
+  return goblin.detailsAssetId?.trim() || goblin.assetId;
+}
+
 function SkinAssetIcon(props: { assetId: string; className?: string }) {
   const url = assetUrl(props.assetId);
 
@@ -517,6 +533,10 @@ function SkinAssetIcon(props: { assetId: string; className?: string }) {
 function cssAssetUrl(assetId: string): string {
   const url = assetUrl(assetId);
   return url ? `url("${url}")` : "none";
+}
+
+function formatInteger(value: number): string {
+  return new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Math.max(0, Math.floor(value)));
 }
 
 function statLabel(stat: GoblinConfig["statKey"]): string {

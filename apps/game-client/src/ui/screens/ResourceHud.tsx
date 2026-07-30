@@ -25,7 +25,6 @@ export function ResourceHud(props: {
   onMenuOpen: () => void;
   onResourceClick: (tooltip: ResourceTooltipPayload) => void;
   onTooltipClose: () => void;
-  resourceChipFrameAssetId: string;
   resourceIconAssetIds: Record<string, string>;
   settingsButtonFrameAssetId: string;
   settingsIconAssetId: string;
@@ -35,7 +34,6 @@ export function ResourceHud(props: {
   const resourceById = new Map(props.displayedResources.map((resource) => [resource.id, resource]));
   const style = {
     "--resource-bar-frame": `url("${resourceBarFrameUrl}")`,
-    "--resource-chip-frame": cssAssetUrl(props.resourceChipFrameAssetId),
     "--settings-button-frame": cssAssetUrl(props.settingsButtonFrameAssetId),
     "--settings-button-icon": `url("${settingsIconImageUrl}")`
   } as CSSProperties;

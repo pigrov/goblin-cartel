@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, type FederatedPointerEvent } from "pixi.js";
+import { Container, Graphics, type FederatedPointerEvent } from "pixi.js";
 import type { MiningSession } from "@goblin-cartel/game-core";
 import {
   cellKey,
@@ -66,7 +66,6 @@ export function drawPlatform(input: {
 
   platform.addChild(drawPlatformDeck(input.layout, stage, platformSkin));
   drawGoblinTargetHighlights(input);
-  drawColumnTacticHints(input.root, input.layout, input.columnHints);
 
   for (let col = 0; col < input.mineWidth; col += 1) {
     const block = input.blocks[input.currentPlatformRow]?.[col];
@@ -126,9 +125,6 @@ export function drawPlatform(input: {
     });
 
     platform.addChild(goblinNode);
-    const statusBadge = drawGoblinStatusBadge(goblin.status ?? (goblin.working ? "working" : "idle"));
-    statusBadge.position.set(x, y - 11);
-    platform.addChild(statusBadge);
     input.animatedGoblins.push({
       baseY: y,
       node: goblinNode,
@@ -147,64 +143,6 @@ export function drawPlatform(input: {
     phase: 0,
     working: false
   };
-}
-
-function drawColumnTacticHints(root: Container, layout: MinePixiLayout, hints: readonly MinePixiColumnTacticHint[]) {
-  for (const hint of hints) {
-    const x = layout.gridX + hint.col * layout.rowStep + layout.cellSize / 2;
-    const y = layout.gridY + hint.row * layout.rowStep + 4;
-    const colors = tacticHintColors(hint.state, hint.hasTagBonus);
-    const hintNode = new Container();
-    const label = new Text({
-      style: {
-        fill: colors.text,
-        fontFamily: "Inter, Arial, sans-serif",
-        fontSize: 9,
-        fontWeight: "900"
-      },
-      text: hint.label
-    });
-    const detail = new Text({
-      style: {
-        fill: colors.detail,
-        fontFamily: "Inter, Arial, sans-serif",
-        fontSize: 7,
-        fontWeight: "800"
-      },
-      text: normalizeHintDetail(hint.detail)
-    });
-    const width = Math.max(30, Math.min(layout.cellSize - 2, Math.ceil(Math.max(label.width, detail.width)) + 10));
-    const height = detail.text ? 22 : 16;
-
-    hintNode.position.set(x - width / 2, y);
-    label.anchor.set(0.5, 0);
-    label.position.set(width / 2, 3);
-    detail.anchor.set(0.5, 0);
-    detail.position.set(width / 2, 13);
-    hintNode.addChild(
-      new Graphics()
-        .roundRect(0, 0, width, height, 6)
-        .fill({ color: colors.fill, alpha: 0.9 })
-        .stroke({ color: colors.stroke, alpha: 0.96, width: hint.state === "weak" ? 1.7 : 1.2 })
-    );
-    hintNode.addChild(label);
-
-    if (detail.text) {
-      hintNode.addChild(detail);
-    }
-
-    if (hint.hasTagBonus) {
-      hintNode.addChild(
-        new Graphics()
-          .circle(width - 4, 4, 3)
-          .fill({ color: 0xf2b84b, alpha: 0.98 })
-          .circle(width - 4, 4, 1.4)
-          .fill({ color: 0x1b2715, alpha: 0.72 })
-      );
-    }
-
-    root.addChild(hintNode);
-  }
 }
 
 function drawPlatformDeck(layout: MinePixiLayout, stage: MinePixiElevatorVisualStage, skin: PlatformSkin): Graphics {
@@ -250,45 +188,6 @@ function drawPlatformDeck(layout: MinePixiLayout, stage: MinePixiElevatorVisualS
   }
 
   return deck;
-}
-
-function tacticHintColors(
-  state: MinePixiColumnTacticHint["state"],
-  hasTagBonus: boolean
-): { detail: number; fill: number; stroke: number; text: number } {
-  if (state === "best") {
-    return {
-      detail: 0xdbffc9,
-      fill: hasTagBonus ? 0x274117 : 0x1f351c,
-      stroke: hasTagBonus ? 0xf2b84b : 0x91c86c,
-      text: 0xf6fff0
-    };
-  }
-
-  if (state === "good") {
-    return { detail: 0xffefbf, fill: 0x413718, stroke: 0xf0d386, text: 0xfff8df };
-  }
-
-  if (state === "weak") {
-    return { detail: 0xffd0b5, fill: 0x4a2018, stroke: 0xff8b5f, text: 0xfff1e7 };
-  }
-
-  return {
-    detail: 0xd8f5ff,
-    fill: hasTagBonus ? 0x29361c : 0x1c3143,
-    stroke: hasTagBonus ? 0xf2b84b : 0x68c6c8,
-    text: 0xffffff
-  };
-}
-
-function normalizeHintDetail(value: string): string {
-  const trimmed = value.trim();
-
-  if (trimmed.length <= 10) {
-    return trimmed;
-  }
-
-  return `${trimmed.slice(0, 9)}.`;
 }
 
 function drawPlatformCables(platform: Container, layout: MinePixiLayout, skin: PlatformSkin): Container[] {
@@ -419,45 +318,6 @@ export function drawDragPreview(input: {
   preview.position.set(input.dragState.point.x, input.dragState.point.y - input.layout.platformHeight * 0.55);
   preview.scale.set(preview.scale.x * 1.16);
   input.root.addChild(preview);
-}
-
-function drawGoblinStatusBadge(status: "idle" | "waiting" | "working"): Container {
-  const label = status === "working" ? "БЬЕТ" : status === "waiting" ? "НЕТ" : "ЖДЕТ";
-  const colors = statusColors(status);
-  const badge = new Container();
-  const text = new Text({
-    style: {
-      fill: colors.text,
-      fontFamily: "Inter, Arial, sans-serif",
-      fontSize: 8,
-      fontWeight: "800"
-    },
-    text: label
-  });
-  const width = Math.max(27, Math.ceil(text.width) + 10);
-
-  text.anchor.set(0.5);
-  text.position.set(0, -0.5);
-  badge.addChild(
-    new Graphics()
-      .roundRect(-width / 2, -7, width, 14, 5)
-      .fill({ color: colors.fill, alpha: 0.9 })
-      .stroke({ color: colors.stroke, alpha: 0.95, width: 1 })
-  );
-  badge.addChild(text);
-  return badge;
-}
-
-function statusColors(status: "idle" | "waiting" | "working"): { fill: number; stroke: number; text: number } {
-  if (status === "working") {
-    return { fill: 0x25351e, stroke: 0x91c86c, text: 0xcaf7a9 };
-  }
-
-  if (status === "waiting") {
-    return { fill: 0x3b2a1b, stroke: 0xf2b84b, text: 0xffe0a0 };
-  }
-
-  return { fill: 0x1f3143, stroke: 0x68c6c8, text: 0xc9f6ff };
 }
 
 interface PlatformSkin {

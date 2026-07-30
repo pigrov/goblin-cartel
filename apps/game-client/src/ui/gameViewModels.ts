@@ -40,6 +40,7 @@ export interface CreateGameViewModelsInput {
   bossSecondsUntilReady: number;
   builtMineMessage: string | null;
   builtMineUpgradePreviews: ReadonlyMap<string, BuiltMineUpgradePreview>;
+  builtMinesCount: number;
   canStartNextMine: boolean;
   chestRewardFlyouts: ChestRewardFlyout[];
   clockNow: number;
@@ -169,6 +170,8 @@ function createMainContentView(input: CreateGameViewModelsInput): GameMainConten
     goblins: {
       activeRoleTab: input.goblinRoleTab,
       availableGoblins: input.availableGoblins,
+      builtMinesCount: input.builtMinesCount,
+      completedMineTemplateIds: input.completedMineTemplateIds,
       hutLevel: input.goblinHutProgression.levelNow,
       hutLimit: input.goblinHutProgression.maxHiredGoblins,
       roster: input.roster,

@@ -195,6 +195,8 @@ export const goblinRoleConfigSchema = z
     statKey: goblinPrimaryStatSchema,
     statNameKey: z.string().min(1),
     assetId: z.string().min(1),
+    hireAssetId: z.string().min(1).optional(),
+    detailsAssetId: z.string().min(1).optional(),
     hireCost: z.array(resourceAmountSchema).default([]),
     levels: z.array(goblinProgressionLevelSchema).min(1),
     unlockRequirements: z.array(goblinUnlockRequirementSchema).default([]),
@@ -938,7 +940,9 @@ export const starterContentBundle: ContentBundle = {
         descriptionKey: "goblin.miner.description",
         statKey: "power",
         statNameKey: "goblin.stat.power",
-        assetId: "goblin_hire_miner_v1",
+        assetId: "goblin_owned_miner_v1",
+        hireAssetId: "goblin_hire_miner_v1",
+        detailsAssetId: "goblin_details_miner_v1",
         hireCost: [],
         levels: createStarterGoblinLevels(
           [
@@ -958,7 +962,9 @@ export const starterContentBundle: ContentBundle = {
         descriptionKey: "goblin.collector.description",
         statKey: "speed",
         statNameKey: "goblin.stat.speed",
-        assetId: "goblin_hire_builder_v1",
+        assetId: "goblin_owned_collector_v1",
+        hireAssetId: "goblin_hire_collector_v1",
+        detailsAssetId: "goblin_details_collector_v1",
         hireCost: [{ resourceId: "gold", amount: 300 }],
         levels: createStarterGoblinLevels(
           [
@@ -978,7 +984,9 @@ export const starterContentBundle: ContentBundle = {
         descriptionKey: "goblin.foreman.description",
         statKey: "control",
         statNameKey: "goblin.stat.control",
-        assetId: "goblin_hire_foreman_v1",
+        assetId: "goblin_owned_foreman_v1",
+        hireAssetId: "goblin_hire_foreman_v1",
+        detailsAssetId: "goblin_details_foreman_v1",
         hireCost: [{ resourceId: "gold", amount: 900 }],
         levels: createStarterGoblinLevels(
           [
@@ -1476,6 +1484,7 @@ function validateGoblins(
     validateLocalizationKey(goblin.statNameKey, "ru", ruLocalization, errors);
     validateGoldResourceAmounts(`goblins.roles.${goblin.id}.hireCost`, goblin.hireCost, resourceIds, errors);
     validateUnlockRequirements(`goblins.roles.${goblin.id}.unlockRequirements`, goblin.unlockRequirements, resourceIds, mineTemplateIds, errors);
+    validateGoblinVisualAssetIds(goblin, errors);
 
     if (goblin.statKey !== expectedStats[goblin.role]) {
       errors.push(`goblins.roles.${goblin.id}.statKey must be ${expectedStats[goblin.role]}`);
@@ -1488,6 +1497,21 @@ function validateGoblins(
     if (!seenRoles.has(role)) {
       errors.push(`goblins.roles is missing ${role}`);
     }
+  }
+}
+
+function validateGoblinVisualAssetIds(goblin: GoblinRoleConfig, errors: string[]): void {
+  const visualAssetIds = [goblin.assetId, goblin.hireAssetId, goblin.detailsAssetId].filter(
+    (assetId): assetId is string => typeof assetId === "string" && assetId.trim().length > 0
+  );
+
+  if (visualAssetIds.length !== 3) {
+    errors.push(`goblins.roles.${goblin.id} must define assetId, hireAssetId and detailsAssetId`);
+    return;
+  }
+
+  if (new Set(visualAssetIds).size !== visualAssetIds.length) {
+    errors.push(`goblins.roles.${goblin.id} assetId, hireAssetId and detailsAssetId must be different`);
   }
 }
 

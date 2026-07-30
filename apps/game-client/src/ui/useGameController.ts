@@ -471,6 +471,7 @@ export function useGameController() {
     bossSecondsUntilReady,
     builtMineMessage,
     builtMineUpgradePreviews,
+    builtMinesCount: builtMines.length,
     canStartNextMine,
     chestRewardFlyouts,
     clockNow,
@@ -583,7 +584,6 @@ export function useGameController() {
       onMenuOpen: () => setSettingsOpen(true),
       onResourceClick: showResourceTooltip,
       onTooltipClose: () => setResourceTooltip(null),
-      resourceChipFrameAssetId: contentState.content.goblins.skin.resourceChipFrame ?? "ui_resource_chip_frame_v1",
       resourceIconAssetIds:
         contentState.content.uiIcons?.resources ??
         Object.fromEntries(contentState.content.resources.map((resource) => [resource.id, resource.iconAssetId])),

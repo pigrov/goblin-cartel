@@ -156,6 +156,41 @@ describe("content service", () => {
     expect(store.auditLogs.map((log) => log.action)).toContain("admin.content.version.create");
   });
 
+  it("creates the next draft from the latest saved version content", async () => {
+    const store = new MemoryContentStore();
+    const service = createContentService({
+      store,
+      now: () => new Date("2026-04-29T12:00:00.000Z")
+    });
+    const first = await service.createVersion("admin-1", {
+      version: "0.2.4"
+    });
+    const goblinHut = structuredClone(first.content.goblinHut);
+    const changedLevel = goblinHut.levels[1];
+
+    if (!changedLevel) {
+      throw new Error("Missing starter hut level");
+    }
+
+    changedLevel.maxHiredGoblins = 4;
+
+    await service.updateEntity("admin-1", first.version.id, {
+      entity: goblinHut,
+      entityId: "default",
+      entityType: "goblinHut",
+      localization: {
+        [goblinHut.nameKey]: "Saved hut"
+      }
+    });
+
+    const second = await service.createVersion("admin-1", {
+      version: "0.2.5"
+    });
+
+    expect(second.content.goblinHut.levels[1]?.maxHiredGoblins).toBe(4);
+    expect(second.content.localization.ru?.[goblinHut.nameKey]).toBe("Saved hut");
+  });
+
   it("validates and publishes current content", async () => {
     const store = new MemoryContentStore();
     const service = createContentService({

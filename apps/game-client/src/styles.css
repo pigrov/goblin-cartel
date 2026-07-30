@@ -2272,9 +2272,7 @@ body,
   justify-content: center;
   gap: 3px;
   border: 0;
-  background:
-    var(--hire-button-normal) center / 100% 100% no-repeat,
-    linear-gradient(180deg, #b65e34, #7c3524);
+  background: var(--hire-button-normal) center / 100% 100% no-repeat;
   color: var(--gc-heading);
   line-height: 1.02;
   text-shadow: var(--gc-heading-shadow);
@@ -2301,15 +2299,11 @@ body,
 }
 
 .goblin-contract-card.skinned button:hover:not(:disabled) {
-  background:
-    var(--hire-button-hover) center / 100% 100% no-repeat,
-    linear-gradient(180deg, #bf713d, #824028);
+  background: var(--hire-button-hover) center / 100% 100% no-repeat;
 }
 
 .goblin-contract-card.skinned button:active:not(:disabled) {
-  background:
-    var(--hire-button-pressed) center / 100% 100% no-repeat,
-    linear-gradient(180deg, #8c4428, #5c2a1d);
+  background: var(--hire-button-pressed) center / 100% 100% no-repeat;
 }
 
 .goblin-contract-card button:disabled {
@@ -2319,9 +2313,7 @@ body,
 }
 
 .goblin-contract-card.skinned button:disabled {
-  background:
-    var(--hire-button-disabled) center / 100% 100% no-repeat,
-    var(--gc-panel-raised);
+  background: var(--hire-button-disabled) center / 100% 100% no-repeat;
 }
 
 .owned-goblin {
@@ -3515,6 +3507,288 @@ body,
   width: 0;
   height: 0;
   display: none;
+}
+
+.goblin-screen {
+  --hire-button-disabled: none;
+  --hire-button-hover: none;
+  --hire-button-normal: none;
+  --hire-button-pressed: none;
+  --goblin-screen-panel-top: calc(56px + 240px - 33px);
+  position: relative;
+  min-height: 0;
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background: #050403;
+}
+
+.goblin-screen-visual {
+  position: absolute;
+  inset: 0 0 auto;
+  height: min(100%, 100vw);
+  overflow: hidden;
+  background: #050403;
+}
+
+.goblin-screen-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  pointer-events: none;
+  user-select: none;
+}
+
+.goblin-screen-ambient {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at center 18%, rgb(255 190 74 / 16%), transparent 28%),
+    linear-gradient(180deg, rgb(0 0 0 / 6%), rgb(0 0 0 / 38%));
+  pointer-events: none;
+}
+
+.goblin-screen-role-strip {
+  --goblin-role-side-offset: 20%;
+  position: absolute;
+  top: 50px;
+  left: 0;
+  right: 0;
+  z-index: 1;
+  height: 205px;
+  display: grid;
+  grid-auto-columns: calc((100% - var(--goblin-role-side-offset) - 24px) / 2);
+  grid-auto-flow: column;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 12px 8px var(--goblin-role-side-offset);
+  scroll-padding-left: var(--goblin-role-side-offset);
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.goblin-screen-role-strip::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.goblin-screen-role-card {
+  min-width: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: 42px minmax(0, 1fr) 30px;
+  gap: 3px;
+  scroll-snap-align: start;
+  text-align: center;
+}
+
+.goblin-screen-role-title {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: 24px 16px;
+  gap: 2px;
+}
+
+.goblin-screen-role-card strong,
+.goblin-screen-role-card button {
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgb(196 148 82 / 58%);
+  color: var(--gc-heading);
+  line-height: 1;
+  text-overflow: ellipsis;
+  text-shadow: var(--gc-heading-shadow);
+  white-space: nowrap;
+  background:
+    linear-gradient(180deg, rgb(255 231 168 / 14%), rgb(0 0 0 / 28%)),
+    rgb(46 32 19 / 78%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 240 188 / 18%),
+    0 2px 5px rgb(0 0 0 / 42%);
+}
+
+.goblin-screen-role-card strong {
+  padding: 0 7px;
+  font-size: 13px;
+  text-transform: uppercase;
+}
+
+.goblin-screen-role-price {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-self: center;
+  gap: 3px;
+  max-width: 100%;
+  min-height: 0;
+  padding: 0 6px;
+  overflow: hidden;
+  border-radius: 20px;
+  background: rgb(0 0 0 / 42%);
+  box-shadow: inset 0 1px 1px rgb(0 0 0 / 42%);
+  color: var(--gc-heading);
+  font-size: 12px;
+  line-height: 1;
+  text-shadow: var(--gc-heading-shadow);
+  white-space: nowrap;
+}
+
+.goblin-screen-role-price .skin-asset-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.goblin-screen-role-card button {
+  width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 8px;
+  border: 0;
+  background: var(--hire-button-normal, none) center / 100% 100% no-repeat;
+  box-shadow: none;
+  color: var(--gc-heading);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.02;
+  text-shadow: var(--gc-heading-shadow);
+  text-transform: uppercase;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.goblin-screen-role-card button:hover:not(:disabled) {
+  background: var(--hire-button-hover, none) center / 100% 100% no-repeat;
+}
+
+.goblin-screen-role-card button:active:not(:disabled) {
+  background: var(--hire-button-pressed, none) center / 100% 100% no-repeat;
+  transform: translateY(1px);
+}
+
+.goblin-screen-role-card button:disabled {
+  background: var(--hire-button-disabled, none) center / 100% 100% no-repeat;
+  cursor: not-allowed;
+}
+
+.goblin-screen-owned-goblins > .goblin-contract-title-plaque span {
+  font-size: 16px;
+}
+
+.goblin-screen-role-art {
+  width: 128px;
+  max-width: 100%;
+  height: 128px;
+  max-height: 100%;
+  align-self: end;
+  display: block;
+  justify-self: center;
+  object-fit: contain;
+  object-position: center bottom;
+  filter:
+    drop-shadow(0 7px 8px rgb(0 0 0 / 58%))
+    drop-shadow(0 0 9px rgb(255 175 77 / 14%));
+  pointer-events: none;
+  user-select: none;
+}
+
+.goblin-screen-panel {
+  position: absolute;
+  top: var(--goblin-screen-panel-top);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: grid;
+  min-height: 0;
+  padding: 30px 18px 18px;
+  background: var(--goblin-screen-panel) center top / 100% 100% no-repeat;
+  overflow: hidden;
+}
+
+.goblin-screen-content {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.goblin-screen-content::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
+}
+
+.goblin-screen-content header {
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  text-align: center;
+}
+
+.goblin-screen-content header span,
+.goblin-screen-content header strong {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--gc-heading);
+  text-overflow: ellipsis;
+  text-shadow: var(--gc-heading-shadow);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.goblin-screen-content header span {
+  color: #c7b28a;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.goblin-screen-content header strong {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.goblin-screen-content-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 8px 12px;
+  padding: 10px 12px;
+  border: 1px solid rgb(199 178 138 / 18%);
+  background: rgb(0 0 0 / 18%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 6%);
+}
+
+.goblin-screen-content-grid span,
+.goblin-screen-content-grid strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--gc-heading);
+  font-size: 13px;
+  line-height: 1.05;
+  text-overflow: ellipsis;
+  text-shadow: var(--gc-heading-shadow);
+  white-space: nowrap;
+}
+
+.goblin-screen-content-grid span {
+  color: #c7b28a;
 }
 
 .goblin-details-info-content {
